@@ -20,7 +20,7 @@ export default function ResetPasswordScreen() {
     setSubmitting(true);
     setMessage('');
     try {
-      await authApi.requestPasswordReset({ email });
+      await authApi.requestPasswordReset({ email: email.trim() });
       setCodeRequested(true);
       setCodeVerified(false);
       setMessage('Reset code requested. Check your email.');
@@ -35,7 +35,7 @@ export default function ResetPasswordScreen() {
     setSubmitting(true);
     setMessage('');
     try {
-      await authApi.verifyPasswordResetOtp({ email, code });
+      await authApi.verifyPasswordResetOtp({ email: email.trim(), code });
       setCodeVerified(true);
       setMessage('Code verified. Enter your new password to finish.');
     } catch (error) {
@@ -55,7 +55,7 @@ export default function ResetPasswordScreen() {
     setSubmitting(true);
     setMessage('');
     try {
-      await authApi.resetPassword({ email, code, newPassword });
+      await authApi.resetPassword({ email: email.trim(), code, newPassword });
       setCodeRequested(false);
       setCodeVerified(false);
       setMessage('Password updated. Go back and sign in.');

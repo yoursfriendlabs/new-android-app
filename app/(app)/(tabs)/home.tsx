@@ -17,6 +17,7 @@ import {
   useExpenseInsights,
   useProfitLossAnalytics,
   useRecentPurchases,
+  useRecentServices,
   useBanks,
 } from '@/src/hooks/useAppQueries';
 import { canAccessSegment } from '@/src/lib/business';
@@ -123,6 +124,7 @@ export default function HomeScreen() {
   const profitLossQuery = useProfitLossAnalytics(range);
   const expenseInsightsQuery = useExpenseInsights(range);
   const recentPurchasesQuery = useRecentPurchases();
+  const recentServicesQuery = useRecentServices();
   useBanks(); // keeps hook active for cache syncing
 
   const [refreshing, setRefreshing] = useState(false);
@@ -138,15 +140,17 @@ export default function HomeScreen() {
 
   // Dynamic Transaction History
   const recentPurchases = recentPurchasesQuery.data;
+  const recentServices = recentServicesQuery.data;
 
   const recentTransactions = useMemo(() => {
-    return [
+    const list = [
       ...(canAccessSegment(accessContext, 'pos')
         ? (summary?.recentSales ?? []).map((sale) => ({
             id: `sale-${sale.id}`,
             label: 'sale' as const,
-            title: sale.invoiceNo || 'Walk-in customer',
-            subtitle: sale.saleDate || 'Today',
+            title: `Sale #${sale.invoiceNo || sale.id.slice(-6)}`,
+            subtitle: (sale.partyName as string) || (sale.customerName as string) || (sale.partyId ? 'Customer' : 'Walk-in Customer'),
+            rawDate: sale.saleDate || '',
             amount: Number(sale.grandTotal ?? 0),
             positive: true,
             route: '/(app)/(tabs)/pos' as const,
@@ -155,11 +159,11 @@ export default function HomeScreen() {
       ...(recentPurchases ?? []).map((item) => ({
         id: `${item.entryType}-${item.id}`,
         label: item.entryType,
-        title:
-          item.partyName ||
-          item.invoiceNo ||
-          (item.entryType === 'expense' ? 'Expense entry' : 'Purchase entry'),
-        subtitle: item.purchaseDate || 'Today',
+        title: item.entryType === 'expense'
+          ? `Expense #${item.invoiceNo || item.id.slice(-6)}`
+          : `Purchase #${item.invoiceNo || item.id.slice(-6)}`,
+        subtitle: (item.partyName as string) || (item.entryType === 'expense' ? (item.notes as string) || 'General Expense' : 'Supplier'),
+        rawDate: item.purchaseDate || '',
         amount: Number(item.grandTotal ?? 0),
         positive: false,
         route:
@@ -167,8 +171,23 @@ export default function HomeScreen() {
             ? ('/(app)/(tabs)/expenses' as const)
             : ('/(app)/purchases' as const),
       })),
-    ].slice(0, 6);
-  }, [summary, recentPurchases, accessContext]);
+      ...(canAccessSegment(accessContext, 'services')
+        ? (recentServices ?? []).map((service) => ({
+            id: `service-${service.id}`,
+            label: 'service' as const,
+            title: `Service #${service.orderNo || service.id.slice(-6)}`,
+            subtitle: (service.partyName as string) || (service.customerName as string) || (service.notes as string) || (service.partyId ? 'Customer' : 'Walk-in Customer'),
+            rawDate: service.deliveryDate || '',
+            amount: Number(service.grandTotal ?? 0),
+            positive: true,
+            route: '/(app)/(tabs)/services' as const,
+          }))
+        : []),
+    ];
+
+    // Sort by rawDate descending and limit to 6
+    return list.sort((a, b) => b.rawDate.localeCompare(a.rawDate)).slice(0, 6);
+  }, [summary, recentPurchases, recentServices, accessContext]);
 
   // Fallback transaction list if database has no entries
   const displayTransactions = useMemo(() => {
@@ -177,8 +196,8 @@ export default function HomeScreen() {
         id: item.id,
         label: item.label,
         title: item.title,
-        subtitle: item.title === 'Walk-in customer' ? 'Cash Sale' : item.subtitle,
-        dateText: prettyDate(item.subtitle),
+        subtitle: item.subtitle,
+        dateText: prettyDate(item.rawDate),
         amount: item.amount,
         positive: item.positive,
         route: item.route,
@@ -217,6 +236,7 @@ export default function HomeScreen() {
         profitLossQuery.refetch(),
         expenseInsightsQuery.refetch(),
         recentPurchasesQuery.refetch(),
+        recentServicesQuery.refetch(),
       ]);
     } catch (e) {
       console.warn(e);
@@ -422,6 +442,7 @@ export default function HomeScreen() {
               // Decide which logo to render based on the transaction type/source
               const isSalesOrQR =
                 item.label === 'sale' ||
+                item.label === 'service' ||
                 item.title.toLowerCase().includes('qr') ||
                 item.title.toLowerCase().includes('nepalpay');
 

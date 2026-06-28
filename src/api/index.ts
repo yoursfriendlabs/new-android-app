@@ -48,6 +48,10 @@ import type {
   TaskCreatePayload,
   TaskUpdatePayload,
   TaskCommentPayload,
+  StaffSalaryCreatePayload,
+  SalaryRecordsResponse,
+  AttendanceResponse,
+  AttendanceHistoryResponse,
 } from '@/src/types/contracts';
 import type {
   BankAccount,
@@ -79,6 +83,8 @@ import type {
   TaskActivity,
   TaskMetadata,
   TaskNotificationSummary,
+  Attendance,
+  StaffSalaryRecord,
 } from '@/src/types/models';
 
 export const authApi = {
@@ -204,6 +210,35 @@ export const staffApi = {
       body: payload,
     }),
   remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/staff/${id}` }),
+  listSalaryRecords: (membershipId: string) =>
+    apiRequest<SalaryRecordsResponse>({ path: `/api/staff/${membershipId}/salary-records` }),
+  createSalaryRecord: (membershipId: string, payload: StaffSalaryCreatePayload) =>
+    apiRequest<{ success: boolean; record: StaffSalaryRecord }, StaffSalaryCreatePayload>({
+      method: 'POST',
+      path: `/api/staff/${membershipId}/salary-records`,
+      body: payload,
+    }),
+  deleteSalaryRecord: (membershipId: string, recordId: string) =>
+    apiRequest<{ success: boolean }>({
+      method: 'DELETE',
+      path: `/api/staff/${membershipId}/salary-records/${recordId}`,
+    }),
+  getTodayAttendance: () =>
+    apiRequest<AttendanceResponse>({ path: '/api/staff/attendance/today' }),
+  punchIn: (payload: { latitude?: number; longitude?: number }) =>
+    apiRequest<{ message: string; attendance: Attendance }, { latitude?: number; longitude?: number }>({
+      method: 'POST',
+      path: '/api/staff/attendance/punch-in',
+      body: payload,
+    }),
+  punchOut: (payload: { latitude?: number; longitude?: number }) =>
+    apiRequest<{ message: string; attendance: Attendance }, { latitude?: number; longitude?: number }>({
+      method: 'POST',
+      path: '/api/staff/attendance/punch-out',
+      body: payload,
+    }),
+  getAttendanceHistory: (query: { from?: string; to?: string; businessUserId?: string } = {}) =>
+    apiRequest<AttendanceHistoryResponse>({ path: '/api/staff/attendance/history', query }),
 };
 
 export const productsApi = {

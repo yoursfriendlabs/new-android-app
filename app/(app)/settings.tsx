@@ -26,6 +26,30 @@ export default function SettingsScreen() {
   });
   const [message, setMessage] = useState('');
   const [signingOut, setSigningOut] = useState(false);
+  const [geofencingForm, setGeofencingForm] = useState(() => ({
+    officeLatitude: businessSettings?.officeLatitude !== null && businessSettings?.officeLatitude !== undefined ? String(businessSettings.officeLatitude) : '',
+    officeLongitude: businessSettings?.officeLongitude !== null && businessSettings?.officeLongitude !== undefined ? String(businessSettings.officeLongitude) : '',
+    officeRadiusMeters: businessSettings?.officeRadiusMeters !== null && businessSettings?.officeRadiusMeters !== undefined ? String(businessSettings.officeRadiusMeters) : '100',
+  }));
+  const [geofenceMessage, setGeofenceMessage] = useState('');
+
+  async function handleGeofencingSave() {
+    setGeofenceMessage('');
+    try {
+      const nextSettings = {
+        ...(businessSettings ?? {}),
+        officeLatitude: geofencingForm.officeLatitude.trim() ? Number(geofencingForm.officeLatitude) : null,
+        officeLongitude: geofencingForm.officeLongitude.trim() ? Number(geofencingForm.officeLongitude) : null,
+        officeRadiusMeters: geofencingForm.officeRadiusMeters.trim() ? Number(geofencingForm.officeRadiusMeters) : null,
+      };
+      await updateSettings(nextSettings);
+      await metaApi.updateBusinessSettings(nextSettings);
+      setGeofenceMessage('Geofencing settings updated.');
+    } catch (error) {
+      setGeofenceMessage(error instanceof Error ? error.message : 'Save geofencing settings failed');
+    }
+  }
+
   const accessContext = {
     role: session?.role ?? user?.role ?? null,
     permissions: accessControl?.permissions ?? user?.permissions,
@@ -123,6 +147,42 @@ export default function SettingsScreen() {
           <Text style={styles.primaryButtonLabel}>Save profile</Text>
         </Pressable>
       </SurfaceCard>
+
+      {canOpenOwnerTools ? (
+        <SurfaceCard
+          title="Attendance Geofencing"
+          subtitle="Configure geofencing rules for staff check-in/out. If coordinates are blank, geofencing is disabled.">
+          <FormField
+            label="Office Latitude"
+            value={geofencingForm.officeLatitude}
+            onChangeText={(lat) => setGeofencingForm((current) => ({ ...current, officeLatitude: lat }))}
+            keyboardType="numeric"
+            placeholder="e.g. 27.7172"
+          />
+          <FormField
+            label="Office Longitude"
+            value={geofencingForm.officeLongitude}
+            onChangeText={(lon) => setGeofencingForm((current) => ({ ...current, officeLongitude: lon }))}
+            keyboardType="numeric"
+            placeholder="e.g. 85.3240"
+          />
+          <FormField
+            label="Office Radius (meters)"
+            value={geofencingForm.officeRadiusMeters}
+            onChangeText={(rad) => setGeofencingForm((current) => ({ ...current, officeRadiusMeters: rad }))}
+            keyboardType="numeric"
+            placeholder="e.g. 100"
+          />
+          {geofenceMessage ? (
+            <Text style={[styles.message, geofenceMessage.includes('failed') && { color: palette.danger }, { marginBottom: spacing.sm }]}>
+              {geofenceMessage}
+            </Text>
+          ) : null}
+          <Pressable style={styles.primaryButton} onPress={() => void handleGeofencingSave()}>
+            <Text style={styles.primaryButtonLabel}>Save Geofencing Settings</Text>
+          </Pressable>
+        </SurfaceCard>
+      ) : null}
 
       <SurfaceCard
         title="Permissions"

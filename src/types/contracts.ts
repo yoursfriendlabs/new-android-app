@@ -29,6 +29,8 @@ import type {
   Unit,
   UploadResult,
   User,
+  Attendance,
+  StaffSalaryRecord,
 } from '@/src/types/models';
 
 export interface RegisterPayload {
@@ -155,7 +157,12 @@ export interface StaffCreatePayload {
   role?: string;
   isActive?: boolean;
   pin?: string;
-  permissions?: string[];
+  permissions?: string[] | Record<string, string>;
+  password?: string;
+  staffCategory?: string;
+  jobTitle?: string;
+  salary?: number;
+  hasLogin?: boolean;
 }
 
 export type StaffUpdatePayload = Partial<StaffCreatePayload>;
@@ -263,7 +270,20 @@ export interface UploadAttachmentsResponse {
   [key: string]: unknown;
 }
 export interface OrderAttributeListResponse extends PaginatedResponse<OrderAttribute> {}
-export interface StaffListResponse extends PaginatedResponse<StaffMember> {}
+export interface StaffListResponse extends PaginatedResponse<StaffMember> {
+  members?: StaffMember[];
+  summary?: {
+    totalUsers: number;
+    maxUsers: number;
+    isLimitReached: boolean;
+    remainingSeats: number;
+  };
+  meta?: {
+    accessLevels: { key: string }[];
+    features: { key: string; label: string; description: string }[];
+    categories: any[];
+  };
+}
 export interface ProfitLossAnalyticsResponse extends ProfitLossAnalytics {}
 export interface ExpenseAnalyticsResponse extends ExpenseAnalytics {}
 export interface PopularCategoriesResponse extends PaginatedResponse<PopularCategoryInsight> {}
@@ -287,6 +307,26 @@ export type TaskUpdatePayload = Partial<TaskCreatePayload>;
 
 export interface TaskCommentPayload {
   content: string;
+}
+
+export interface StaffSalaryCreatePayload {
+  amount: number;
+  type: 'salary' | 'advance';
+  date: string;
+  monthYear: string;
+  note?: string;
+}
+
+export interface SalaryRecordsResponse {
+  records: StaffSalaryRecord[];
+}
+
+export interface AttendanceResponse {
+  attendance: Attendance | null;
+}
+
+export interface AttendanceHistoryResponse {
+  history: Attendance[];
 }
 
 

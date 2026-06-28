@@ -70,7 +70,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fullHeight: {
-    height: '86%',
+    height: '100%',
+    maxHeight: '100%',
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
   },
   handle: {
     width: 48,

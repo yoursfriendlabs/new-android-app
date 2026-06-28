@@ -558,7 +558,8 @@ export function normalizeUploadResult(raw: unknown): UploadResult {
 }
 
 export function normalizeInventorySummary(raw: unknown): InventorySummary {
-  const record = asRecord(raw) ?? {};
+  const entity = unwrapEntity<unknown>(raw);
+  const record = asRecord(entity) ?? {};
   return {
     ...(record as InventorySummary),
     totalProducts: asNumber(firstDefined(record.totalProducts, record.productCount)),

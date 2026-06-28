@@ -85,6 +85,24 @@ const QUICK_LINKS: QuickLink[] = [
     bgColor: palette.accentSoft,
     route: '/(app)/expense-categories',
   },
+  {
+    segment: 'owner-tools',
+    label: 'Staff Directory',
+    subtitle: 'Manage team and payroll settings',
+    icon: 'account-multiple-plus',
+    color: palette.purple,
+    bgColor: palette.purpleSoft,
+    route: '/(app)/staff',
+  },
+  {
+    segment: 'home',
+    label: 'Attendance check',
+    subtitle: 'Daily check-in / check-out',
+    icon: 'map-marker-radius',
+    color: palette.success,
+    bgColor: palette.successSoft,
+    route: '/(app)/attendance',
+  },
 ];
 
 export default function MoreScreen() {

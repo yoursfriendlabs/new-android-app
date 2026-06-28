@@ -256,14 +256,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   login: async (payload) => {
-    const response = await authApi.login(payload);
-    const parsed = parseAuthResponse(response, payload.email);
+    const email = payload.email.trim();
+    const cleanPayload = { ...payload, email };
+    const response = await authApi.login(cleanPayload);
+    const parsed = parseAuthResponse(response, email);
 
     if (!parsed.session) {
       set({
         status: 'signed-out',
         accessControl: null,
-        pendingVerification: parsed.requiresVerification ? { email: parsed.verificationEmail || payload.email } : null,
+        pendingVerification: parsed.requiresVerification ? { email: parsed.verificationEmail || email } : null,
       });
       return parsed.requiresVerification ? 'verify-email' : 'signed-in';
     }
@@ -282,14 +284,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return 'signed-in';
   },
   register: async (payload) => {
-    const response = await authApi.register(payload);
-    const parsed = parseAuthResponse(response, payload.email);
+    const email = payload.email.trim();
+    const cleanPayload = { ...payload, email };
+    const response = await authApi.register(cleanPayload);
+    const parsed = parseAuthResponse(response, email);
 
     if (!parsed.session) {
       set({
         status: 'signed-out',
         accessControl: null,
-        pendingVerification: { email: parsed.verificationEmail || payload.email },
+        pendingVerification: { email: parsed.verificationEmail || email },
       });
       return 'verify-email';
     }
@@ -308,15 +312,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return 'signed-in';
   },
   requestEmailOtp: async (email) => {
-    await authApi.requestEmailOtp({ email });
-    set({ pendingVerification: { email } });
+    const cleanEmail = email.trim();
+    await authApi.requestEmailOtp({ email: cleanEmail });
+    set({ pendingVerification: { email: cleanEmail } });
   },
   verifyEmailOtp: async (payload) => {
-    const response = await authApi.verifyEmailOtp(payload);
-    const parsed = parseAuthResponse(response as AuthResponseShape, payload.email);
+    const email = payload.email.trim();
+    const cleanPayload = { ...payload, email };
+    const response = await authApi.verifyEmailOtp(cleanPayload);
+    const parsed = parseAuthResponse(response as AuthResponseShape, email);
 
     if (!parsed.session) {
-      set({ pendingVerification: { email: payload.email } });
+      set({ pendingVerification: { email } });
       return 'verify-email';
     }
 

@@ -47,6 +47,9 @@ export default function AppLayout() {
       <Stack.Screen name="inventory" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="owner-tools" />
+      <Stack.Screen name="staff" />
+      <Stack.Screen name="staff-salary" />
+      <Stack.Screen name="attendance" />
 
     </Stack>
   );

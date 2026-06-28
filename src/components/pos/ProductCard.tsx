@@ -63,44 +63,34 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
   return (
     <View style={[styles.card, quantity > 0 && styles.cardActive]}>
       <View style={styles.headerRow}>
-        <View style={[styles.stockBadge, { backgroundColor: stockTone.backgroundColor }]}>
-          <Text style={[styles.stockBadgeLabel, { color: stockTone.color }]}>{stockTone.label}</Text>
+        <View style={styles.categoryBadge}>
+          <Text numberOfLines={1} style={styles.categoryBadgeLabel}>
+            {product.categoryName || 'General'}
+          </Text>
         </View>
         {quantity > 0 ? (
           <View style={styles.selectedBadge}>
-            <MaterialCommunityIcons color={palette.primary} name="cart" size={14} />
+            <MaterialCommunityIcons color={palette.primary} name="cart" size={12} />
             <Text style={styles.selectedBadgeLabel}>{quantity} in cart</Text>
           </View>
         ) : (
-          <Pressable style={styles.infoButton} onPress={showInfo}>
-            <MaterialCommunityIcons color={palette.textSoft} name="information-outline" size={20} />
-          </Pressable>
+          <Text style={[styles.stockTextHeader, { color: stockTone.color }]}>
+            Stock {product.stockOnHand ?? 0}
+          </Text>
         )}
       </View>
 
-      <View style={styles.identityRow}>
-        <View style={styles.thumbnail}>
-          <Text style={styles.thumbnailLabel}>{product.name.slice(0, 1).toUpperCase()}</Text>
-        </View>
-        <View style={styles.identityCopy}>
-          <Text numberOfLines={1} style={styles.category}>
-            {product.categoryName || 'General item'}
-          </Text>
-          <Text numberOfLines={2} style={styles.title}>
-            {product.name}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.priceRow}>
-        <View style={styles.priceCopy}>
-          <Text style={styles.price}>{formatCurrency(product.salePrice)}</Text>
-          <Text style={styles.unit}>per {product.primaryUnit}</Text>
-        </View>
-        <Text style={styles.stockText}>
-          {product.stockOnHand ?? 0} {product.primaryUnit}
+      <Pressable style={styles.bodyPressable} onPress={showInfo}>
+        <Text numberOfLines={2} style={styles.cleanTitle}>
+          {product.name}
         </Text>
-      </View>
+        <Text style={styles.cleanUnit}>
+          per {product.primaryUnit || 'unit'}
+        </Text>
+        <Text style={styles.cleanPrice}>
+          {formatCurrency(product.salePrice)}
+        </Text>
+      </Pressable>
 
       {quantity > 0 ? (
         <View style={styles.counter}>
@@ -131,6 +121,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     gap: spacing.xs,
+    justifyContent: 'space-between',
   },
   cardActive: {
     borderColor: palette.primary,
@@ -141,104 +132,69 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: spacing.xs,
+    marginBottom: 2,
   },
-  stockBadge: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
+  categoryBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    maxWidth: '55%',
   },
-  stockBadgeLabel: {
-    fontSize: typography.caption,
-    fontWeight: '800',
+  categoryBadgeLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  stockTextHeader: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   selectedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: radius.pill,
     backgroundColor: palette.backgroundAlt,
   },
   selectedBadgeLabel: {
     color: palette.primary,
-    fontSize: typography.caption,
+    fontSize: 10,
     fontWeight: '800',
   },
-  infoButton: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
+  bodyPressable: {
+    flex: 1,
+    gap: 2,
   },
-  identityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
+  cleanTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: palette.text,
+    lineHeight: 18,
   },
-  thumbnail: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: palette.backgroundAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cleanUnit: {
+    fontSize: 11,
+    color: palette.textMuted,
+    marginTop: 2,
   },
-  thumbnailLabel: {
-    fontSize: 16,
+  cleanPrice: {
+    fontSize: 15,
     fontWeight: '800',
     color: palette.primary,
-  },
-  identityCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  category: {
-    fontSize: typography.caption,
-    fontWeight: '700',
-    color: palette.textSoft,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  title: {
-    fontSize: typography.body,
-    fontWeight: '800',
-    lineHeight: 18,
-    color: palette.text,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  priceCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  price: {
-    fontSize: typography.subheading,
-    fontWeight: '800',
-    color: palette.text,
-  },
-  unit: {
-    fontSize: typography.caption,
-    color: palette.textMuted,
-  },
-  stockText: {
-    fontSize: typography.caption,
-    fontWeight: '700',
-    color: palette.textMuted,
+    marginTop: 4,
+    marginBottom: 4,
   },
   addButton: {
-    minHeight: 40,
+    minHeight: 38,
     backgroundColor: palette.backgroundAlt,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
+    marginTop: 4,
   },
   addLabel: {
     fontSize: typography.label,
@@ -248,11 +204,12 @@ const styles = StyleSheet.create({
   counter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
+    marginTop: 4,
   },
   counterButton: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     borderRadius: radius.pill,
     backgroundColor: palette.backgroundAlt,
     alignItems: 'center',

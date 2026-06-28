@@ -59,6 +59,9 @@ export interface BusinessSettings {
   counterMode?: boolean;
   taxEnabled?: boolean;
   lowStockAlert?: boolean;
+  officeLatitude?: string | number | null;
+  officeLongitude?: string | number | null;
+  officeRadiusMeters?: number | null;
   [key: string]: unknown;
 }
 
@@ -582,6 +585,33 @@ export interface TaskNotificationSummary {
     createdByMeOpen: number;
   };
   recentActivities: TaskActivity[];
+}
+
+export interface StaffSalaryRecord {
+  id: string;
+  businessId: string;
+  staffMembershipId: string;
+  amount: number | string;
+  type: 'salary' | 'advance';
+  date: string;
+  monthYear: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface Attendance {
+  id: string;
+  businessId: string;
+  businessUserId: string;
+  date: string;
+  punchInTime: string;
+  punchOutTime?: string | null;
+  punchInLatitude?: number | null;
+  punchInLongitude?: number | null;
+  punchOutLatitude?: number | null;
+  punchOutLongitude?: number | null;
+  status: 'present' | 'absent' | string;
+  BusinessUser?: StaffMember;
 }
 
 
