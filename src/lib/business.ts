@@ -11,21 +11,24 @@ export type AppCapability =
   | 'ledger'
   | 'inventory'
   | 'owner-tools'
-  | 'tasks';
+  | 'tasks'
+  | 'tables';
 
 export interface AccessContext {
   role?: string | null;
   permissions?: string[] | Record<string, string> | string | null;
   enabledModules?: string[] | string | null;
   accessControl?: AccessControl | null;
+  businessType?: string | null;
 }
 
 type PermissionCarrier =
-  | (Pick<User, 'role' | 'permissions'> & { enabledModules?: string[] | null; accessControl?: AccessControl | null })
+  | (Pick<User, 'role' | 'permissions'> & { enabledModules?: string[] | null; accessControl?: AccessControl | null; businessType?: string | null })
   | Pick<StaffMember, 'role' | 'permissions'>
   | AccessContext
   | null
   | undefined;
+
 
 interface CapabilityDefinition {
   key: AppCapability;
@@ -101,6 +104,12 @@ export const capabilityDefinitions: CapabilityDefinition[] = [
     description: 'Collaborate on team tasks and check updates',
     aliases: ['tasks', 'task', 'notifications', 'activities', 'activity'],
   },
+  {
+    key: 'tables',
+    label: 'Table Management',
+    description: 'Manage dining/cafe tables and seat assignments',
+    aliases: ['tables', 'table', 'seating', 'orders'],
+  },
 ];
 
 function normalizePermissionToken(value: string) {
@@ -162,13 +171,21 @@ function isModuleScopedCapability(capability: AppCapability) {
     capability === 'services' ||
     capability === 'purchases' ||
     capability === 'parties' ||
-    capability === 'inventory'
+    capability === 'inventory' ||
+    capability === 'tables'
   );
 }
 
 function isModuleEnabled(user: PermissionCarrier, capability: AppCapability) {
   if (!isModuleScopedCapability(capability)) {
     return true;
+  }
+
+  if (capability === 'tables') {
+    const bizType = user && typeof user === 'object' && 'businessType' in user ? (user as any).businessType : null;
+    if (bizType === 'cafe') {
+      return true;
+    }
   }
 
   const enabledModules = resolveEnabledModules(user);
@@ -232,11 +249,29 @@ export function getCapabilitySummary(user: PermissionCarrier) {
 }
 
 export function canAccessSegment(user: PermissionCarrier, segment?: string) {
+  const role = user && typeof user === 'object' && 'role' in user ? (user as any).role : null;
+  const accessControl = user && typeof user === 'object' && 'accessControl' in user ? (user as any).accessControl : null;
+  const isGeneralStaff = role === 'staff' || accessControl?.staffCategory === 'general_staff';
+
+  if (isGeneralStaff) {
+    return (
+      segment === 'attendance-tab' ||
+      segment === 'salary-tab' ||
+      segment === 'attendance' ||
+      segment === 'staff-salary'
+    );
+  }
+
   switch (segment) {
     case 'pos':
     case 'invoice':
     case 'print-preview':
       return hasAppCapability(user, 'pos');
+    case 'orders':
+    case 'seating':
+    case 'tables':
+    case 'cashier':
+      return hasAppCapability(user, 'tables');
     case 'quick-entry':
     case 'sales':
       return hasAppCapability(user, 'quick-entry') || hasAppCapability(user, 'pos');

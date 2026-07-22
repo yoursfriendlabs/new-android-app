@@ -169,6 +169,7 @@ export default function ExpenseCategoriesScreen() {
         title="Edit Category Name"
         subtitle="Rename this category label template."
         onClose={() => setEditingCategory(null)}
+        fullHeight
         footer={
           <View style={styles.sheetFooterActions}>
             <Pressable

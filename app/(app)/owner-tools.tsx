@@ -397,6 +397,7 @@ export default function OwnerToolsScreen() {
         title={editingStaff ? 'Edit staff member' : 'Add staff member'}
         subtitle="Name, role, contact, and mobile permissions are sent directly to the backend."
         onClose={() => setStaffSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void saveStaff()}>
             <Text style={styles.primaryButtonLabel}>{editingStaff ? 'Save staff' : 'Create staff'}</Text>
@@ -442,6 +443,7 @@ export default function OwnerToolsScreen() {
         title={editingAttribute ? 'Edit custom field' : 'Add custom field'}
         subtitle="These fields are rendered in sale or service forms and submitted as attributes."
         onClose={() => setAttributeSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void saveAttribute()}>
             <Text style={styles.primaryButtonLabel}>{editingAttribute ? 'Save field' : 'Create field'}</Text>
@@ -469,6 +471,7 @@ export default function OwnerToolsScreen() {
         title="Edit subscription"
         subtitle="This writes a partial PATCH payload back to the subscription endpoint."
         onClose={() => setSubscriptionSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void saveSubscription()}>
             <Text style={styles.primaryButtonLabel}>Save subscription</Text>

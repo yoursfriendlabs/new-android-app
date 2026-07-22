@@ -89,6 +89,8 @@ export default function StaffDirectoryScreen() {
   const [permissions, setPermissions] = useState<Record<string, string>>({});
   const [customPermissionsEnabled, setCustomPermissionsEnabled] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [shiftStarted, setShiftStarted] = useState('09:00');
+  const [shiftEnded, setShiftEnded] = useState('17:00');
 
   // Mutations
   const createMutation = useMutation({
@@ -142,6 +144,8 @@ export default function StaffDirectoryScreen() {
     setPermissions({});
     setCustomPermissionsEnabled(false);
     setIsEditing(false);
+    setShiftStarted('09:00');
+    setShiftEnded('17:00');
   };
 
   const handleOpenAdd = () => {
@@ -170,6 +174,8 @@ export default function StaffDirectoryScreen() {
     setJobTitle(member.jobTitle || '');
     setSalary(member.salary ? String(member.salary) : '');
     setHasLogin(member.hasLogin !== false);
+    setShiftStarted(member.shiftStarted || '09:00');
+    setShiftEnded(member.shiftEnded || '17:00');
     
     // Check if the current permissions are different from preset default permissions
     const preset = staffData?.meta?.categories?.find(c => c.key === (member.staffCategory || 'general_staff'));
@@ -241,6 +247,8 @@ export default function StaffDirectoryScreen() {
         salary: salary ? Number(salary) : undefined,
         hasLogin,
         permissions,
+        shiftStarted: shiftStarted.trim() || undefined,
+        shiftEnded: shiftEnded.trim() || undefined,
       };
 
       if (!isEditing && hasLogin && password) {
@@ -368,6 +376,7 @@ export default function StaffDirectoryScreen() {
                     <Text style={styles.memberName}>{member.name}</Text>
                     <Text style={styles.memberTitle}>
                       {member.jobTitle || 'No Job Title'}
+                      {member.shiftStarted && member.shiftEnded ? `  •  ${member.shiftStarted} - ${member.shiftEnded}` : ''}
                     </Text>
                     <View style={styles.tagWrap}>
                       <View style={styles.presetTag}>
@@ -466,6 +475,7 @@ export default function StaffDirectoryScreen() {
         title={isEditing ? 'Edit Staff Member' : 'Invite Staff Member'}
         subtitle="Manage credentials, presets, and customized app access levels."
         onClose={() => setFormSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
@@ -490,6 +500,16 @@ export default function StaffDirectoryScreen() {
           </View>
 
           <FormField label="Job Title" value={jobTitle} onChangeText={setJobTitle} placeholder="e.g. Counter Billing Cashier" />
+
+          <View style={styles.formRow}>
+            <View style={{ flex: 1 }}>
+              <FormField label="Shift Starts (HH:MM)" value={shiftStarted} onChangeText={setShiftStarted} placeholder="e.g. 09:00" />
+            </View>
+            <View style={{ width: spacing.md }} />
+            <View style={{ flex: 1 }}>
+              <FormField label="Shift Ends (HH:MM)" value={shiftEnded} onChangeText={setShiftEnded} placeholder="e.g. 17:00" />
+            </View>
+          </View>
 
           {/* Preset Dropdown list */}
           <Text style={styles.fieldLabel}>Staff Role Preset</Text>

@@ -14,10 +14,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { normalizeSale, unwrapEntity } from '@/src/api/normalize';
+import { normalizeSale, unwrapEntity, extractListItems } from '@/src/api/normalize';
 import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
@@ -35,7 +35,8 @@ import { TotalsCard } from '@/src/components/ui/TotalsCard';
 import { buildReceiptHtml } from '@/src/lib/receipt';
 import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/lib/format';
-import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts } from '@/src/hooks/useAppQueries';
+import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts, useTables } from '@/src/hooks/useAppQueries';
+import { salesApi, tablesApi } from '@/src/api';
 import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/hooks/useDraftState';
 import { useIsTablet } from '@/src/hooks/useIsTablet';
@@ -72,6 +73,7 @@ export default function PosScreen() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
+
   const [search, setSearch] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [category, setCategory] = useState('All');
@@ -92,6 +94,179 @@ export default function PosScreen() {
   const { isReady, reset, setValue, value } = useDraftState<PosDraft>('draft:pos', createEmptyPosDraft());
   const { subTotal, taxTotal, grandTotal, cartItemCount } = usePosTotals(value);
   const { updateCart } = usePosCart(products, setValue);
+
+  const { tableId: paramTableId } = useLocalSearchParams<{ tableId?: string }>();
+  const { data: tables = [] } = useTables();
+  const [activeTableId, setActiveTableId] = useState<string | null>(null);
+  const [orderType, setOrderType] = useState<'takeaway' | 'delivery' | 'dine_in'>('takeaway');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [tableModalVisible, setTableModalVisible] = useState(false);
+
+  const loadTableDraft = useCallback(async (tableId: string) => {
+    try {
+      const res = await salesApi.list({ limit: 120 });
+      const dueSales = extractListItems<Sale>(res).filter(
+        (s) => s.tableId === tableId && s.status === 'due'
+      );
+
+      if (dueSales.length > 0) {
+        const draftSale = dueSales[0];
+        const fullSale = await salesApi.get(draftSale.id);
+        setEditingId(fullSale.id);
+        setValue({
+          invoiceNo: fullSale.invoiceNo,
+          saleDate: fullSale.saleDate,
+          party: fullSale.partyId ? ({ id: fullSale.partyId, name: fullSale.partyName || 'Customer', type: 'customer' } as any) : null,
+          notes: fullSale.notes || '',
+          attributes: (fullSale.attributes as any) || {},
+          attachments: fullSale.attachments || [],
+          discount: fullSale.discount || 0,
+          taxOverride: fullSale.taxTotal || undefined,
+          paymentMethod: (fullSale.paymentMethod as any) || 'cash',
+          bankId: fullSale.bankId,
+          paymentNote: fullSale.paymentNote || '',
+          amountReceived: fullSale.amountReceived || 0,
+          fullyPaid: fullSale.status === 'paid',
+          items: (fullSale.items || []).map((item: any) => ({
+            productId: item.productId,
+            name: item.name || item.productName || 'Product',
+            quantity: item.quantity,
+            unit: item.unitType || 'primary',
+            unitType: (item.unitType as any) || 'primary',
+            unitPrice: item.unitPrice,
+            taxRate: item.taxRate || 0,
+            ...(() => {
+              const prod = (products ?? []).find(p => p.id === item.productId);
+              return {
+                primaryUnit: prod?.primaryUnit || item.unitType || 'primary',
+                secondaryUnit: prod?.secondaryUnit,
+                secondaryConversionRate: prod?.secondaryConversionRate || item.conversionRate,
+              };
+            })()
+          }))
+        });
+      } else {
+        setEditingId(null);
+        void reset(createEmptyPosDraft());
+        await tablesApi.update(tableId, { status: 'occupied' });
+        await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+      }
+    } catch (err) {
+      console.error('Failed to load table draft', err);
+    }
+  }, [products, queryClient, reset, setValue]);
+
+  const handleSelectTable = async (tableId: string | null, type: 'takeaway' | 'delivery' | 'dine_in') => {
+    setTableModalVisible(false);
+    setActiveTableId(tableId);
+    setOrderType(type);
+    if (type === 'dine_in' && tableId) {
+      await loadTableDraft(tableId);
+    } else {
+      setEditingId(null);
+      void reset(createEmptyPosDraft());
+    }
+  };
+
+  useEffect(() => {
+    if (paramTableId) {
+      void handleSelectTable(paramTableId, 'dine_in');
+    }
+  }, [paramTableId]);
+
+  useEffect(() => {
+    if (!isReady || orderType !== 'dine_in' || !activeTableId) {
+      return;
+    }
+
+    const activeTable = tables.find(t => t.id === activeTableId);
+    const tableName = activeTable ? activeTable.name : `Table ${activeTableId}`;
+
+    const timer = setTimeout(async () => {
+      if (value.items.length === 0) {
+        if (editingId) {
+          try {
+            await salesApi.remove(editingId);
+            await tablesApi.update(activeTableId, { status: 'vacant' });
+            setEditingId(null);
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['tables-list'] }),
+              queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
+            ]);
+          } catch (err) {
+            console.error('Failed to discard draft', err);
+          }
+        }
+        return;
+      }
+
+      try {
+        const payload = {
+          partyId: value.party?.id || null,
+          invoiceNo: value.invoiceNo,
+          saleDate: value.saleDate,
+          status: 'due',
+          amountReceived: 0,
+          paymentMethod: 'cash',
+          subTotal,
+          taxTotal,
+          discount: value.discount,
+          grandTotal,
+          createdBy: user?.id,
+          tableId: activeTableId,
+          attributes: {
+            ...value.attributes,
+            order_status: 'new',
+            order_type: 'dine_in',
+            table_no: tableName,
+          },
+          items: value.items.map((item) => ({
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            unitType: item.unitType || 'primary',
+            conversionRate: item.unitType === 'secondary' ? (item.secondaryConversionRate || 0) : 0,
+            unitPrice: item.unitPrice,
+            taxRate: item.taxRate,
+            lineTotal: item.quantity * item.unitPrice,
+          })),
+        };
+
+        if (editingId) {
+          await salesApi.update(editingId, payload);
+        } else {
+          const res = await salesApi.create(payload);
+          if (res.id) {
+            setEditingId(res.id);
+          }
+        }
+
+        if (activeTable?.status !== 'occupied') {
+          await tablesApi.update(activeTableId, { status: 'occupied' });
+          await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+        }
+      } catch (err) {
+        console.error('Failed to auto-save draft', err);
+      }
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, [
+    value.items,
+    value.discount,
+    value.party,
+    value.notes,
+    activeTableId,
+    orderType,
+    isReady,
+    editingId,
+    tables,
+    subTotal,
+    taxTotal,
+    grandTotal,
+    user?.id,
+    queryClient
+  ]);
 
   function toggleItemUnit(productId: string, unitType: 'primary' | 'secondary') {
     const product = (products ?? []).find((p) => p.id === productId);
@@ -134,6 +309,10 @@ export default function PosScreen() {
         setCheckoutVisible(false);
         setPartyPickerVisible(false);
         setSuccessState({ visible: false, queued: false });
+        setActiveTableId(null);
+        setOrderType('takeaway');
+        setEditingId(null);
+        setTableModalVisible(false);
         void reset(createEmptyPosDraft());
         queryClient.removeQueries({ queryKey: ['products'] });
         queryClient.removeQueries({ queryKey: ['parties'] });
@@ -237,10 +416,17 @@ export default function PosScreen() {
 
       const result = await submitWithOfflineQueue<Sale, typeof payload>({
         entityType: 'sale',
-        method: 'POST',
-        path: '/api/sales',
+        method: editingId ? 'PATCH' : 'POST',
+        path: editingId ? `/api/sales/${editingId}` : '/api/sales',
         body: payload,
       });
+
+      // Release table if dine-in and fully paid
+      if (orderType === 'dine_in' && activeTableId) {
+        if (amountReceived >= grandTotal) {
+          await tablesApi.update(activeTableId, { status: 'vacant' });
+        }
+      }
 
       const receiptHtml = buildReceiptHtml({
         heading: 'Sale Invoice',
@@ -270,6 +456,9 @@ export default function PosScreen() {
         await cacheRecentSales([normalizeSale(unwrapEntity(result.data))]);
       }
 
+      setActiveTableId(null);
+      setOrderType('takeaway');
+      setEditingId(null);
       await reset(createEmptyPosDraft());
       setCheckoutVisible(false);
       setSuccessState({ visible: true, queued: result.queued });
@@ -463,7 +652,25 @@ export default function PosScreen() {
                   'Are you sure you want to clear all items in the cart?',
                   [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Clear', onPress: () => void reset(createEmptyPosDraft()), style: 'destructive' }
+                    {
+                      text: 'Clear',
+                      style: 'destructive',
+                      onPress: async () => {
+                        if (orderType === 'dine_in' && activeTableId && editingId) {
+                          try {
+                            await salesApi.remove(editingId);
+                            await tablesApi.update(activeTableId, { status: 'vacant' });
+                          } catch (e) {
+                            console.error(e);
+                          }
+                        }
+                        setActiveTableId(null);
+                        setOrderType('takeaway');
+                        setEditingId(null);
+                        void reset(createEmptyPosDraft());
+                        await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+                      }
+                    }
                   ]
                 );
               }}
@@ -473,6 +680,29 @@ export default function PosScreen() {
           }
         />
         
+        {/* Session Selector Header */}
+        <View style={styles.sessionHeaderBar}>
+          <View style={styles.sessionInfo}>
+            <View style={styles.sessionAvatar}>
+              <MaterialCommunityIcons name="table-chair" size={20} color={palette.primary} />
+            </View>
+            <View>
+              <Text style={styles.sessionLabel}>Order Session</Text>
+              <Text style={styles.sessionName}>
+                {orderType === 'dine_in'
+                  ? `${tables.find((t) => t.id === activeTableId)?.name ?? `Table ${activeTableId}`}`
+                  : orderType === 'delivery'
+                  ? 'Home Delivery'
+                  : 'Walk-in / Takeaway'}
+              </Text>
+            </View>
+          </View>
+          <Pressable style={styles.sessionChangeBtn} onPress={() => setTableModalVisible(true)}>
+            <Text style={styles.sessionChangeLabel}>Change Session</Text>
+            <MaterialCommunityIcons name="chevron-down" size={16} color={palette.primary} />
+          </Pressable>
+        </View>
+
         <View style={styles.customerSelectorBar}>
           <View style={styles.customerInfo}>
             <View style={styles.customerAvatar}>
@@ -488,6 +718,73 @@ export default function PosScreen() {
             <MaterialCommunityIcons name="swap-horizontal" size={16} color={palette.success} />
           </Pressable>
         </View>
+
+        {/* Table/Session Selector Modal */}
+        <BottomSheet
+          visible={tableModalVisible}
+          title="Select Order Session"
+          subtitle="Choose table seating for dine-in, or select takeaway/delivery options."
+          onClose={() => setTableModalVisible(false)}
+          fullHeight
+        >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tableModalContent}>
+            <Text style={styles.tableModalSectionTitle}>Standard Options</Text>
+            <View style={styles.standardSessionRow}>
+              <Pressable
+                style={[styles.standardSessionCard, orderType === 'takeaway' && styles.sessionCardSelected]}
+                onPress={() => void handleSelectTable(null, 'takeaway')}
+              >
+                <MaterialCommunityIcons
+                  name="shopping-outline"
+                  size={24}
+                  color={orderType === 'takeaway' ? palette.primary : palette.textSoft}
+                />
+                <Text style={[styles.sessionCardLabel, orderType === 'takeaway' && styles.sessionCardLabelActive]}>
+                  Walk-in / Takeaway
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.standardSessionCard, orderType === 'delivery' && styles.sessionCardSelected]}
+                onPress={() => void handleSelectTable(null, 'delivery')}
+              >
+                <MaterialCommunityIcons
+                  name="truck-delivery-outline"
+                  size={24}
+                  color={orderType === 'delivery' ? palette.primary : palette.textSoft}
+                />
+                <Text style={[styles.sessionCardLabel, orderType === 'delivery' && styles.sessionCardLabelActive]}>
+                  Home Delivery
+                </Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.tableModalSectionTitle}>Seating Tables</Text>
+            <View style={styles.tablesGridModal}>
+              {tables.map((table) => {
+                const isSelected = activeTableId === table.id;
+                const isOccupied = table.status === 'occupied';
+                return (
+                  <Pressable
+                    key={table.id}
+                    style={[
+                      styles.modalTableCard,
+                      isSelected && styles.sessionCardSelected,
+                      isOccupied && !isSelected && styles.modalTableCardOccupied,
+                    ]}
+                    onPress={() => void handleSelectTable(table.id, 'dine_in')}
+                  >
+                    <Text style={[styles.modalTableCardName, isSelected && styles.sessionCardLabelActive]}>
+                      {table.name}
+                    </Text>
+                    <Text style={styles.modalTableCardCapacity}>
+                      Cap: {table.capacity ?? 4}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </BottomSheet>
 
         {isTablet ? (
           <View style={styles.tabletLayout}>
@@ -800,7 +1097,8 @@ export default function PosScreen() {
         visible={categoryPickerVisible}
         title="Choose Category"
         subtitle="Filter the product grid by category without leaving Quick POS."
-        onClose={() => setCategoryPickerVisible(false)}>
+        onClose={() => setCategoryPickerVisible(false)}
+        fullHeight>
         <View style={styles.categoryPickerList}>
           {categoryOptions.map((option) => (
             <Pressable
@@ -1512,5 +1810,126 @@ const styles = StyleSheet.create({
   },
   unitChipLabelActive: {
     color: palette.white,
+  },
+  sessionHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  sessionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  sessionAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: palette.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sessionLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: palette.textSoft,
+    textTransform: 'uppercase',
+  },
+  sessionName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: palette.text,
+  },
+  sessionChangeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: palette.accentSoft,
+    borderWidth: 1,
+    borderColor: palette.primary,
+  },
+  sessionChangeLabel: {
+    fontSize: typography.label,
+    fontWeight: '700',
+    color: palette.primary,
+  },
+  tableModalContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  tableModalSectionTitle: {
+    fontSize: typography.label,
+    fontWeight: '800',
+    color: palette.textSoft,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: spacing.sm,
+  },
+  standardSessionRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  standardSessionCard: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    backgroundColor: palette.backgroundWarm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 80,
+  },
+  sessionCardSelected: {
+    borderColor: palette.primary,
+    backgroundColor: palette.accentSoft,
+  },
+  sessionCardLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.textSoft,
+    textAlign: 'center',
+  },
+  sessionCardLabelActive: {
+    color: palette.primary,
+  },
+  tablesGridModal: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  modalTableCard: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    backgroundColor: palette.backgroundWarm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 64,
+  },
+  modalTableCardOccupied: {
+    borderColor: '#eeddc8',
+    backgroundColor: '#fffbeb',
+  },
+  modalTableCardName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: palette.text,
+  },
+  modalTableCardCapacity: {
+    fontSize: 10,
+    color: palette.textMuted,
   },
 });

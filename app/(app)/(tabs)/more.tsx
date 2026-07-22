@@ -41,6 +41,15 @@ const QUICK_LINKS: QuickLink[] = [
     route: '/(app)/(tabs)/pos',
   },
   {
+    segment: 'orders',
+    label: 'Seating Map',
+    subtitle: 'Manage tables & cafe orders',
+    icon: 'table-chair',
+    color: palette.accent,
+    bgColor: palette.accentSoft,
+    route: '/(app)/(tabs)/orders',
+  },
+  {
     segment: 'parties',
     label: 'Parties',
     subtitle: 'Customers & suppliers',
@@ -95,6 +104,24 @@ const QUICK_LINKS: QuickLink[] = [
     route: '/(app)/staff',
   },
   {
+    segment: 'tables',
+    label: 'Table Seating',
+    subtitle: 'Manage tables & layout',
+    icon: 'table-chair',
+    color: palette.primary,
+    bgColor: palette.accentSoft,
+    route: '/(app)/tables',
+  },
+  {
+    segment: 'cashier',
+    label: 'Billing Counter',
+    subtitle: 'Process dining cashier bills',
+    icon: 'calculator',
+    color: palette.success,
+    bgColor: palette.successSoft,
+    route: '/(app)/cashier',
+  },
+  {
     segment: 'home',
     label: 'Attendance check',
     subtitle: 'Daily check-in / check-out',
@@ -117,6 +144,7 @@ export default function MoreScreen() {
     permissions: accessControl?.permissions ?? user?.permissions,
     accessControl,
     enabledModules: businessProfile?.enabledModules,
+    businessType: businessProfile?.businessType ?? businessProfile?.type ?? null,
   };
 
   const [profileForm, setProfileForm] = useState({
@@ -135,7 +163,7 @@ export default function MoreScreen() {
   }, [user?.name, user?.phone]);
 
   const visibleLinks = QUICK_LINKS.filter((link) =>
-    canAccessSegment(accessContext, link.segment),
+    canAccessSegment(accessContext as any, link.segment),
   );
 
   async function handleProfileSave() {

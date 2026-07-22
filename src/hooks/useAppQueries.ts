@@ -13,9 +13,11 @@ import {
   purchasesApi,
   quickExpensesApi,
   reportsApi,
+  salesApi,
   servicesApi,
   staffApi,
   subscriptionApi,
+  tablesApi,
   unitsApi,
 } from '@/src/api';
 import {
@@ -86,6 +88,7 @@ import type {
   Service,
   StaffMember,
   Subscription,
+  Table,
   Unit,
   User,
 } from '@/src/types/models';
@@ -164,9 +167,11 @@ export function useBusinessTypes() {
       }
 
       return [
-        { value: 'retail', label: 'Retail / Grocery', description: 'Fast counter billing first' },
-        { value: 'cafe', label: 'Cafe', description: 'POS-style flow with quick service' },
-        { value: 'jewellery', label: 'Jewellery', description: 'Detailed sales and services' },
+        { value: 'retail', label: 'Retail / Grocery', description: 'Counter POS and inventory tracking' },
+        { value: 'cafe', label: 'Restaurant / Cafe', description: 'Seating layout plans and counter billing' },
+        { value: 'gym', label: 'Gym / Fitness', description: 'Membership subscriptions and expiry tracking' },
+        { value: 'jewellery', label: 'Jewellery Shop', description: 'Detailed custom orders and valuations' },
+        { value: 'general', label: 'General / Service', description: 'Standard business ledger and staff payroll' },
       ];
     },
     staleTime: 5 * 60_000,
@@ -691,3 +696,26 @@ export function useCurrentUser() {
     staleTime: 30_000,
   });
 }
+
+export function useTables(query = {}) {
+  return useQuery<Table[]>({
+    queryKey: ['tables-list', query],
+    queryFn: async () => {
+      const response = await tablesApi.list(query);
+      return extractListItems<Table>(response).filter((item) => item.id);
+    },
+    staleTime: 10_000,
+  });
+}
+
+export function useSalesList(query = {}) {
+  return useQuery<Sale[]>({
+    queryKey: ['sales-list', query],
+    queryFn: async () => {
+      const response = await salesApi.list(query);
+      return extractListItems<Sale>(response).map(normalizeSale).filter((item) => item.id);
+    },
+    staleTime: 10_000,
+  });
+}
+

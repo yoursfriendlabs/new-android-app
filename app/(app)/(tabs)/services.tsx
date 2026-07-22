@@ -16,9 +16,24 @@ import { formatCurrency, prettyDate } from '@/src/lib/format';
 import { useBanks, useServiceById, useServicesList } from '@/src/hooks/useAppQueries';
 import { palette, radius, spacing, typography } from '@/src/theme';
 import type { ServiceStatus } from '@/src/types/models';
+import { useAuthStore } from '@/src/stores/auth-store';
 
 export default function ServicesScreen() {
   const queryClient = useQueryClient();
+  const { businessProfile } = useAuthStore();
+  const isGym = businessProfile?.businessType === 'gym' || businessProfile?.type === 'gym';
+
+  const getServiceStatusLabel = (status: string, deliveryDate: string) => {
+    const isClosed = status === 'closed' || status === 'completed';
+    if (isClosed) {
+      return isGym ? 'Completed / Inactive' : 'Closed';
+    }
+    const isPast = deliveryDate && new Date(deliveryDate) < new Date();
+    if (isPast) {
+      return isGym ? 'Expired' : 'Overdue';
+    }
+    return status;
+  };
   const { data: services } = useServicesList();
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
@@ -97,20 +112,35 @@ export default function ServicesScreen() {
 
       <SurfaceCard title="Open work" subtitle="Tap any service to review status, payment, and delivery details.">
         <View style={styles.list}>
-          {(services ?? []).map((service) => (
-            <Pressable key={service.id} style={styles.serviceCard} onPress={() => openService(service.id)}>
-              <View style={styles.serviceTop}>
-                <Text style={styles.serviceRef}>{service.orderNo}</Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusLabel}>{service.status}</Text>
+          {(services ?? []).map((service) => {
+            const statusLabel = getServiceStatusLabel(service.status, service.deliveryDate ?? '');
+            const isExpiredOrOverdue = statusLabel === 'Expired' || statusLabel === 'Overdue';
+            const isClosedOrInactive = statusLabel === 'Completed / Inactive' || statusLabel === 'Closed';
+            return (
+              <Pressable key={service.id} style={styles.serviceCard} onPress={() => openService(service.id)}>
+                <View style={styles.serviceTop}>
+                  <Text style={styles.serviceRef}>{service.orderNo}</Text>
+                  <View style={[
+                    styles.statusBadge,
+                    isExpiredOrOverdue && styles.statusBadgeExpired,
+                    isClosedOrInactive && styles.statusBadgeClosed,
+                  ]}>
+                    <Text style={[
+                      styles.statusLabel,
+                      isExpiredOrOverdue && styles.statusLabelExpired,
+                      isClosedOrInactive && styles.statusLabelClosed,
+                    ]}>
+                      {statusLabel}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.serviceMeta}>
-                Delivery {prettyDate(service.deliveryDate)}  •  Received {formatCurrency(service.receivedTotal)}
-              </Text>
-              <Text style={styles.serviceAmount}>{formatCurrency(service.grandTotal)}</Text>
-            </Pressable>
-          ))}
+                <Text style={styles.serviceMeta}>
+                  {isGym ? 'Expiry' : 'Delivery'} {prettyDate(service.deliveryDate)}  •  Received {formatCurrency(service.receivedTotal)}
+                </Text>
+                <Text style={styles.serviceAmount}>{formatCurrency(service.grandTotal)}</Text>
+              </Pressable>
+            );
+          })}
           {!services?.length ? (
             <View style={styles.emptyWrap}>
               <MaterialCommunityIcons color={palette.textSoft} name="tools" size={24} />
@@ -123,7 +153,7 @@ export default function ServicesScreen() {
       <BottomSheet
         visible={Boolean(selectedServiceId)}
         title={serviceDetail?.orderNo ?? 'Service details'}
-        subtitle={serviceDetail?.status ?? 'Update service status or payment from mobile.'}
+        subtitle={serviceDetail ? getServiceStatusLabel(serviceDetail.status, serviceDetail.deliveryDate ?? '') : 'Update service status or payment from mobile.'}
         onClose={() => setSelectedServiceId(null)}
         fullHeight
         footer={
@@ -139,7 +169,7 @@ export default function ServicesScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
           <SurfaceCard title="Job summary" subtitle={serviceDetail?.notes || 'No notes added yet.'}>
             <Text style={styles.helperText}>
-              Delivery {prettyDate(serviceDetail?.deliveryDate)}  •  Total {formatCurrency(Number(serviceDetail?.grandTotal ?? 0))}
+              {isGym ? 'Subscription End Date' : 'Delivery Date'}: {prettyDate(serviceDetail?.deliveryDate)}  •  Total {formatCurrency(Number(serviceDetail?.grandTotal ?? 0))}
             </Text>
           </SurfaceCard>
           <SegmentedTabs
@@ -358,5 +388,17 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: '800',
     color: '#0263f9',
+  },
+  statusBadgeExpired: {
+    backgroundColor: palette.dangerSoft,
+  },
+  statusLabelExpired: {
+    color: palette.danger,
+  },
+  statusBadgeClosed: {
+    backgroundColor: palette.successSoft,
+  },
+  statusLabelClosed: {
+    color: palette.success,
   },
 });

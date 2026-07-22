@@ -52,6 +52,8 @@ import type {
   SalaryRecordsResponse,
   AttendanceResponse,
   AttendanceHistoryResponse,
+  TableCreatePayload,
+  TableUpdatePayload,
 } from '@/src/types/contracts';
 import type {
   BankAccount,
@@ -85,7 +87,9 @@ import type {
   TaskNotificationSummary,
   Attendance,
   StaffSalaryRecord,
+  Table,
 } from '@/src/types/models';
+
 
 export const authApi = {
   register: (payload: RegisterPayload) =>
@@ -329,6 +333,7 @@ export const salesApi = {
     apiRequest<Sale, SaleCreatePayload>({ method: 'PUT', path: `/api/sales/${id}`, body: payload }),
   update: (id: string, payload: SaleUpdatePayload) =>
     apiRequest<Sale, SaleUpdatePayload>({ method: 'PATCH', path: `/api/sales/${id}`, body: payload }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/sales/${id}` }),
 };
 
 export const purchasesApi = {
@@ -498,5 +503,16 @@ export const tasksApi = {
   notificationsSummary: () => apiRequest<TaskNotificationSummary>({ path: '/api/tasks/notifications/summary' }),
   markNotificationsRead: () => apiRequest<void>({ method: 'POST', path: '/api/tasks/notifications/read' }),
 };
+
+export const tablesApi = {
+  list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<Table>>({ path: '/api/tables', query }),
+  get: (id: string) => apiRequest<Table>({ path: `/api/tables/${id}` }),
+  create: (payload: TableCreatePayload) =>
+    apiRequest<Table, TableCreatePayload>({ method: 'POST', path: '/api/tables', body: payload }),
+  update: (id: string, payload: TableUpdatePayload) =>
+    apiRequest<Table, TableUpdatePayload>({ method: 'PATCH', path: `/api/tables/${id}`, body: payload }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/tables/${id}` }),
+};
+
 
 

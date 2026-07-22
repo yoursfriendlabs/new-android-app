@@ -282,7 +282,8 @@ export default function TaskDetailScreen() {
           visible={statusSheetVisible}
           title="Change Task Status"
           subtitle="Choose the current progress state of the task."
-          onClose={() => setStatusSheetVisible(false)}>
+          onClose={() => setStatusSheetVisible(false)}
+          fullHeight>
           <View style={styles.statusSheetList}>
             {metadata?.statuses.map((status) => (
               <Pressable

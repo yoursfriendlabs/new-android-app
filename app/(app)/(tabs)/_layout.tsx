@@ -46,6 +46,7 @@ type TabDef = [string, string, string, string];
 
 const PRIMARY_TABS: TabDef[] = [
   ['home', 'Dashboard', 'home-outline', 'home'],
+  ['orders', 'Seating Map', 'table-chair', 'table-chair'],
   ['inventory', 'Inventory', 'package-variant-closed', 'package-variant-closed'],
   ['tasks', 'Tasks', 'checkbox-marked-circle-outline', 'checkbox-marked-circle'],
   ['expenses', 'Expenses', 'wallet-outline', 'wallet'],
@@ -67,9 +68,33 @@ export default function TabsLayout() {
     enabledModules: businessProfile?.enabledModules,
   };
 
-  const visiblePrimaryTabs = PRIMARY_TABS.filter(([name]) =>
-    canAccessSegment(accessContext, name),
-  );
+  const role = session?.role ?? user?.role ?? null;
+  const isGeneralStaff = role === 'staff' || accessControl?.staffCategory === 'general_staff';
+
+  const visiblePrimaryTabs = isGeneralStaff
+    ? ([
+        ['attendance-tab', 'Attendance', 'map-marker-radius', 'map-marker-radius'],
+        ['salary-tab', 'Salary', 'wallet-outline', 'wallet'],
+      ] as TabDef[])
+    : PRIMARY_TABS.filter(([name]) => canAccessSegment(accessContext, name));
+
+  const hiddenTabs = isGeneralStaff
+    ? [
+        'home',
+        'orders',
+        'inventory',
+        'tasks',
+        'expenses',
+        'more',
+        'quick-entry',
+        'pos',
+        'parties',
+      ]
+    : [
+        ...HIDDEN_TABS.filter((name) => canAccessSegment(accessContext, name)),
+        'attendance-tab',
+        'salary-tab',
+      ];
 
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 4);
 
@@ -154,17 +179,15 @@ export default function TabsLayout() {
       ))}
 
       {/* Hidden tabs — still rendered for routing but not shown in tab bar */}
-      {HIDDEN_TABS.filter((name) => canAccessSegment(accessContext, name)).map(
-        (name) => (
-          <Tabs.Screen
-            key={name}
-            name={name}
-            options={{
-              href: null, // hides from tab bar
-            }}
-          />
-        ),
-      )}
+      {hiddenTabs.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{
+            href: null, // hides from tab bar
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

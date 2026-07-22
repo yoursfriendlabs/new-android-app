@@ -160,6 +160,7 @@ export default function ExpensesTabScreen() {
         title={selectedExpense ? expenseTitle(selectedExpense) : 'Expense details'}
         subtitle={selectedExpense?.notes || 'Expense entry details'}
         onClose={() => setSelectedExpense(null)}
+        fullHeight
         footer={
           <Pressable style={[styles.sheetPrimary, { flex: 0 }]} onPress={() => void deleteExpense()}>
             <Text style={styles.sheetPrimaryLabel}>Delete Expense</Text>

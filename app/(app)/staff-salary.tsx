@@ -20,6 +20,7 @@ import { PageHeading } from '@/src/components/ui/PageHeading';
 import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
 import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { useStaff } from '@/src/hooks/useAppQueries';
 import { palette, spacing, radius, typography, shadows, layout } from '@/src/theme';
 import type { StaffSalaryRecord } from '@/src/types/models';
 
@@ -28,18 +29,28 @@ export default function StaffSalaryBookScreen() {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
+  const accessControl = useAuthStore((state) => state.accessControl);
+
+  const isGeneralStaff = accessControl?.staffCategory === 'general_staff';
+  const resolvedMembershipId = isGeneralStaff ? (accessControl?.membershipId as string || '') : (membershipId || '');
+  const resolvedName = isGeneralStaff ? (user?.name || '') : (name || '');
 
   const userRole = session?.role ?? user?.role ?? 'staff';
-  const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin';
+  const isOwnerOrAdmin = (userRole === 'owner' || userRole === 'admin') && !isGeneralStaff;
+
+  const { data: staffList = [] } = useStaff();
+  const matchedStaff = useMemo(() => {
+    return staffList.find(s => (s.membershipId || s.id) === resolvedMembershipId);
+  }, [staffList, resolvedMembershipId]);
 
   // Fetch salary records
   const { data: salaryData, isLoading } = useQuery({
-    queryKey: ['staff-salary', membershipId],
+    queryKey: ['staff-salary', resolvedMembershipId],
     queryFn: async () => {
-      const res = await staffApi.listSalaryRecords(membershipId);
+      const res = await staffApi.listSalaryRecords(resolvedMembershipId);
       return res as unknown as { records: StaffSalaryRecord[] };
     },
-    enabled: !!membershipId,
+    enabled: !!resolvedMembershipId,
   });
 
   const [formSheetVisible, setFormSheetVisible] = useState(false);
@@ -52,9 +63,9 @@ export default function StaffSalaryBookScreen() {
 
   // Mutations
   const createRecordMutation = useMutation({
-    mutationFn: (payload: any) => staffApi.createSalaryRecord(membershipId, payload),
+    mutationFn: (payload: any) => staffApi.createSalaryRecord(resolvedMembershipId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-salary', membershipId] });
+      queryClient.invalidateQueries({ queryKey: ['staff-salary', resolvedMembershipId] });
       setFormSheetVisible(false);
       resetForm();
       Alert.alert('Success', 'Salary record logged successfully');
@@ -65,9 +76,9 @@ export default function StaffSalaryBookScreen() {
   });
 
   const deleteRecordMutation = useMutation({
-    mutationFn: (recordId: string) => staffApi.deleteSalaryRecord(membershipId, recordId),
+    mutationFn: (recordId: string) => staffApi.deleteSalaryRecord(resolvedMembershipId, recordId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['staff-salary', membershipId] });
+      queryClient.invalidateQueries({ queryKey: ['staff-salary', resolvedMembershipId] });
       Alert.alert('Success', 'Record deleted successfully');
     },
     onError: (error: any) => {
@@ -178,7 +189,7 @@ export default function StaffSalaryBookScreen() {
           />
         ) : undefined
       }>
-      <PageHeading title={name || 'Staff Salary'} subtitle="Bookkeeping for salary payments and cash advances." />
+      <PageHeading title={resolvedName || 'Staff Salary'} subtitle="Bookkeeping for salary payments and cash advances." />
 
       {isLoading ? (
         <View style={styles.loading}>
@@ -203,6 +214,18 @@ export default function StaffSalaryBookScreen() {
               </Text>
             </SurfaceCard>
           </View>
+
+          {/* Shift Details (HH:MM) */}
+          {matchedStaff?.shiftStarted && matchedStaff?.shiftEnded ? (
+            <SurfaceCard title="Shift Profile" subtitle={`Daily working hours: ${matchedStaff.shiftStarted} to ${matchedStaff.shiftEnded}`}>
+              <View style={styles.shiftDetailsRow}>
+                <MaterialCommunityIcons name="clock-outline" size={20} color={palette.primary} />
+                <Text style={styles.shiftDetailsText}>
+                  Scheduled shift: {matchedStaff.shiftStarted} - {matchedStaff.shiftEnded}
+                </Text>
+              </View>
+            </SurfaceCard>
+          ) : null}
 
           <Text style={styles.sectionHeader}>History logs</Text>
 
@@ -257,6 +280,7 @@ export default function StaffSalaryBookScreen() {
         title="Log Payment or Advance"
         subtitle="Log base salary payouts or quick cash advances. Logs map to monthly bookkeeping accounts."
         onClose={() => setFormSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
@@ -476,5 +500,16 @@ const styles = StyleSheet.create({
   },
   typeTextActive: {
     color: palette.white,
+  },
+  shiftDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  shiftDetailsText: {
+    fontSize: typography.body,
+    fontWeight: '600',
+    color: palette.text,
   },
 });

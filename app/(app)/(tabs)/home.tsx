@@ -1,7 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -113,6 +114,25 @@ export default function HomeScreen() {
     accessControl,
     enabledModules: businessProfile?.enabledModules,
   };
+
+  const role = session?.role ?? user?.role ?? null;
+  const isGeneralStaff = role === 'staff';
+
+  useEffect(() => {
+    if (isGeneralStaff) {
+      router.replace('/(app)/attendance');
+    }
+  }, [isGeneralStaff]);
+
+  if (isGeneralStaff) {
+    return (
+      <Screen scrollable={false} padded={false}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={palette.primary} />
+        </View>
+      </Screen>
+    );
+  }
 
   const firstName = user?.name?.split(' ')[0] || 'Dipesh';
 

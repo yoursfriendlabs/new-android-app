@@ -11,6 +11,7 @@ interface ReceiptInput {
   heading: string;
   reference: string;
   date: string;
+  dateLabel?: string;
   subtitle?: string;
   lines: ReceiptLine[];
   subTotal: number;
@@ -36,12 +37,16 @@ export function buildReceiptHtml(input: ReceiptInput) {
     )
     .join('');
 
+  const dateLine = input.dateLabel 
+    ? `${input.dateLabel}: ${prettyDate(input.date)}` 
+    : prettyDate(input.date);
+
   return `
     <html>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #201914;">
         <h1 style="margin:0 0 8px 0; color:#9b6835;">${input.heading}</h1>
         <p style="margin:0 0 2px 0; font-size:14px;"><strong>${input.reference}</strong></p>
-        <p style="margin:0 0 24px 0; font-size:14px; color:#6d6257;">${prettyDate(input.date)}${input.subtitle ? ` • ${input.subtitle}` : ''}</p>
+        <p style="margin:0 0 24px 0; font-size:14px; color:#6d6257;">${dateLine}${input.subtitle ? ` • ${input.subtitle}` : ''}</p>
         <table style="width:100%; border-collapse: collapse;">
           ${lineRows}
         </table>

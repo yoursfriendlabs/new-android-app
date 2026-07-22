@@ -23,7 +23,21 @@ export default function AppLayout() {
     enabledModules: businessProfile?.enabledModules,
   };
 
+  const role = session?.role ?? user?.role ?? null;
+  const isGeneralStaff = role === 'staff' || accessControl?.staffCategory === 'general_staff';
+
+  if (isGeneralStaff && (currentLeafSegment === 'home' || currentLeafSegment === '(tabs)' || (currentLeafSegment as string) === 'index' || !currentLeafSegment)) {
+    const membershipId = accessControl?.membershipId || '';
+    const name = user?.name || '';
+    return <Redirect href={`/(app)/staff-salary?membershipId=${membershipId}&name=${encodeURIComponent(name)}` as any} />;
+  }
+
   if (typeof currentLeafSegment === 'string' && !canAccessSegment(accessContext, currentLeafSegment)) {
+    if (isGeneralStaff) {
+      const membershipId = accessControl?.membershipId || '';
+      const name = user?.name || '';
+      return <Redirect href={`/(app)/staff-salary?membershipId=${membershipId}&name=${encodeURIComponent(name)}` as any} />;
+    }
     return <Redirect href="/(app)/(tabs)/home" />;
   }
 

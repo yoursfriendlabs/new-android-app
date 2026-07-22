@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.counterflowmobile"
+      "bundleIdentifier": "com.yoursfriend.pasalmanager",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +25,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.counterflowmobile"
+      "package": "com.yoursfriend.pasalmanager",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

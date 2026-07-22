@@ -29,6 +29,7 @@ import { useDraftState } from '@/src/hooks/useDraftState';
 import { generateId } from '@/src/lib/id';
 import { palette, radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
+import { useAuthStore } from '@/src/stores/auth-store';
 import type { DraftServiceLine, ServiceDraft } from '@/src/types/forms';
 import type { Service } from '@/src/types/models';
 
@@ -69,6 +70,8 @@ function createLine(itemType: 'labor' | 'part'): DraftServiceLine {
 
 export default function ServiceCreateScreen() {
   const setReceipt = useReceiptStore((state) => state.setReceipt);
+  const { businessProfile } = useAuthStore();
+  const isGym = businessProfile?.businessType === 'gym' || businessProfile?.type === 'gym';
   const [stepIndex, setStepIndex] = useState(0);
   const [partySearch, setPartySearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -282,6 +285,7 @@ export default function ServiceCreateScreen() {
           heading: 'Service Order',
           reference: draft.value.orderNo,
           date: draft.value.deliveryDate,
+          dateLabel: isGym ? 'Expiry Date' : 'Delivery Date',
           subtitle: draft.value.customer.name,
           lines: draft.value.items.map((item) => ({
             name: item.product?.name ?? (item.description || item.itemType),
@@ -447,10 +451,33 @@ export default function ServiceCreateScreen() {
             ]}
           />
           <FormField
-            label="Delivery date"
+            label={isGym ? "Subscription End Date" : "Delivery date"}
             value={draft.value.deliveryDate}
             onChangeText={(deliveryDate) => draft.setValue((current) => ({ ...current, deliveryDate }))}
           />
+          {isGym && (
+            <View style={styles.presetRow}>
+              {[
+                { label: '+1 Month', days: 30 },
+                { label: '+3 Months', days: 90 },
+                { label: '+6 Months', days: 180 },
+                { label: '+1 Year', days: 365 },
+              ].map((preset) => (
+                <Pressable
+                  key={preset.label}
+                  style={styles.presetButton}
+                  onPress={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + preset.days);
+                    const val = d.toISOString().split('T')[0];
+                    draft.setValue((current) => ({ ...current, deliveryDate: val }));
+                  }}
+                >
+                  <Text style={styles.presetButtonText}>{preset.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <FormField
             label="Notes"
             value={draft.value.notes}
@@ -687,7 +714,7 @@ export default function ServiceCreateScreen() {
         <SurfaceCard title="Review Service Order" subtitle="One last glance before you save the service order.">
           <Text style={styles.reviewHeading}>{draft.value.customer?.name ?? 'No customer selected'}</Text>
           <Text style={styles.reviewMeta}>
-            {draft.value.orderNo}  •  Delivery {draft.value.deliveryDate}
+            {draft.value.orderNo}  •  {isGym ? 'Expiry' : 'Delivery'} {draft.value.deliveryDate}
           </Text>
           
           <TotalsCard
@@ -1266,6 +1293,29 @@ const styles = StyleSheet.create({
   reviewLineValue: {
     fontSize: typography.body,
     fontWeight: '700',
+    color: palette.text,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  presetButton: {
+    flex: 1,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: palette.backgroundAlt,
+    borderWidth: 1,
+    borderColor: palette.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 34,
+  },
+  presetButtonText: {
+    fontSize: typography.caption,
+    fontWeight: '600',
     color: palette.text,
   },
 });

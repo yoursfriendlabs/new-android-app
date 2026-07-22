@@ -289,6 +289,8 @@ export interface StaffMember {
   isActive?: boolean;
   pin?: string;
   permissions?: string[] | Record<string, string>;
+  shiftStarted?: string;
+  shiftEnded?: string;
   [key: string]: unknown;
 }
 
@@ -307,6 +309,7 @@ export interface SaleItem {
 export interface Sale {
   id: string;
   partyId?: string | null;
+  tableId?: string | null;
   invoiceNo: string;
   saleDate: string;
   status: string;
@@ -327,6 +330,20 @@ export interface Sale {
   items: SaleItem[];
   [key: string]: unknown;
 }
+
+export interface Table {
+  id: string;
+  businessId: string;
+  name: string;
+  capacity?: number | null;
+  status: 'vacant' | 'occupied' | string;
+  isActive: boolean;
+  categoryId?: string | null;
+  category?: Category;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 
 export interface PurchaseItem {
   id?: string;

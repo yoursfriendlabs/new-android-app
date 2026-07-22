@@ -204,6 +204,7 @@ export default function BanksScreen() {
         title={editingBank ? 'Edit Account' : 'New Account'}
         subtitle="Manage bank or wallet details without leaving this screen."
         onClose={() => setSheetVisible(false)}
+        fullHeight
         footer={
           <View style={styles.sheetFooter}>
             {editingBank ? (
@@ -234,6 +235,7 @@ export default function BanksScreen() {
         title="Adjust Balance"
         subtitle="Choose the account and set the current balance you want to keep on mobile."
         onClose={() => setAdjustSheetVisible(false)}
+        fullHeight
         footer={
           <Pressable style={styles.sheetPrimaryButton} onPress={() => void saveAdjustedBalance()}>
             <Text style={styles.sheetPrimaryLabel}>Save Balance</Text>

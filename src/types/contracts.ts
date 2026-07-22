@@ -329,4 +329,15 @@ export interface AttendanceHistoryResponse {
   history: Attendance[];
 }
 
+export interface TableCreatePayload {
+  name: string;
+  capacity?: number | null;
+  status?: string;
+  isActive?: boolean;
+  categoryId?: string | null;
+}
+
+export type TableUpdatePayload = Partial<TableCreatePayload>;
+
+
 

@@ -55,10 +55,11 @@ export default function SettingsScreen() {
     permissions: accessControl?.permissions ?? user?.permissions,
     accessControl,
     enabledModules: businessProfile?.enabledModules,
+    businessType: businessProfile?.businessType ?? businessProfile?.type ?? null,
   };
 
-  const permissionBadges = getCapabilitySummary(accessContext);
-  const canOpenOwnerTools = hasAppCapability(accessContext, 'owner-tools');
+  const permissionBadges = getCapabilitySummary(accessContext as any);
+  const canOpenOwnerTools = hasAppCapability(accessContext as any, 'owner-tools');
 
   const toggles = [
     {
@@ -180,6 +181,16 @@ export default function SettingsScreen() {
           ) : null}
           <Pressable style={styles.primaryButton} onPress={() => void handleGeofencingSave()}>
             <Text style={styles.primaryButtonLabel}>Save Geofencing Settings</Text>
+          </Pressable>
+        </SurfaceCard>
+      ) : null}
+
+      {hasAppCapability(accessContext as any, 'tables') ? (
+        <SurfaceCard
+          title="Table Seating Setup"
+          subtitle="Define and organize tables, guest capacities, and active status for cafe workflows.">
+          <Pressable style={styles.secondaryButton} onPress={() => router.push('/tables' as any)}>
+            <Text style={styles.secondaryButtonLabel}>Manage Seating Tables</Text>
           </Pressable>
         </SurfaceCard>
       ) : null}
