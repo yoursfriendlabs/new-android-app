@@ -20,34 +20,39 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { normalizeSale, unwrapEntity, extractListItems } from '@/src/api/normalize';
 import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
-import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
-import { PartyPickerSheet } from '@/src/components/forms/PartyPickerSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { PaymentMethodSelector } from '@/src/components/forms/PaymentMethodSelector';
-import { TopAppBar } from '@/src/components/layout/TopAppBar';
-import { BillSummaryBar } from '@/src/components/pos/BillSummaryBar';
-import { ProductCard } from '@/src/components/pos/ProductCard';
-import { ProductFilters } from '@/src/components/pos/ProductFilters';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { SearchField } from '@/src/components/ui/SearchField';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { TotalsCard } from '@/src/components/ui/TotalsCard';
-import { buildReceiptHtml } from '@/src/lib/receipt';
-import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/lib/uploads';
-import { formatCurrency, todayIso } from '@/src/lib/format';
-import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts, useTables } from '@/src/hooks/useAppQueries';
+import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { TopAppBar } from '@/src/shared/layout/TopAppBar';
+import { BillSummaryBar } from '@/src/features/pos/components/BillSummaryBar';
+import { ProductCard } from '@/src/features/pos/components/ProductCard';
+import { ProductFilters } from '@/src/features/pos/components/ProductFilters';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { SearchField } from '@/src/shared/ui/SearchField';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { TotalsCard } from '@/src/shared/ui/TotalsCard';
+import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
+import { formatCurrency, todayIso } from '@/src/shared/lib/format';
+import { isCafeWorkspace } from '@/src/shared/lib/business';
+import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts, useTables } from '@/src/shared/hooks/useAppQueries';
 import { salesApi, tablesApi } from '@/src/api';
-import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
-import { useDraftState } from '@/src/hooks/useDraftState';
-import { useIsTablet } from '@/src/hooks/useIsTablet';
-import { usePosTotals } from '@/src/features/pos/usePosTotals';
-import { usePosCart } from '@/src/features/pos/usePosCart';
-import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/lib/totals';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { useDraftState } from '@/src/shared/hooks/useDraftState';
+import { useIsTablet } from '@/src/shared/hooks/useIsTablet';
+import { usePosTotals } from '@/src/features/pos/hooks/usePosTotals';
+import { usePosCart } from '@/src/features/pos/hooks/usePosCart';
+import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { radius, spacing, typography } from '@/src/theme';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import type { PosDraft } from '@/src/types/forms';
+import { partyInitials } from '@/src/features/parties/lib/party';
 import type { Sale } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 function createEmptyPosDraft(): PosDraft {
   return {
@@ -69,10 +74,17 @@ function createEmptyPosDraft(): PosDraft {
 }
 
 export default function PosScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const isTablet = useIsTablet();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const businessProfile = useAuthStore((state) => state.businessProfile);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
+  const cafeMode = isCafeWorkspace({
+    businessType: String(businessProfile?.businessType ?? ''),
+    enabledModules: businessProfile?.enabledModules,
+  });
 
   const [search, setSearch] = useState('');
   const [partySearch, setPartySearch] = useState('');
@@ -96,7 +108,7 @@ export default function PosScreen() {
   const { updateCart } = usePosCart(products, setValue);
 
   const { tableId: paramTableId } = useLocalSearchParams<{ tableId?: string }>();
-  const { data: tables = [] } = useTables();
+  const { data: tables = [] } = useTables({}, { enabled: cafeMode });
   const [activeTableId, setActiveTableId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<'takeaway' | 'delivery' | 'dine_in'>('takeaway');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -619,7 +631,7 @@ export default function PosScreen() {
             </View>
           );
         })}
-        {!value.items.length ? <Text style={styles.emptyCart}>No items yet. Search and tap Quick add.</Text> : null}
+        {!value.items.length ? <Text style={styles.emptyCart}>No items yet. Search and tap a product to add it.</Text> : null}
       </View>
       <TotalsCard
         subTotal={subTotal}
@@ -637,19 +649,18 @@ export default function PosScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
-        <TopAppBar 
-          currentSegment="pos" 
-          titleOverride="Quick POS" 
-          leadingMode="back" 
-          showBack={true} 
+        <TopAppBar
+          currentSegment="pos"
+          leadingMode="brand"
+          showBack={false}
           right={
-            <Pressable 
-              style={styles.clearCartButton} 
+            <Pressable
+              style={styles.clearCartButton}
               onPress={() => {
                 if (!value.items.length) return;
                 Alert.alert(
-                  'Clear POS Cart',
-                  'Are you sure you want to clear all items in the cart?',
+                  'Clear cart',
+                  'Remove all items from this sale?',
                   [
                     { text: 'Cancel', style: 'cancel' },
                     {
@@ -669,54 +680,63 @@ export default function PosScreen() {
                         setEditingId(null);
                         void reset(createEmptyPosDraft());
                         await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
-                      }
-                    }
-                  ]
+                      },
+                    },
+                  ],
                 );
-              }}
-            >
-              <MaterialCommunityIcons color={value.items.length ? palette.danger : palette.textSoft} name="trash-can-outline" size={22} />
+              }}>
+              <MaterialCommunityIcons color={value.items.length ? colors.danger : colors.textSoft} name="trash-can-outline" size={22} />
             </Pressable>
           }
         />
-        
-        {/* Session Selector Header */}
-        <View style={styles.sessionHeaderBar}>
-          <View style={styles.sessionInfo}>
-            <View style={styles.sessionAvatar}>
-              <MaterialCommunityIcons name="table-chair" size={20} color={palette.primary} />
-            </View>
-            <View>
-              <Text style={styles.sessionLabel}>Order Session</Text>
-              <Text style={styles.sessionName}>
-                {orderType === 'dine_in'
-                  ? `${tables.find((t) => t.id === activeTableId)?.name ?? `Table ${activeTableId}`}`
-                  : orderType === 'delivery'
-                  ? 'Home Delivery'
-                  : 'Walk-in / Takeaway'}
+
+        <View style={styles.contextBar}>
+          <Pressable style={styles.contextRow} onPress={() => setPartyPickerVisible(true)}>
+            <View style={[styles.contextAvatar, { backgroundColor: colors.primary }]}>
+              <Text style={styles.contextAvatarText}>
+                {value.party?.name ? partyInitials(value.party.name) : 'W'}
               </Text>
             </View>
-          </View>
-          <Pressable style={styles.sessionChangeBtn} onPress={() => setTableModalVisible(true)}>
-            <Text style={styles.sessionChangeLabel}>Change Session</Text>
-            <MaterialCommunityIcons name="chevron-down" size={16} color={palette.primary} />
+            <View style={styles.contextCopy}>
+              <Text style={styles.contextKicker}>Customer</Text>
+              <Text numberOfLines={1} style={styles.contextValue}>
+                {value.party?.name ?? 'Walk-in'}
+              </Text>
+            </View>
+            <MaterialCommunityIcons color={colors.textMuted} name="chevron-down" size={18} />
           </Pressable>
-        </View>
 
-        <View style={styles.customerSelectorBar}>
-          <View style={styles.customerInfo}>
-            <View style={styles.customerAvatar}>
-              <MaterialCommunityIcons name="account-circle-outline" size={20} color={palette.success} />
-            </View>
-            <View>
-              <Text style={styles.customerLabel}>Selected Customer</Text>
-              <Text style={styles.customerName}>{value.party?.name ?? 'Walk-in Customer'}</Text>
-            </View>
-          </View>
-          <Pressable style={styles.customerChangeBtn} onPress={() => setPartyPickerVisible(true)}>
-            <Text style={styles.customerChangeLabel}>Change Customer</Text>
-            <MaterialCommunityIcons name="swap-horizontal" size={16} color={palette.success} />
-          </Pressable>
+          {cafeMode && tables.length > 0 ? (
+            <>
+              <View style={styles.contextDivider} />
+              <Pressable style={styles.contextRow} onPress={() => setTableModalVisible(true)}>
+                <View style={[styles.contextAvatar, { backgroundColor: colors.accentSoft }]}>
+                  <MaterialCommunityIcons
+                    color={colors.primary}
+                    name={
+                      orderType === 'delivery'
+                        ? 'truck-delivery-outline'
+                        : orderType === 'dine_in'
+                          ? 'table-chair'
+                          : 'shopping-outline'
+                    }
+                    size={18}
+                  />
+                </View>
+                <View style={styles.contextCopy}>
+                  <Text style={styles.contextKicker}>Order</Text>
+                  <Text numberOfLines={1} style={styles.contextValue}>
+                    {orderType === 'dine_in'
+                      ? tables.find((table) => table.id === activeTableId)?.name ?? 'Table'
+                      : orderType === 'delivery'
+                        ? 'Delivery'
+                        : 'Walk-in'}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons color={colors.textMuted} name="chevron-down" size={18} />
+              </Pressable>
+            </>
+          ) : null}
         </View>
 
         {/* Table/Session Selector Modal */}
@@ -737,7 +757,7 @@ export default function PosScreen() {
                 <MaterialCommunityIcons
                   name="shopping-outline"
                   size={24}
-                  color={orderType === 'takeaway' ? palette.primary : palette.textSoft}
+                  color={orderType === 'takeaway' ? colors.primary : colors.textSoft}
                 />
                 <Text style={[styles.sessionCardLabel, orderType === 'takeaway' && styles.sessionCardLabelActive]}>
                   Walk-in / Takeaway
@@ -750,7 +770,7 @@ export default function PosScreen() {
                 <MaterialCommunityIcons
                   name="truck-delivery-outline"
                   size={24}
-                  color={orderType === 'delivery' ? palette.primary : palette.textSoft}
+                  color={orderType === 'delivery' ? colors.primary : colors.textSoft}
                 />
                 <Text style={[styles.sessionCardLabel, orderType === 'delivery' && styles.sessionCardLabelActive]}>
                   Home Delivery
@@ -758,31 +778,35 @@ export default function PosScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.tableModalSectionTitle}>Seating Tables</Text>
-            <View style={styles.tablesGridModal}>
-              {tables.map((table) => {
-                const isSelected = activeTableId === table.id;
-                const isOccupied = table.status === 'occupied';
-                return (
-                  <Pressable
-                    key={table.id}
-                    style={[
-                      styles.modalTableCard,
-                      isSelected && styles.sessionCardSelected,
-                      isOccupied && !isSelected && styles.modalTableCardOccupied,
-                    ]}
-                    onPress={() => void handleSelectTable(table.id, 'dine_in')}
-                  >
-                    <Text style={[styles.modalTableCardName, isSelected && styles.sessionCardLabelActive]}>
-                      {table.name}
-                    </Text>
-                    <Text style={styles.modalTableCardCapacity}>
-                      Cap: {table.capacity ?? 4}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {cafeMode && tables.length > 0 ? (
+              <>
+                <Text style={styles.tableModalSectionTitle}>Tables</Text>
+                <View style={styles.tablesGridModal}>
+                  {tables.map((table) => {
+                    const isSelected = activeTableId === table.id;
+                    const isOccupied = table.status === 'occupied';
+                    return (
+                      <Pressable
+                        key={table.id}
+                        style={[
+                          styles.modalTableCard,
+                          isSelected && styles.sessionCardSelected,
+                          isOccupied && !isSelected && styles.modalTableCardOccupied,
+                        ]}
+                        onPress={() => void handleSelectTable(table.id, 'dine_in')}
+                      >
+                        <Text style={[styles.modalTableCardName, isSelected && styles.sessionCardLabelActive]}>
+                          {table.name}
+                        </Text>
+                        <Text style={styles.modalTableCardCapacity}>
+                          {table.capacity ?? 4} seats{isOccupied ? ' · Busy' : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
           </ScrollView>
         </BottomSheet>
 
@@ -808,12 +832,12 @@ export default function PosScreen() {
         footer={
           <View style={styles.sheetFooter}>
             <Pressable style={styles.secondaryFooterButton} onPress={() => saveSale('print')}>
-              <MaterialCommunityIcons color={palette.warning} name="crown-outline" size={20} />
+              <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />
               <Text style={styles.secondaryFooterLabel}>Save & print</Text>
             </Pressable>
             <Pressable style={styles.primaryFooterButton} onPress={() => saveSale('save')}>
-              <MaterialCommunityIcons color={palette.white} name="content-save-outline" size={20} />
-              <Text style={styles.primaryFooterLabel}>Save Only</Text>
+              <MaterialCommunityIcons color={colors.white} name="content-save-outline" size={20} />
+              <Text style={styles.primaryFooterLabel}>Save</Text>
             </Pressable>
           </View>
         }>
@@ -832,7 +856,7 @@ export default function PosScreen() {
               <Text style={styles.invoiceSplitLabel}>Date</Text>
               <View style={styles.invoiceDateRow}>
                 <Text style={styles.invoiceSplitValue}>{value.saleDate}</Text>
-                <MaterialCommunityIcons color={palette.textSoft} name="calendar-month-outline" size={22} />
+                <MaterialCommunityIcons color={colors.textSoft} name="calendar-month-outline" size={22} />
               </View>
             </Pressable>
           </View>
@@ -840,29 +864,31 @@ export default function PosScreen() {
           <Pressable style={styles.partyCard} onPress={() => setPartyPickerVisible(true)}>
             <View style={styles.partyCardLead}>
               <View style={styles.partyCardIcon}>
-                <MaterialCommunityIcons color={palette.white} name="cash" size={26} />
+                <Text style={styles.partyCardIconText}>
+                  {value.party?.name ? partyInitials(value.party.name) : 'W'}
+                </Text>
               </View>
               <View>
-                <Text style={styles.partyCardTitle}>{value.party?.name ?? 'Cash Sale'}</Text>
-                <Text style={styles.partyCardSubtitle}>{value.party?.phone ?? 'Tap to change party'}</Text>
+                <Text style={styles.partyCardTitle}>{value.party?.name ?? 'Walk-in'}</Text>
+                <Text style={styles.partyCardSubtitle}>{value.party?.phone ?? 'Tap to choose a customer'}</Text>
               </View>
             </View>
             <View style={styles.changePill}>
-              <MaterialCommunityIcons color={palette.success} name="swap-horizontal" size={18} />
+              <MaterialCommunityIcons color={colors.primary} name="swap-horizontal" size={18} />
               <Text style={styles.changePillLabel}>Change</Text>
             </View>
           </Pressable>
 
           <Pressable style={styles.addItemsCard} onPress={() => setCheckoutVisible(false)}>
-            <MaterialCommunityIcons color={palette.success} name="plus-circle" size={22} />
-            <Text style={styles.addItemsLabel}>Add Items</Text>
+            <MaterialCommunityIcons color={colors.primary} name="plus-circle" size={22} />
+            <Text style={styles.addItemsLabel}>Add items</Text>
           </Pressable>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderTitle}>Billing Items ({value.items.length})</Text>
               <Pressable onPress={() => setCheckoutVisible(false)}>
-                <MaterialCommunityIcons color={palette.success} name="plus-circle" size={24} />
+                <MaterialCommunityIcons color={colors.primary} name="plus-circle" size={24} />
               </Pressable>
             </View>
             <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
@@ -926,7 +952,7 @@ export default function PosScreen() {
 
           <View style={styles.chargeCard}>
             <View style={styles.chargeRow}>
-              <MaterialCommunityIcons color={palette.warning} name="tag-outline" size={22} />
+              <MaterialCommunityIcons color={colors.warning} name="tag-outline" size={22} />
               <Text style={styles.chargeLabel}>Discount</Text>
               <Text style={styles.chargeSuffix}>Rs.</Text>
               <TextInput
@@ -934,12 +960,12 @@ export default function PosScreen() {
                 onChangeText={(discount) => setValue((current) => ({ ...current, discount: Number(discount || 0) }))}
                 keyboardType="numeric"
                 placeholder="0"
-                placeholderTextColor={palette.textSoft}
+                placeholderTextColor={colors.textSoft}
                 style={styles.chargeInput}
               />
             </View>
             <View style={styles.chargeRow}>
-              <MaterialCommunityIcons color={palette.info} name="percent-outline" size={22} />
+              <MaterialCommunityIcons color={colors.info} name="percent-outline" size={22} />
               <Text style={styles.chargeLabel}>Tax</Text>
               <Text style={styles.chargeStatic}>VAT 13%</Text>
               <Text style={styles.chargeValue}>{formatCurrency(taxTotal)}</Text>
@@ -955,7 +981,7 @@ export default function PosScreen() {
               <Text style={styles.paymentModeLabel}>Payment Mode</Text>
               <View style={styles.paymentModeValueWrap}>
                 <Text style={styles.paymentModeValue}>{value.paymentMethod === 'bank' ? 'Bank' : 'Cash'}</Text>
-                <MaterialCommunityIcons color={palette.textSoft} name="chevron-right" size={20} />
+                <MaterialCommunityIcons color={colors.textSoft} name="chevron-right" size={20} />
               </View>
             </View>
           </View>
@@ -963,7 +989,7 @@ export default function PosScreen() {
           <PaymentMethodSelector
             value={value.paymentMethod}
             onChange={(paymentMethod) => setValue((current) => ({ ...current, paymentMethod }))}
-            activeBackgroundColor={palette.success}
+            activeBackgroundColor={colors.primary}
           />
           {value.paymentMethod === 'bank' ? (
             <View style={styles.bankWrap}>
@@ -984,7 +1010,7 @@ export default function PosScreen() {
                 ))
               ) : (
                 <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={palette.textMuted} />
+                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
                   <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
                 </Pressable>
               )}
@@ -1048,7 +1074,7 @@ export default function PosScreen() {
             multiline
           />
           <Pressable style={styles.addImagesRow} onPress={() => void addImageAttachment()}>
-            <MaterialCommunityIcons color={palette.success} name="image-plus-outline" size={22} />
+            <MaterialCommunityIcons color={colors.primary} name="image-plus-outline" size={22} />
             <Text style={styles.addImagesLabel}>
               Add Images {value?.attachments?.length ? `(${value.attachments.length})` : ''}
             </Text>
@@ -1061,14 +1087,14 @@ export default function PosScreen() {
                     <Image source={{ uri: attachment }} style={styles.attachmentPreview} />
                   ) : (
                     <View style={styles.attachmentFallback}>
-                      <MaterialCommunityIcons color={palette.textMuted} name="file-outline" size={24} />
+                      <MaterialCommunityIcons color={colors.textMuted} name="file-outline" size={24} />
                     </View>
                   )}
                   <Text numberOfLines={1} style={styles.attachmentName}>
                     {getAttachmentLabel(attachment)}
                   </Text>
                   <Pressable style={styles.attachmentRemoveButton} onPress={() => removeAttachment(attachment)}>
-                    <MaterialCommunityIcons color={palette.danger} name="close-circle" size={18} />
+                    <MaterialCommunityIcons color={colors.danger} name="close-circle" size={18} />
                   </Pressable>
                 </View>
               ))}
@@ -1162,10 +1188,10 @@ export default function PosScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
@@ -1176,7 +1202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   loading: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
   },
   productsPane: {
@@ -1210,12 +1236,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 52,
     borderRadius: radius.pill,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
   },
   filterChipLabel: {
     fontSize: typography.subheading,
     fontWeight: '600',
-    color: palette.text,
+    color: colors.text,
   },
   addItemChip: {
     flexDirection: 'row',
@@ -1225,12 +1251,12 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.pill,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
   },
   addItemChipLabel: {
     fontSize: typography.subheading,
     fontWeight: '600',
-    color: palette.text,
+    color: colors.text,
   },
   productListContentPhone: {
     paddingHorizontal: spacing.lg,
@@ -1281,11 +1307,11 @@ const styles = StyleSheet.create({
   billTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   billMeta: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   billControls: {
     flexDirection: 'row',
@@ -1296,39 +1322,39 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   billButtonLabel: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   billQuantity: {
     minWidth: 18,
     textAlign: 'center',
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   billLineAmount: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   emptyCart: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   checkoutButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkoutLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -1340,11 +1366,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 58,
     borderRadius: radius.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     flexDirection: 'row',
     gap: spacing.xs,
   },
@@ -1352,19 +1378,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 58,
     borderRadius: radius.md,
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
   },
   secondaryFooterLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.subheading,
     fontWeight: '800',
   },
   primaryFooterLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.subheading,
     fontWeight: '800',
   },
@@ -1385,17 +1411,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   bankChipActive: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   bankChipLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyBankInfo: {
     flex: 1,
@@ -1406,13 +1432,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundAlt,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundAlt,
   },
   emptyBankText: {
     flex: 1,
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
   quickPayments: {
@@ -1424,36 +1450,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   quickPaymentLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   fullToggle: {
     minHeight: 48,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fullToggleActive: {
-    backgroundColor: palette.successSoft,
-    borderColor: palette.success,
+    backgroundColor: colors.successSoft,
+    borderColor: colors.success,
   },
   fullToggleLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   fullToggleLabelActive: {
-    color: palette.success,
+    color: colors.success,
   },
   invoiceSplitCard: {
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     overflow: 'hidden',
   },
@@ -1464,16 +1490,16 @@ const styles = StyleSheet.create({
   },
   invoiceSplitLabel: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   invoiceSplitValue: {
     fontSize: 22,
     fontWeight: '500',
-    color: palette.text,
+    color: colors.text,
   },
   invoiceDivider: {
     width: 1,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
   },
   invoiceDateRow: {
     flexDirection: 'row',
@@ -1485,8 +1511,8 @@ const styles = StyleSheet.create({
     minHeight: 92,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1503,16 +1529,21 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
+  },
+  partyCardIconText: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '800',
   },
   partyCardTitle: {
     fontSize: 22,
     fontWeight: '600',
-    color: palette.text,
+    color: colors.text,
   },
   partyCardSubtitle: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   changePill: {
     flexDirection: 'row',
@@ -1522,20 +1553,20 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   changePillLabel: {
     fontSize: typography.subheading,
     fontWeight: '700',
-    color: palette.success,
+    color: colors.primary,
   },
   addItemsCard: {
     minHeight: 88,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1544,13 +1575,13 @@ const styles = StyleSheet.create({
   addItemsLabel: {
     fontSize: 22,
     fontWeight: '700',
-    color: palette.success,
+    color: colors.primary,
   },
   sectionCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     padding: spacing.lg,
   },
   sectionHeaderRow: {
@@ -1561,13 +1592,13 @@ const styles = StyleSheet.create({
   sectionHeaderTitle: {
     fontSize: typography.heading,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   chargeCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     padding: spacing.lg,
     gap: spacing.md,
   },
@@ -1579,42 +1610,42 @@ const styles = StyleSheet.create({
   chargeLabel: {
     flex: 1,
     fontSize: typography.heading,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   chargeSuffix: {
     fontSize: typography.subheading,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   chargeInput: {
     minWidth: 92,
     minHeight: 42,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: colors.border,
     fontSize: typography.subheading,
-    color: palette.text,
+    color: colors.text,
     textAlign: 'right',
   },
   chargeStatic: {
     fontSize: typography.subheading,
-    color: palette.text,
+    color: colors.text,
   },
   chargeValue: {
     fontSize: typography.subheading,
-    color: palette.text,
+    color: colors.text,
   },
   itemsListCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     padding: spacing.lg,
     gap: spacing.sm,
   },
   totalCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     padding: spacing.lg,
     gap: spacing.lg,
   },
@@ -1626,12 +1657,12 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontSize: typography.heading,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   totalValue: {
     fontSize: typography.heading,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   paymentModeRow: {
     flexDirection: 'row',
@@ -1640,7 +1671,7 @@ const styles = StyleSheet.create({
   },
   paymentModeLabel: {
     fontSize: typography.subheading,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   paymentModeValueWrap: {
     flexDirection: 'row',
@@ -1649,7 +1680,7 @@ const styles = StyleSheet.create({
   },
   paymentModeValue: {
     fontSize: typography.subheading,
-    color: palette.text,
+    color: colors.text,
   },
   addImagesRow: {
     flexDirection: 'row',
@@ -1659,7 +1690,7 @@ const styles = StyleSheet.create({
   addImagesLabel: {
     fontSize: typography.subheading,
     fontWeight: '700',
-    color: palette.success,
+    color: colors.primary,
   },
   attachmentsPreviewGrid: {
     flexDirection: 'row',
@@ -1669,9 +1700,9 @@ const styles = StyleSheet.create({
   attachmentCard: {
     width: 110,
     borderRadius: radius.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     padding: spacing.xs,
     gap: spacing.xs,
   },
@@ -1679,26 +1710,26 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 84,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   attachmentFallback: {
     width: '100%',
     height: 84,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   attachmentName: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   attachmentRemoveButton: {
     position: 'absolute',
     top: 6,
     right: 6,
     borderRadius: radius.pill,
-    backgroundColor: palette.white,
+    backgroundColor: colors.white,
   },
   categoryPickerList: {
     gap: spacing.sm,
@@ -1707,26 +1738,76 @@ const styles = StyleSheet.create({
   categoryPickerItem: {
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   categoryPickerItemActive: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   categoryPickerLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   categoryPickerLabelActive: {
-    color: palette.white,
+    color: colors.white,
+  },
+  contextBar: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  contextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  contextDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
+  },
+  contextAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contextAvatarText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  contextCopy: {
+    flex: 1,
+    gap: 1,
+  },
+  contextKicker: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSoft,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  contextValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.text,
   },
   customerSelectorBar: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     flexDirection: 'row',
@@ -1742,21 +1823,21 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: radius.pill,
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   customerLabel: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   customerName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   customerChangeBtn: {
     flexDirection: 'row',
@@ -1765,21 +1846,21 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
-    borderColor: palette.success,
+    borderColor: colors.success,
   },
   customerChangeLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.success,
+    color: colors.success,
   },
   clearCartButton: {
     padding: spacing.xs,
   },
   billItemContainer: {
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: colors.border,
     paddingVertical: spacing.sm,
     gap: spacing.xs,
   },
@@ -1793,23 +1874,23 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   unitChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   unitChipLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   unitChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   sessionHeaderBar: {
     flexDirection: 'row',
@@ -1830,20 +1911,20 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sessionLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
   },
   sessionName: {
     fontSize: 14,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   sessionChangeBtn: {
     flexDirection: 'row',
@@ -1852,14 +1933,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: palette.primary,
+    borderColor: colors.primary,
   },
   sessionChangeLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   tableModalContent: {
     gap: spacing.md,
@@ -1868,7 +1949,7 @@ const styles = StyleSheet.create({
   tableModalSectionTitle: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.sm,
@@ -1882,25 +1963,25 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundWarm,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundWarm,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
     minHeight: 80,
   },
   sessionCardSelected: {
-    borderColor: palette.primary,
-    backgroundColor: palette.accentSoft,
+    borderColor: colors.primary,
+    backgroundColor: colors.accentSoft,
   },
   sessionCardLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textAlign: 'center',
   },
   sessionCardLabelActive: {
-    color: palette.primary,
+    color: colors.primary,
   },
   tablesGridModal: {
     flexDirection: 'row',
@@ -1913,8 +1994,8 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1.5,
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundWarm,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundWarm,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 64,
@@ -1926,10 +2007,10 @@ const styles = StyleSheet.create({
   modalTableCardName: {
     fontSize: 13,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   modalTableCardCapacity: {
     fontSize: 10,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
 });

@@ -1,1 +1,1 @@
-export { default } from '../parties';
+export { default } from '../parties/index';

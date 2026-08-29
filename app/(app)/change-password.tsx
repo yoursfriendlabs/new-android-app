@@ -3,13 +3,18 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 
 import { isInvalidSessionError } from '@/src/api/client';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { radius, spacing, typography } from '@/src/theme';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function ChangePasswordScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const changePassword = useAuthStore((state) => state.changePassword);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -80,7 +85,7 @@ export default function ChangePasswordScreen() {
         ) : null}
         <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
           {submitting ? (
-            <ActivityIndicator color={palette.white} />
+            <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.primaryButtonLabel}>Save new password</Text>
           )}
@@ -93,41 +98,41 @@ export default function ChangePasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   message: {
     fontSize: typography.body,
     lineHeight: 22,
   },
   successMessage: {
-    color: palette.success,
+    color: colors.success,
     fontWeight: '700',
   },
   errorMessage: {
-    color: palette.danger,
+    color: colors.danger,
     fontWeight: '700',
   },
   primaryButton: {
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
   secondaryButton: {
     minHeight: 48,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.xs,
   },
   secondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.body,
     fontWeight: '700',
   },

@@ -10,19 +10,22 @@ import { clearDraft } from '@/src/data/database';
 import { addQuickExpenseLocally } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { isInvalidSessionError } from '@/src/api/client';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
-import { AmountKeypad } from '@/src/components/forms/AmountKeypad';
-import { FormField } from '@/src/components/forms/FormField';
-import { PartyPickerSheet } from '@/src/components/forms/PartyPickerSheet';
-import { PaymentMethodSelector } from '@/src/components/forms/PaymentMethodSelector';
-import { Screen } from '@/src/components/layout/Screen';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { formatCurrency, prettyDate, todayIso } from '@/src/lib/format';
-import { useBanks, useParties, useQuickExpenses } from '@/src/hooks/useAppQueries';
-import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
-import { useDraftState } from '@/src/hooks/useDraftState';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { AmountKeypad } from '@/src/shared/forms/AmountKeypad';
+import { FormField } from '@/src/shared/forms/FormField';
+import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { Screen } from '@/src/shared/layout/Screen';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { formatCurrency, prettyDate, todayIso } from '@/src/shared/lib/format';
+import { useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
+import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { useDraftState } from '@/src/shared/hooks/useDraftState';
+import { radius, spacing, typography } from '@/src/theme';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 import type {
   QuickEntryTab,
   QuickExpenseDraft,
@@ -68,6 +71,8 @@ function isQuickEntryTab(value?: string): value is QuickEntryTab {
 }
 
 export default function QuickEntryScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<QuickEntryTab>('expense');
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string | string[] }>();
@@ -359,7 +364,7 @@ export default function QuickEntryScreen() {
           )
         }>
         <MaterialCommunityIcons
-          color={palette.textSoft}
+          color={colors.textSoft}
           name="information-outline"
           size={26}
         />
@@ -367,7 +372,7 @@ export default function QuickEntryScreen() {
       <Pressable
         style={styles.topBarIcon}
         onPress={() => router.push('/(app)/(tabs)/more')}>
-        <MaterialCommunityIcons color={palette.textSoft} name="account-circle-outline" size={26} />
+        <MaterialCommunityIcons color={colors.textSoft} name="account-circle-outline" size={26} />
       </Pressable>
     </View>
   );
@@ -380,8 +385,7 @@ export default function QuickEntryScreen() {
             onPress: () => {
               setSuccessState((current) => ({ ...current, visible: false }));
               router.push({
-                pathname: '/(app)/purchases',
-                params: { filter: 'expense', openId: successState.recordId ?? '' },
+                pathname: '/(app)/(tabs)/expenses',
               });
             },
             primary: true,
@@ -422,7 +426,7 @@ export default function QuickEntryScreen() {
           onChange={setTab}
           style={styles.segmentedTabs}
           contentContainerStyle={styles.tabBar}
-          activeBackgroundColor={palette.success}
+          activeBackgroundColor={colors.primary}
           options={[
             { label: 'Expense', value: 'expense' },
             { label: 'Purchase', value: 'purchase' },
@@ -440,7 +444,7 @@ export default function QuickEntryScreen() {
                   onPress={() => setCategorySheetVisible(true)}>
                   <View style={styles.selectorLead}>
                     <MaterialCommunityIcons
-                      color={palette.success}
+                      color={colors.primary}
                       name="shape-outline"
                       size={24}
                     />
@@ -449,7 +453,7 @@ export default function QuickEntryScreen() {
                     </Text>
                   </View>
                   <MaterialCommunityIcons
-                    color={palette.textSoft}
+                    color={colors.textSoft}
                     name="chevron-right"
                     size={22}
                   />
@@ -459,9 +463,9 @@ export default function QuickEntryScreen() {
                   style={styles.selectorCard}
                   onPress={() => setExpensePartyPickerVisible(true)}>
                   <View style={styles.selectorLead}>
-                    <View style={[styles.partyAvatar, { backgroundColor: palette.primary }]}>
+                    <View style={[styles.partyAvatar, { backgroundColor: colors.primary }]}>
                       <MaterialCommunityIcons
-                        color={palette.white}
+                        color={colors.white}
                         name="account-outline"
                         size={22}
                       />
@@ -476,7 +480,7 @@ export default function QuickEntryScreen() {
                     </View>
                   </View>
                   <MaterialCommunityIcons
-                    color={palette.textSoft}
+                    color={colors.textSoft}
                     name="chevron-right"
                     size={22}
                   />
@@ -515,7 +519,7 @@ export default function QuickEntryScreen() {
                   <View style={styles.selectorLead}>
                     <View style={styles.partyAvatar}>
                       <MaterialCommunityIcons
-                        color={palette.white}
+                        color={colors.white}
                         name="truck-delivery-outline"
                         size={22}
                       />
@@ -530,7 +534,7 @@ export default function QuickEntryScreen() {
                     </View>
                   </View>
                   <MaterialCommunityIcons
-                    color={palette.textSoft}
+                    color={colors.textSoft}
                     name="chevron-right"
                     size={22}
                   />
@@ -604,7 +608,7 @@ export default function QuickEntryScreen() {
               onPress={() => void handleAddCategory()}
               disabled={!newCategoryName.trim() || addingCategory}>
               {addingCategory ? (
-                <ActivityIndicator color={palette.white} size="small" />
+                <ActivityIndicator color={colors.white} size="small" />
               ) : (
                 <Text style={styles.addCategoryBtnText}>Add</Text>
               )}
@@ -662,7 +666,7 @@ export default function QuickEntryScreen() {
           onChange={(paymentMethod) =>
             expenseDraft.setValue((current) => ({ ...current, paymentMethod }))
           }
-          activeBackgroundColor={palette.success}
+          activeBackgroundColor={colors.primary}
         />
         {expenseDraft.value.paymentMethod === 'bank' ? (
           <View style={styles.bankWrap}>
@@ -744,7 +748,7 @@ export default function QuickEntryScreen() {
           onChange={(paymentMethod) =>
             purchaseDraft.setValue((current) => ({ ...current, paymentMethod }))
           }
-          activeBackgroundColor={palette.success}
+          activeBackgroundColor={colors.primary}
         />
         {purchaseDraft.value.paymentMethod === 'bank' ? (
           <View style={styles.bankWrap}>
@@ -840,7 +844,7 @@ export default function QuickEntryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -878,8 +882,8 @@ const styles = StyleSheet.create({
     minHeight: 88,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -898,11 +902,11 @@ const styles = StyleSheet.create({
   selectorLabel: {
     fontSize: typography.subheading,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   selectorSubLabel: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   partyAvatar: {
     width: 52,
@@ -910,17 +914,17 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   primaryAction: {
     minHeight: 56,
     borderRadius: radius.md,
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryActionLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.heading,
     fontWeight: '800',
   },
@@ -931,22 +935,22 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   metaLink: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.success,
+    color: colors.primary,
   },
   sheetPrimaryButton: {
     minHeight: 54,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   sheetPrimaryLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -959,22 +963,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   bankChipActive: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   bankChipLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyBankText: {
     flex: 1,
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
   sheetFooterActions: {
@@ -985,12 +989,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 54,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sheetSecondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.body,
     fontWeight: '700',
   },
@@ -1008,15 +1012,15 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addCategoryBtnDisabled: {
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   addCategoryBtnText: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '800',
   },
   categoryChipWrap: {
@@ -1029,21 +1033,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   categoryChipActive: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.primary,
   },
   categoryChipLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   categoryChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyCategoriesText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
     fontStyle: 'italic',
   },

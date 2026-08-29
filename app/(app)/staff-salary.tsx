@@ -13,18 +13,23 @@ import {
 } from 'react-native';
 
 import { staffApi } from '@/src/api';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { useStaff } from '@/src/hooks/useAppQueries';
-import { palette, spacing, radius, typography, shadows, layout } from '@/src/theme';
+import { useStaff } from '@/src/shared/hooks/useAppQueries';
+import { spacing, radius, typography, shadows, layout } from '@/src/theme';
 import type { StaffSalaryRecord } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function StaffSalaryBookScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const { membershipId, name } = useLocalSearchParams<{ membershipId: string; name: string }>();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -189,11 +194,11 @@ export default function StaffSalaryBookScreen() {
           />
         ) : undefined
       }>
-      <PageHeading title={resolvedName || 'Staff Salary'} subtitle="Bookkeeping for salary payments and cash advances." />
+      <PageHeading subtitle="Bookkeeping for salary payments and cash advances." />
 
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.primary} size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>Fetching salary records...</Text>
         </View>
       ) : (
@@ -202,14 +207,14 @@ export default function StaffSalaryBookScreen() {
           <View style={styles.statsRow}>
             <SurfaceCard style={styles.statsCard}>
               <Text style={styles.statsLabel}>Total Advances Given</Text>
-              <Text style={[styles.statsValue, { color: palette.danger }]}>
+              <Text style={[styles.statsValue, { color: colors.danger }]}>
                 रू {stats.totalAdvance.toLocaleString()}
               </Text>
             </SurfaceCard>
             <View style={{ width: spacing.md }} />
             <SurfaceCard style={styles.statsCard}>
               <Text style={styles.statsLabel}>Paid (Current Month)</Text>
-              <Text style={[styles.statsValue, { color: palette.success }]}>
+              <Text style={[styles.statsValue, { color: colors.success }]}>
                 रू {stats.monthSalary.toLocaleString()}
               </Text>
             </SurfaceCard>
@@ -219,7 +224,7 @@ export default function StaffSalaryBookScreen() {
           {matchedStaff?.shiftStarted && matchedStaff?.shiftEnded ? (
             <SurfaceCard title="Shift Profile" subtitle={`Daily working hours: ${matchedStaff.shiftStarted} to ${matchedStaff.shiftEnded}`}>
               <View style={styles.shiftDetailsRow}>
-                <MaterialCommunityIcons name="clock-outline" size={20} color={palette.primary} />
+                <MaterialCommunityIcons name="clock-outline" size={20} color={colors.primary} />
                 <Text style={styles.shiftDetailsText}>
                   Scheduled shift: {matchedStaff.shiftStarted} - {matchedStaff.shiftEnded}
                 </Text>
@@ -237,7 +242,7 @@ export default function StaffSalaryBookScreen() {
                   <MaterialCommunityIcons
                     name={isSal ? 'cash-check' : 'cash-refund'}
                     size={22}
-                    color={isSal ? palette.success : palette.danger}
+                    color={isSal ? colors.success : colors.danger}
                   />
                 </View>
                 <View style={styles.recordCopy}>
@@ -258,7 +263,7 @@ export default function StaffSalaryBookScreen() {
                 </View>
                 {isOwnerOrAdmin ? (
                   <Pressable style={styles.deleteBtn} onPress={() => handleDelete(record.id)}>
-                    <MaterialCommunityIcons name="delete-outline" size={20} color={palette.textSoft} />
+                    <MaterialCommunityIcons name="delete-outline" size={20} color={colors.textSoft} />
                   </Pressable>
                 ) : null}
               </View>
@@ -267,7 +272,7 @@ export default function StaffSalaryBookScreen() {
 
           {!salaryData?.records?.length ? (
             <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="notebook-outline" size={48} color={palette.textSoft} />
+              <MaterialCommunityIcons name="notebook-outline" size={48} color={colors.textSoft} />
               <Text style={styles.emptyText}>No salary or advance records logged yet.</Text>
             </View>
           ) : null}
@@ -284,7 +289,7 @@ export default function StaffSalaryBookScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={palette.white} />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.primaryButtonLabel}>Log Record</Text>
             )}
@@ -341,7 +346,7 @@ export default function StaffSalaryBookScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   loading: {
     flex: 1,
     alignItems: 'center',
@@ -349,7 +354,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   loadingText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     marginTop: spacing.sm,
     fontWeight: '600',
@@ -371,7 +376,7 @@ const styles = StyleSheet.create({
   statsLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
   },
   statsValue: {
@@ -381,7 +386,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.sm,
@@ -390,7 +395,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     ...shadows.card,
     gap: spacing.md,
@@ -403,10 +408,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   indicatorSalary: {
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   indicatorAdvance: {
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   recordCopy: {
     flex: 1,
@@ -420,20 +425,20 @@ const styles = StyleSheet.create({
   recordType: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   recordAmount: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   recordMeta: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   recordNote: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
     marginTop: 2,
   },
@@ -447,19 +452,19 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     textAlign: 'center',
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -470,13 +475,13 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginBottom: spacing.xxs,
   },
   typeSelector: {
     flexDirection: 'row',
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     overflow: 'hidden',
     padding: 3,
   },
@@ -488,18 +493,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   typeOptionActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   typeOptionActiveAdvance: {
-    backgroundColor: palette.danger,
+    backgroundColor: colors.danger,
   },
   typeText: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   typeTextActive: {
-    color: palette.white,
+    color: colors.white,
   },
   shiftDetailsRow: {
     flexDirection: 'row',
@@ -510,6 +515,6 @@ const styles = StyleSheet.create({
   shiftDetailsText: {
     fontSize: typography.body,
     fontWeight: '600',
-    color: palette.text,
+    color: colors.text,
   },
 });

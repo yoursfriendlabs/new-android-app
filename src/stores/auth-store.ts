@@ -10,6 +10,8 @@ import {
   unwrapEntity,
 } from '@/src/api/normalize';
 import { clearAllLocalData } from '@/src/data/database';
+import { hasAccessControlPayload, resolveStoredPermissions } from '@/src/features/staff/lib/access-control';
+import { firstNonEmptyId } from '@/src/shared/lib/workspace';
 import {
   clearSessionStorage,
   loadBusinessProfile,
@@ -18,7 +20,7 @@ import {
   persistBusinessProfile,
   persistBusinessSettings,
   persistSession,
-} from '@/src/lib/session';
+} from '@/src/shared/lib/session';
 import type {
   ChangePasswordPayload,
   LoginPayload,
@@ -109,23 +111,21 @@ function parseAuthResponse(
     ? {
         ...baseUser,
         role: String(role ?? baseUser.role ?? ''),
-        permissions: accessControl.permissions?.length
-          ? accessControl.permissions
-          : baseUser.permissions,
+        permissions: resolveStoredPermissions(accessControl, baseUser.permissions),
       }
     : null;
   const business = source.business ?? responseRecord.business ?? fallbackSession?.business ?? null;
   const businessId =
-    source.businessId ??
-    source.business?.businessId ??
-    source.business?.id ??
-    responseRecord.businessId ??
-    responseRecord.business?.businessId ??
-    responseRecord.business?.id ??
-    user?.businessId ??
-    businessProfile?.businessId ??
-    businessProfile?.id ??
-    fallbackSession?.businessId;
+    firstNonEmptyId(
+      business,
+      source.businessId,
+      responseRecord.business,
+      responseRecord.businessId,
+      rawBusinessProfile,
+      businessProfile,
+      user?.businessId,
+      fallbackSession?.businessId,
+    ) || undefined;
   const token = source.token ?? source.accessToken ?? responseRecord.token ?? responseRecord.accessToken ?? fallbackSession?.token;
   const requiresVerification = Boolean(
     source.requireVerification ??
@@ -141,7 +141,7 @@ function parseAuthResponse(
       user,
       businessProfile,
       subscription,
-      accessControl: accessControl.permissions?.length ? accessControl : null,
+      accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
       requiresVerification,
       verificationEmail,
     };
@@ -154,13 +154,13 @@ function parseAuthResponse(
       user,
       business,
       role: typeof role === 'string' && role.trim() ? role : user?.role ?? null,
-      accessControl: accessControl.permissions?.length ? accessControl : null,
+      accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
       subscription,
     },
     user,
     businessProfile,
     subscription,
-    accessControl: accessControl.permissions?.length ? accessControl : null,
+    accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
     requiresVerification,
     verificationEmail,
   };
@@ -185,11 +185,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessControl: null,
   pendingVerification: null,
   bootstrap: async () => {
-    const [session, businessProfile, businessSettings] = await Promise.all([
-      loadSession(),
-      loadBusinessProfile(),
-      loadBusinessSettings(),
-    ]);
+    let session: SessionData | null = null;
+    let businessProfile: BusinessProfile | null = null;
+    let businessSettings: BusinessSettings | null = null;
+
+    try {
+      [session, businessProfile, businessSettings] = await Promise.all([
+        loadSession(),
+        loadBusinessProfile(),
+        loadBusinessSettings(),
+      ]);
+    } catch (error) {
+      console.warn('[bootstrap] session load failed', error);
+      set({
+        status: 'signed-out',
+        session: null,
+        user: null,
+        businessProfile: null,
+        businessSettings: null,
+        subscription: null,
+        accessControl: null,
+      });
+      return;
+    }
 
     if (!session?.token) {
       set({
@@ -384,6 +402,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const businessProfile = normalizeBusinessProfile(profileResult.value);
       nextState.businessProfile = businessProfile;
       await persistBusinessProfile(businessProfile);
+      const profileBusinessId = firstNonEmptyId(businessProfile);
+      const currentSession = nextState.session ?? get().session;
+      if (profileBusinessId && currentSession && currentSession.businessId !== profileBusinessId) {
+        const nextSession = { ...currentSession, businessId: profileBusinessId };
+        nextState.session = nextSession;
+        await persistSession(nextSession);
+      }
     }
 
     if (settingsResult.status === 'fulfilled') {

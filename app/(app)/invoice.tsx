@@ -1,20 +1,25 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { palette, radius, typography } from '@/src/theme';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { radius, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function InvoiceScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const title = useReceiptStore((state) => state.title);
   const subtitle = useReceiptStore((state) => state.subtitle);
   const html = useReceiptStore((state) => state.html);
 
   return (
     <Screen>
-      <PageHeading title="Invoice summary" subtitle="This is the quick mobile review screen. Use print preview for the formatted output." />
+      <PageHeading subtitle="This is the quick mobile review screen. Use print preview for the formatted output." />
       <SurfaceCard title={title || 'No invoice yet'} subtitle={subtitle || 'Save a sale, purchase, or service to view its summary here.'}>
         <Text style={styles.description}>
           {html
@@ -34,9 +39,9 @@ export default function InvoiceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   description: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     lineHeight: 22,
   },
@@ -46,24 +51,24 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
   secondaryLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.body,
     fontWeight: '700',
   },

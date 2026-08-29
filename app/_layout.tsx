@@ -2,18 +2,20 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { AppProviders } from '@/src/providers/AppProviders';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { usePalette, useThemeStore } from '@/src/stores/theme-store';
 
 export { ErrorBoundary } from 'expo-router';
 
-SplashScreen.preventAutoHideAsync();
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 function RootNavigator() {
+  const colors = usePalette();
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#f7f3ee' } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
@@ -27,12 +29,20 @@ export default function RootLayout() {
     ...MaterialCommunityIcons.font,
   });
   const status = useAuthStore((state) => state.status);
+  const themeStatus = useThemeStore((state) => state.status);
+  const [timedOut, setTimedOut] = useState(false);
+  const ready = fontsLoaded && (timedOut || (status !== 'booting' && themeStatus !== 'booting'));
 
   useEffect(() => {
-    if (fontsLoaded && status !== 'booting') {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, status]);
+    const timer = setTimeout(() => setTimedOut(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
-  return <AppProviders>{fontsLoaded && status !== 'booting' ? <RootNavigator /> : null}</AppProviders>;
+  useEffect(() => {
+    if (ready) {
+      void SplashScreen.hideAsync().catch(() => undefined);
+    }
+  }, [ready]);
+
+  return <AppProviders>{ready ? <RootNavigator /> : null}</AppProviders>;
 }

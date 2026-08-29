@@ -1,0 +1,15 @@
+---
+description: How to add a PasalManager feature (routes, API, UI)
+globs: app/**/*.tsx,src/features/**/*.ts,src/features/**/*.tsx
+alwaysApply: false
+---
+
+# New features
+
+1. Create `src/features/<name>/{components,lib,hooks}` before adding a fat `app/` file.
+2. Keep the route a default-export wrapper around feature UI.
+3. API functions in `src/api`; models in `src/types`.
+4. Shared only after a second feature needs the same module.
+5. Gate with `canAccessSegment` / `isPersonalWorkspace`.
+6. Sheets that edit data should use tall `BottomSheet` (`fullHeight` for forms).
+7. Run `npm run typecheck`.

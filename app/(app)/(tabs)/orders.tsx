@@ -12,9 +12,9 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { useSalesList, useTables, useCategories } from '@/src/hooks/useAppQueries';
+import { Screen } from '@/src/shared/layout/Screen';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { useSalesList, useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
 import { salesApi } from '@/src/api';
 import {
   buildCafeOrderAttributes,
@@ -25,12 +25,17 @@ import {
   getCafeOrderTypeLabel,
   getCafePaymentMeta,
   getNextCafeOrderStatus,
-} from '@/src/lib/cafeOrders';
-import { formatCurrency } from '@/src/lib/format';
-import { palette, radius, spacing, typography } from '@/src/theme';
+} from '@/src/features/cafe/lib/cafeOrders';
+import { formatCurrency } from '@/src/shared/lib/format';
+import { radius, spacing, typography } from '@/src/theme';
 import type { Sale } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function SeatingOrdersScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<'floor' | 'board'>('floor');
   const [selectedStatus, setSelectedStatus] = useState<string>('new');
@@ -153,7 +158,7 @@ export default function SeatingOrdersScreen() {
           <MaterialCommunityIcons
             name="floor-plan"
             size={18}
-            color={viewMode === 'floor' ? palette.primary : palette.textSoft}
+            color={viewMode === 'floor' ? colors.primary : colors.textSoft}
           />
           <Text style={[styles.modeTabLabel, viewMode === 'floor' && styles.modeTabLabelActive]}>
             Floor Map
@@ -165,7 +170,7 @@ export default function SeatingOrdersScreen() {
           <MaterialCommunityIcons
             name="chef-hat"
             size={18}
-            color={viewMode === 'board' ? palette.primary : palette.textSoft}
+            color={viewMode === 'board' ? colors.primary : colors.textSoft}
           />
           <Text style={[styles.modeTabLabel, viewMode === 'board' && styles.modeTabLabelActive]}>
             Orders Board
@@ -175,7 +180,7 @@ export default function SeatingOrdersScreen() {
 
       {isLoading ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator color={palette.primary} size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>Fetching Seating Map...</Text>
         </View>
       ) : viewMode === 'floor' ? (
@@ -273,14 +278,14 @@ export default function SeatingOrdersScreen() {
 
                   {capacity ? (
                     <View style={styles.metaRow}>
-                      <MaterialCommunityIcons name="account-multiple" size={14} color={palette.textMuted} />
+                      <MaterialCommunityIcons name="account-multiple" size={14} color={colors.textMuted} />
                       <Text style={styles.metaText}>Seats: {capacity}</Text>
                     </View>
                   ) : null}
 
                   {/* Floor badge inline indicator */}
                   <View style={styles.floorBadgeRow}>
-                    <MaterialCommunityIcons name="office-building" size={12} color={palette.textMuted} />
+                    <MaterialCommunityIcons name="office-building" size={12} color={colors.textMuted} />
                     <Text numberOfLines={1} ellipsizeMode="tail" style={styles.floorBadgeLabel}>
                       {floorName}
                     </Text>
@@ -315,7 +320,7 @@ export default function SeatingOrdersScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <MaterialCommunityIcons name="table-off" size={48} color={palette.textMuted} />
+              <MaterialCommunityIcons name="table-off" size={48} color={colors.textMuted} />
               <Text style={styles.emptyTitle}>No tables defined</Text>
               <Text style={styles.emptySubtitle}>
                 Add tables in Settings on the web dashboard to manage seating layout on mobile.
@@ -395,14 +400,14 @@ export default function SeatingOrdersScreen() {
                           params: { tableId: tblId, ref: 'orders' },
                         });
                       }}>
-                      <MaterialCommunityIcons name="pencil" size={20} color={palette.primary} />
+                      <MaterialCommunityIcons name="pencil" size={20} color={colors.primary} />
                       <Text style={styles.pencilEditText}>Edit POS</Text>
                     </Pressable>
 
                     {nextStatus ? (
                       <Pressable
                         disabled={updatingId === item.id}
-                        style={[styles.advanceButton, { backgroundColor: getStatusColor(nextStatus.value) }]}
+                        style={[styles.advanceButton, { backgroundColor: getStatusColor(nextStatus.value, colors.primary) }]}
                         onPress={() => void handleAdvanceStatus(item)}>
                         {updatingId === item.id ? (
                           <ActivityIndicator size="small" color="#fff" />
@@ -422,7 +427,7 @@ export default function SeatingOrdersScreen() {
             }}
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons name="chef-hat" size={48} color={palette.textMuted} />
+                <MaterialCommunityIcons name="chef-hat" size={48} color={colors.textMuted} />
                 <Text style={styles.emptyTitle}>No orders in this stage</Text>
                 <Text style={styles.emptySubtitle}>
                   Dine-in or takeaway orders saved with status "{activeGroup.label}" will appear here.
@@ -452,20 +457,20 @@ function getStatusDotColor(status: string) {
   }
 }
 
-function getStatusColor(status: string) {
+function getStatusColor(status: string, primary: string) {
   switch (status) {
     case 'to_cook':
-      return '#e97a1d'; // warm amber/orange
+      return '#e97a1d';
     case 'ready':
-      return '#10b981'; // emerald
+      return '#10b981';
     case 'completed':
-      return '#475569'; // dark slate
+      return '#475569';
     default:
-      return palette.primary;
+      return primary;
   }
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   viewModeTabs: {
     flexDirection: 'row',
     backgroundColor: '#ffffff',
@@ -487,17 +492,17 @@ const styles = StyleSheet.create({
     minHeight: 48, // Touch target
   },
   modeTabActive: {
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     borderWidth: 1,
-    borderColor: palette.primary,
+    borderColor: colors.primary,
   },
   modeTabLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   modeTabLabelActive: {
-    color: palette.primary,
+    color: colors.primary,
     fontWeight: '700',
   },
   centerWrap: {
@@ -508,7 +513,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   floorGrid: {
     padding: spacing.md,
@@ -532,7 +537,7 @@ const styles = StyleSheet.create({
   },
   floorBadgeLabel: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   chipsScroll: {
     gap: spacing.xs,
@@ -543,13 +548,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   tableCardOccupied: {
-    borderColor: palette.accentMuted,
+    borderColor: colors.accentMuted,
     backgroundColor: '#fdfbf7',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
   },
   tableCardHeader: {
     flexDirection: 'row',
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   statusBadge: {
     fontSize: 11,
@@ -603,16 +603,16 @@ const styles = StyleSheet.create({
   },
   waiterText: {
     fontSize: 11,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   billTotal: {
     fontSize: 13,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   openSeatingText: {
     fontSize: 11,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
     marginTop: spacing.sm,
   },
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     fontSize: 13,
-    color: palette.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 18,
   },
@@ -652,12 +652,12 @@ const styles = StyleSheet.create({
     minHeight: 36,
   },
   filterChipActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   filterChipLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: palette.textSoft,
+    color: colors.textSoft,
     lineHeight: 18,
   },
   filterChipLabelActive: {
@@ -680,7 +680,7 @@ const styles = StyleSheet.create({
   orderInvoice: {
     fontSize: 12,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   orderTable: {
@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: palette.primary,
+    borderColor: colors.primary,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     minHeight: 48, // touch target
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   pencilEditText: {
     fontSize: 14,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   advanceButton: {
     flex: 1.2,

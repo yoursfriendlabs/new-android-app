@@ -15,16 +15,20 @@ import {
 } from 'react-native';
 
 import { staffApi } from '@/src/api';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
-import { SearchField } from '@/src/components/ui/SearchField';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
+import { SearchField } from '@/src/shared/ui/SearchField';
+import { applyPermissionChange, getStaffPermissionUiFeatures } from '@/src/features/staff/lib/access-control';
+import { isCafeWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { palette, spacing, radius, typography, shadows, layout } from '@/src/theme';
+import { spacing, radius, typography, shadows, layout } from '@/src/theme';
 import type { StaffMember } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 interface StaffCategoryPreset {
   key: string;
@@ -34,9 +38,16 @@ interface StaffCategoryPreset {
 }
 
 export default function StaffDirectoryScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const cafeWorkspace = isCafeWorkspace({
+    businessType: String(businessProfile?.businessType ?? ''),
+    enabledModules: businessProfile?.enabledModules,
+  });
   
   const userRole = session?.role ?? user?.role ?? 'staff';
   const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin';
@@ -215,10 +226,7 @@ export default function StaffDirectoryScreen() {
   };
 
   const handlePermissionChange = (featureKey: string, level: string) => {
-    setPermissions(prev => ({
-      ...prev,
-      [featureKey]: level,
-    }));
+    setPermissions((prev) => applyPermissionChange(prev, featureKey, level));
   };
 
   const handleSave = async () => {
@@ -319,7 +327,7 @@ export default function StaffDirectoryScreen() {
       
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.primary} size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>Loading staff details...</Text>
         </View>
       ) : (
@@ -341,7 +349,7 @@ export default function StaffDirectoryScreen() {
                   styles.progressBarFill,
                   {
                     width: `${Math.min(100, (summary.totalUsers / summary.maxUsers) * 100)}%`,
-                    backgroundColor: summary.isLimitReached ? palette.danger : palette.primary,
+                    backgroundColor: summary.isLimitReached ? colors.danger : colors.primary,
                   },
                 ]}
               />
@@ -398,7 +406,7 @@ export default function StaffDirectoryScreen() {
                     <Text style={styles.salaryText}>
                       रू {Number(member.salary || 0).toLocaleString()}
                     </Text>
-                    <MaterialCommunityIcons name="chevron-right" size={20} color={palette.textSoft} />
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSoft} />
                   </View>
                 </View>
               </Pressable>
@@ -407,7 +415,7 @@ export default function StaffDirectoryScreen() {
 
           {filteredMembers.length === 0 ? (
             <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="account-search-outline" size={48} color={palette.textSoft} />
+              <MaterialCommunityIcons name="account-search-outline" size={48} color={colors.textSoft} />
               <Text style={styles.emptyText}>No staff members found matching search.</Text>
             </View>
           ) : null}
@@ -423,7 +431,7 @@ export default function StaffDirectoryScreen() {
         <View style={styles.actionWrap}>
           {isOwnerOrAdmin ? (
             <Pressable style={styles.actionBtn} onPress={() => handleOpenEdit(selectedMember)}>
-              <MaterialCommunityIcons name="account-edit-outline" size={22} color={palette.primary} />
+              <MaterialCommunityIcons name="account-edit-outline" size={22} color={colors.primary} />
               <Text style={styles.actionBtnText}>Edit Profile & Permissions</Text>
             </Pressable>
           ) : null}
@@ -440,7 +448,7 @@ export default function StaffDirectoryScreen() {
                 },
               });
             }}>
-            <MaterialCommunityIcons name="book-open-outline" size={22} color={palette.success} />
+            <MaterialCommunityIcons name="book-open-outline" size={22} color={colors.success} />
             <Text style={styles.actionBtnText}>Salary & Advance Bookkeeping</Text>
           </Pressable>
 
@@ -456,14 +464,14 @@ export default function StaffDirectoryScreen() {
                 },
               });
             }}>
-            <MaterialCommunityIcons name="calendar-check-outline" size={22} color={palette.info} />
+            <MaterialCommunityIcons name="calendar-check-outline" size={22} color={colors.info} />
             <Text style={styles.actionBtnText}>Attendance History Logs</Text>
           </Pressable>
 
           {isOwnerOrAdmin && selectedMember?.role !== 'owner' ? (
             <Pressable style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleDelete}>
-              <MaterialCommunityIcons name="trash-can-outline" size={22} color={palette.danger} />
-              <Text style={[styles.actionBtnText, { color: palette.danger }]}>Delete Staff Member</Text>
+              <MaterialCommunityIcons name="trash-can-outline" size={22} color={colors.danger} />
+              <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete Staff Member</Text>
             </Pressable>
           ) : null}
         </View>
@@ -479,7 +487,7 @@ export default function StaffDirectoryScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={palette.white} />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.primaryButtonLabel}>{isEditing ? 'Save Staff' : 'Invite Staff'}</Text>
             )}
@@ -538,8 +546,8 @@ export default function StaffDirectoryScreen() {
             <Switch
               value={hasLogin}
               onValueChange={setHasLogin}
-              trackColor={{ false: palette.border, true: palette.primary }}
-              thumbColor={palette.white}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.white}
             />
           </View>
 
@@ -571,15 +579,15 @@ export default function StaffDirectoryScreen() {
             <Switch
               value={customPermissionsEnabled}
               onValueChange={toggleCustomPermissions}
-              trackColor={{ false: palette.border, true: palette.primary }}
-              thumbColor={palette.white}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.white}
             />
           </View>
 
           {customPermissionsEnabled && staffData?.meta?.features ? (
             <View style={styles.permissionsWrap}>
               <Text style={styles.permsHeading}>Feature Module Access Controls</Text>
-              {staffData.meta.features.map((feat) => {
+              {getStaffPermissionUiFeatures(staffData.meta.features, { includeCafeModules: cafeWorkspace }).map((feat) => {
                 const currentLevel = permissions[feat.key] || 'none';
                 return (
                   <View key={feat.key} style={styles.permRow}>
@@ -621,7 +629,7 @@ export default function StaffDirectoryScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   loading: {
     flex: 1,
     alignItems: 'center',
@@ -629,7 +637,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   loadingText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     marginTop: spacing.sm,
     fontWeight: '600',
@@ -640,8 +648,8 @@ const styles = StyleSheet.create({
   },
   bannerCard: {
     padding: spacing.md,
-    backgroundColor: palette.accentSoft,
-    borderColor: palette.accentMuted,
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentMuted,
     borderWidth: 1,
   },
   bannerHeader: {
@@ -653,11 +661,11 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   bannerSubtitle: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginBottom: spacing.xs,
   },
   bannerBadge: {
@@ -669,16 +677,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   badgeSuccess: {
-    color: palette.success,
-    backgroundColor: palette.successSoft,
+    color: colors.success,
+    backgroundColor: colors.successSoft,
   },
   badgeDanger: {
-    color: palette.danger,
-    backgroundColor: palette.dangerSoft,
+    color: colors.danger,
+    backgroundColor: colors.dangerSoft,
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
     borderRadius: radius.pill,
     overflow: 'hidden',
   },
@@ -689,13 +697,13 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.sm,
   },
   memberCard: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     padding: spacing.md,
     borderRadius: radius.md,
     ...shadows.card,
@@ -709,12 +717,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: palette.text,
+    color: colors.text,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -725,11 +733,11 @@ const styles = StyleSheet.create({
   memberName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   memberTitle: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   tagWrap: {
     flexDirection: 'row',
@@ -739,13 +747,13 @@ const styles = StyleSheet.create({
   presetTag: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     borderRadius: radius.pill,
   },
   presetTagText: {
     fontSize: 10,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   statusTag: {
     paddingHorizontal: spacing.sm,
@@ -753,20 +761,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   statusTagActive: {
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   statusTagTextActive: {
     fontSize: 10,
     fontWeight: '800',
-    color: palette.success,
+    color: colors.success,
   },
   statusTagInactive: {
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   statusTagTextInactive: {
     fontSize: 10,
     fontWeight: '800',
-    color: palette.danger,
+    color: colors.danger,
   },
   memberRight: {
     alignItems: 'flex-end',
@@ -774,14 +782,14 @@ const styles = StyleSheet.create({
   },
   salaryLabel: {
     fontSize: 9,
-    color: palette.textSoft,
+    color: colors.textSoft,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
   salaryText: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   emptyState: {
     alignItems: 'center',
@@ -790,7 +798,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     textAlign: 'center',
   },
@@ -803,26 +811,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     padding: spacing.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: radius.md,
   },
   actionBtnDanger: {
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   actionBtnText: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -836,7 +844,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginBottom: spacing.xxs,
   },
   presetGrid: {
@@ -848,21 +856,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   presetChipSelected: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   presetChipText: {
     fontSize: typography.label,
     fontWeight: '600',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   presetChipTextSelected: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '700',
   },
   toggleRow: {
@@ -871,27 +879,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: palette.border,
+    borderTopColor: colors.border,
   },
   toggleLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   toggleHelper: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   loginSection: {
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.accentMuted,
+    borderColor: colors.accentMuted,
     gap: spacing.md,
   },
   permissionsWrap: {
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     borderRadius: radius.md,
     gap: spacing.sm,
@@ -899,7 +907,7 @@ const styles = StyleSheet.create({
   permsHeading: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
     marginBottom: spacing.xxs,
   },
   permRow: {
@@ -914,16 +922,16 @@ const styles = StyleSheet.create({
   permTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   permDesc: {
     fontSize: 10,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   permSelector: {
     flexDirection: 'row',
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     overflow: 'hidden',
   },
   permOption: {
@@ -933,17 +941,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   permOptionActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   permOptionActiveManage: {
-    backgroundColor: palette.success,
+    backgroundColor: colors.success,
   },
   permOptionText: {
     fontSize: 10,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   permOptionTextActive: {
-    color: palette.white,
+    color: colors.white,
   },
 });

@@ -15,35 +15,51 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
+import { Screen } from '@/src/shared/layout/Screen';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { WinMoment } from '@/src/features/habits/components/WinMoment';
 import {
   useTaskDetail,
   useTaskMetadata,
   useUpdateTaskMutation,
   useAddTaskCommentMutation,
-} from '@/src/hooks/useTaskQueries';
+} from '@/src/features/notes/hooks/useTaskQueries';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
+import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
+import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
+import { decodeNoteBody, formatDueStamp, isOpenTask, reminderDueAt, taskKind } from '@/src/features/notes/lib/notes';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
-import { prettyDate } from '@/src/lib/format';
+import { useHabitStore } from '@/src/stores/habit-store';
+import { radius, spacing, typography, shadows } from '@/src/theme';
+import { prettyDate } from '@/src/shared/lib/format';
 import type { TaskAssignment, TaskActivity } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskDetailScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const personal = isPersonalWorkspace({
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
   const role = session?.role ?? user?.role;
   const isOwner = role === 'owner' || role === 'admin' || !role;
   const permissions = accessControl?.permissions;
   const tasksPermission = permissions && typeof permissions === 'object' && !Array.isArray(permissions)
     ? (permissions as Record<string, string>).tasks
     : undefined;
-  const canManage = isOwner || tasksPermission === 'manage';
+  const canManage = personal || isOwner || tasksPermission === 'manage';
 
   // State
   const [commentText, setCommentText] = useState('');
   const [statusSheetVisible, setStatusSheetVisible] = useState(false);
+  const [win, setWin] = useState<HabitWin | null>(null);
 
   // Queries & Mutations
   const { data: task, isLoading, refetch } = useTaskDetail(id);
@@ -55,7 +71,7 @@ export default function TaskDetailScreen() {
     return (
       <Screen scrollable={false} padded={false} topBarTitle="Task Details" topBarLeading="back">
         <View style={styles.loadingWrap}>
-          <ActivityIndicator color={palette.accent} size="large" />
+          <ActivityIndicator color={colors.accent} size="large" />
           <Text style={styles.loadingText}>Loading task details...</Text>
         </View>
       </Screen>
@@ -63,12 +79,32 @@ export default function TaskDetailScreen() {
   }
 
   const isCreator = task.creator?.id === user?.id;
-  const canEditTask = isOwner || isCreator; // Only creator or owner can edit task metadata fields
+  const canEditTask = personal || isOwner || isCreator;
+  const decoded = decodeNoteBody(task.description);
+  const kind = taskKind(task);
+  const open = isOpenTask(task.status);
 
   const handleStatusChange = async (newStatus: string) => {
     try {
       await updateTaskMutation.mutateAsync({ status: newStatus });
       setStatusSheetVisible(false);
+      if (personal && (newStatus === 'completed' || newStatus === 'done')) {
+        const coins = await useHabitStore.getState().awardCoins(COIN_REWARDS.complete, {
+          claimId: `complete:${task.id}`,
+          reason: 'complete',
+          label: taskKind(task) === 'note' ? 'Closed a note' : 'Finished a reminder',
+        });
+        await useHabitStore.getState().cancelPing(`task:${task.id}`);
+        setWin(
+          buildCoinWin({
+            title: taskKind(task) === 'note' ? 'Note closed' : 'Reminder done',
+            message: coins ? `Follow-through pays. ${plusCoins(coins)}.` : 'Already collected for this one.',
+            coins,
+            icon: 'check-decagram',
+          }),
+        );
+        return;
+      }
       Alert.alert('Status updated', `Task status is now ${newStatus.replace('_', ' ')}.`);
     } catch (error) {
       Alert.alert('Failed to update status', error instanceof Error ? error.message : 'Please try again.');
@@ -88,27 +124,27 @@ export default function TaskDetailScreen() {
   const getPriorityColor = (prio: string) => {
     switch (prio.toLowerCase()) {
       case 'high':
-        return palette.danger;
+        return colors.danger;
       case 'medium':
-        return palette.warning;
+        return colors.warning;
       case 'low':
-        return palette.success;
+        return colors.success;
       default:
-        return palette.textSoft;
+        return colors.textSoft;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-        return palette.success;
+        return colors.success;
       case 'in_progress':
-        return palette.accent;
+        return colors.accent;
       case 'todo':
       case 'open':
-        return palette.primary;
+        return colors.primary;
       default:
-        return palette.textSoft;
+        return colors.textSoft;
     }
   };
 
@@ -116,17 +152,20 @@ export default function TaskDetailScreen() {
     <Pressable
       style={styles.headerButton}
       onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: task.id } })}>
-      <MaterialCommunityIcons color={palette.white} name="pencil" size={20} />
+      <MaterialCommunityIcons color={colors.white} name="pencil" size={20} />
     </Pressable>
   ) : undefined;
 
-  const overdue = task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed';
+  const dueMoment = reminderDueAt(task);
+  const overdue = Boolean(
+    kind === 'reminder' && dueMoment && dueMoment.getTime() < Date.now() && task.status !== 'completed',
+  );
 
   // Separate comments/activities for timeline
   const timelineActivities = task.activities || [];
 
   return (
-    <Screen scrollable={false} padded={false} topBarTitle="Task Detail" topBarRight={topBarRight} topBarLeading="back">
+    <Screen scrollable={false} padded={false} topBarTitle={personal ? (kind === 'note' ? 'Note' : 'Reminder') : 'Task Detail'} topBarRight={topBarRight} topBarLeading="back">
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -156,24 +195,28 @@ export default function TaskDetailScreen() {
             </View>
 
             <Text style={styles.title}>{task.title}</Text>
-            {task.description ? (
-              <Text style={styles.description}>{task.description}</Text>
+            {decoded.body ? (
+              <Text style={styles.description}>{decoded.body}</Text>
             ) : (
-              <Text style={styles.descriptionMuted}>No description provided.</Text>
+              <Text style={styles.descriptionMuted}>{personal ? 'No extra note.' : 'No description provided.'}</Text>
             )}
 
             <View style={styles.metaGrid}>
               <View style={styles.metaItem}>
-                <MaterialCommunityIcons color={palette.textSoft} name="calendar" size={18} />
+                <MaterialCommunityIcons color={colors.textSoft} name="calendar" size={18} />
                 <View>
-                  <Text style={styles.metaLabel}>Due Date</Text>
+                  <Text style={styles.metaLabel}>{personal ? 'When' : 'Due Date'}</Text>
                   <Text style={[styles.metaValue, overdue && styles.overdueValue]}>
-                    {task.dueDate ? prettyDate(task.dueDate) : 'No due date'}
+                    {personal && dueMoment
+                      ? formatDueStamp(dueMoment)
+                      : task.dueDate
+                        ? prettyDate(task.dueDate)
+                        : 'No due date'}
                   </Text>
                 </View>
               </View>
               <View style={styles.metaItem}>
-                <MaterialCommunityIcons color={palette.textSoft} name="account-circle-outline" size={18} />
+                <MaterialCommunityIcons color={colors.textSoft} name="account-circle-outline" size={18} />
                 <View>
                   <Text style={styles.metaLabel}>Created By</Text>
                   <Text style={styles.metaValue}>{task.creator?.name || 'System'}</Text>
@@ -182,7 +225,7 @@ export default function TaskDetailScreen() {
             </View>
           </View>
 
-          {/* Assignees Card */}
+          {!personal ? (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Assignees ({task.assignments?.length || 0})</Text>
             <View style={styles.assigneesList}>
@@ -211,6 +254,15 @@ export default function TaskDetailScreen() {
               ) : null}
             </View>
           </View>
+          ) : open ? (
+            <Pressable
+              onPress={() => void handleStatusChange('completed')}
+              style={[styles.completeBtn, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.completeLabel, { color: colors.white }]}>
+                Mark done · {plusCoins(COIN_REWARDS.complete)}
+              </Text>
+            </Pressable>
+          ) : null}
 
           {/* Timeline / Activities */}
           <View style={styles.timelineContainer}>
@@ -223,7 +275,7 @@ export default function TaskDetailScreen() {
                     <View style={styles.timelineLeft}>
                       <View style={[styles.timelineIcon, isComment ? styles.commentTimelineIcon : styles.systemTimelineIcon]}>
                         <MaterialCommunityIcons
-                          color={isComment ? palette.white : palette.textSoft}
+                          color={isComment ? colors.white : colors.textSoft}
                           name={isComment ? 'comment-text-outline' : 'history'}
                           size={14}
                         />
@@ -257,8 +309,8 @@ export default function TaskDetailScreen() {
         {canManage ? (
           <View style={styles.commentBoxContainer}>
             <TextInput
-              placeholder="Write a comment..."
-              placeholderTextColor={palette.textSoft}
+              placeholder={personal ? 'Add a thought…' : 'Write a comment...'}
+              placeholderTextColor={colors.textSoft}
               style={styles.commentInput}
               value={commentText}
               onChangeText={setCommentText}
@@ -269,9 +321,9 @@ export default function TaskDetailScreen() {
               style={[styles.sendButton, !commentText.trim() && styles.sendButtonDisabled]}
               onPress={() => void handleAddComment()}>
               {addCommentMutation.isPending ? (
-                <ActivityIndicator color={palette.white} size="small" />
+                <ActivityIndicator color={colors.white} size="small" />
               ) : (
-                <MaterialCommunityIcons color={palette.white} name="send" size={18} />
+                <MaterialCommunityIcons color={colors.white} name="send" size={18} />
               )}
             </Pressable>
           </View>
@@ -294,21 +346,22 @@ export default function TaskDetailScreen() {
                   {status.label}
                 </Text>
                 {task.status === status.key ? (
-                  <MaterialCommunityIcons color={palette.white} name="check" size={18} />
+                  <MaterialCommunityIcons color={colors.white} name="check" size={18} />
                 ) : null}
               </Pressable>
             ))}
           </View>
         </BottomSheet>
+        <WinMoment win={win} onClose={() => setWin(null)} />
       </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: spacing.lg,
@@ -323,21 +376,32 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   headerButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  completeBtn: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.card,
+  },
+  completeLabel: {
+    fontSize: typography.body,
+    fontWeight: '800',
+  },
   card: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
     ...shadows.card,
@@ -370,23 +434,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '900',
-    color: palette.text,
+    color: colors.text,
   },
   description: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
     lineHeight: 22,
   },
   descriptionMuted: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
   },
   metaGrid: {
     flexDirection: 'row',
     gap: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: palette.border,
+    borderTopColor: colors.border,
     paddingTop: spacing.lg,
   },
   metaItem: {
@@ -398,21 +462,21 @@ const styles = StyleSheet.create({
   metaLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   metaValue: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   overdueValue: {
-    color: palette.dangerBright,
+    color: colors.dangerBright,
   },
   sectionTitle: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
     marginBottom: spacing.xs,
   },
   assigneesList: {
@@ -427,12 +491,12 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: palette.accent,
+    color: colors.accent,
     fontWeight: '800',
     fontSize: typography.body,
   },
@@ -443,29 +507,29 @@ const styles = StyleSheet.create({
   assigneeName: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   assigneeRole: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   assigneeStatus: {
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   assigneeStatusLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'capitalize',
   },
   assigneeStatusCompleted: {
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   assigneeStatusCompletedLabel: {
-    color: palette.success,
+    color: colors.success,
   },
   timelineContainer: {
     gap: spacing.sm,
@@ -490,17 +554,17 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   commentTimelineIcon: {
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
   },
   systemTimelineIcon: {
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   timelineLine: {
     width: 2,
     flex: 1,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
     marginVertical: 2,
   },
   timelineContent: {
@@ -516,32 +580,32 @@ const styles = StyleSheet.create({
   actorName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   timelineTime: {
     fontSize: 10,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   commentBubble: {
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   commentBody: {
     fontSize: typography.body,
-    color: palette.text,
+    color: colors.text,
     lineHeight: 20,
   },
   systemActivityText: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     fontStyle: 'italic',
   },
   emptyText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
     marginVertical: spacing.md,
     fontStyle: 'italic',
@@ -554,33 +618,33 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: palette.border,
-    backgroundColor: palette.surface,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   commentInput: {
     flex: 1,
     minHeight: 44,
     maxHeight: 100,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     fontSize: typography.body,
-    color: palette.text,
+    color: colors.text,
   },
   sendButton: {
     width: 44,
     height: 44,
     borderRadius: radius.md,
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.card,
   },
   sendButtonDisabled: {
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   statusSheetList: {
     gap: spacing.sm,
@@ -592,18 +656,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     paddingHorizontal: spacing.md,
   },
   statusSheetItemActive: {
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
   },
   statusSheetLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   statusSheetLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
 });

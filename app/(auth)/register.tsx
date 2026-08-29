@@ -1,190 +1,250 @@
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { useBusinessTypes } from '@/src/hooks/useAppQueries';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import {
+  AuthButton,
+  AuthFooterLink,
+  AuthNotice,
+  PasswordHints,
+  StepIndicator,
+} from '@/src/features/auth/components/AuthControls';
+import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
+import {
+  AccountKindPicker,
+  BusinessTypePicker,
+  buildBusinessTypeOptions,
+  type AccountKind,
+} from '@/src/features/auth/components/WorkspaceTypePicker';
+import { FormField } from '@/src/shared/forms/FormField';
+import { useBusinessTypes } from '@/src/shared/hooks/useAppQueries';
+import {
+  digitsOnly,
+  getRegisterAccountError,
+  getWorkspaceError,
+  PHONE_MIN_DIGITS,
+  resolveAuthMessage,
+} from '@/src/features/auth/lib/auth';
+import { personalWorkspaceName } from '@/src/shared/lib/workspace';
 import { useAuthStore } from '@/src/stores/auth-store';
 
 export default function RegisterScreen() {
   const register = useAuthStore((state) => state.register);
   const { data: businessTypes } = useBusinessTypes();
+  const options = useMemo(() => buildBusinessTypeOptions(businessTypes), [businessTypes]);
+  const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
+    confirmPassword: '',
     businessName: '',
-    businessType: 'retail',
+    accountKind: 'personal' as AccountKind,
+    businessType: options[0]?.value ?? 'retail',
   });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  const selectedBusinessType = options.find((option) => option.value === form.businessType) ?? options[0];
+  const isPersonal = form.accountKind === 'personal';
+  const phoneHelper =
+    form.phone && digitsOnly(form.phone).length < PHONE_MIN_DIGITS
+      ? `Needs at least ${PHONE_MIN_DIGITS} digits`
+      : undefined;
+
+  useEffect(() => {
+    if (!options.length) return;
+    if (options.some((option) => option.value === form.businessType)) return;
+    setForm((current) => ({ ...current, businessType: options[0].value }));
+  }, [form.businessType, options]);
+
+  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setError('');
+    setFieldErrors((current) => ({ ...current, [key]: '' }));
+  }
+
+  function handleContinue() {
+    const nextError = getRegisterAccountError(form);
+    if (nextError) {
+      setError(nextError);
+      setFieldErrors({
+        name: form.name.trim().length < 2 ? 'Enter your name' : '',
+        email: form.email ? '' : 'Required',
+        phone: digitsOnly(form.phone).length < PHONE_MIN_DIGITS ? `At least ${PHONE_MIN_DIGITS} digits` : '',
+        password: form.password ? '' : 'Required',
+        confirmPassword: form.password !== form.confirmPassword ? 'Does not match' : '',
+      });
+      return;
+    }
+    setError('');
+    setFieldErrors({});
+    setStep(2);
+  }
+
   async function handleRegister() {
+    const nextError = getWorkspaceError({
+      accountKind: form.accountKind,
+      businessName: form.businessName,
+      businessType: form.businessType,
+    });
+    if (nextError) {
+      setError(nextError);
+      return;
+    }
+
+    const workspaceName = isPersonal
+      ? form.businessName.trim() || personalWorkspaceName(form.name)
+      : form.businessName.trim();
+
     try {
       setSubmitting(true);
       setError('');
-      const result = await register(form);
+      const result = await register({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        password: form.password,
+        businessName: workspaceName,
+        businessType: isPersonal ? 'personal' : selectedBusinessType?.apiValue || 'retail',
+      });
       router.replace(result === 'verify-email' ? '/(auth)/verify-email' : '/(app)/(tabs)/home');
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Unable to create account.');
+      setError(resolveAuthMessage(nextError, 'Unable to create the account. Try again.'));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Screen>
-      <SurfaceCard
-        title="Create business account"
-        subtitle="Start with the essentials. You can keep deeper setup on the web after launch.">
-        <FormField label="Owner name" value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} />
-        <FormField
-          label="Email"
-          value={form.email}
-          onChangeText={(email) => setForm((current) => ({ ...current, email }))}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <FormField label="Phone" value={form.phone} onChangeText={(phone) => setForm((current) => ({ ...current, phone }))} keyboardType="numeric" />
-        <FormField
-          label="Password"
-          value={form.password}
-          onChangeText={(password) => setForm((current) => ({ ...current, password }))}
-          secureTextEntry
-          autoCapitalize="none"
-        />
-        <FormField label="Business name" value={form.businessName} onChangeText={(businessName) => setForm((current) => ({ ...current, businessName }))} />
-        
-        <Text style={styles.sectionLabel}>Select Business Type</Text>
-        <View style={styles.gridContainer}>
-          {(businessTypes ?? [
-            { value: 'retail', label: 'Retail / Grocery', description: 'Counter POS and inventory tracking' },
-            { value: 'cafe', label: 'Restaurant / Cafe', description: 'Seating layout plans and counter billing' },
-            { value: 'gym', label: 'Gym / Fitness', description: 'Membership subscriptions and expiry tracking' },
-            { value: 'jewellery', label: 'Jewellery Shop', description: 'Detailed custom orders and valuations' },
-            { value: 'general', label: 'General / Service', description: 'Standard business ledger and staff payroll' },
-          ]).map((type) => {
-            const isSelected = form.businessType === type.value;
-            const getIcon = (val: string) => {
-              switch (val) {
-                case 'retail': return 'storefront-outline';
-                case 'service': return 'wrench';
-                case 'general_store': return 'basket-outline';
-                case 'hospitality': return 'silverware-fork-knife';
-                case 'cafe': return 'coffee';
-                case 'gym': return 'dumbbell';
-                case 'jewellery': return 'diamond-stone';
-                default: return 'briefcase-outline';
-              }
-            };
+    <AuthScreen
+      backLabel={step === 2 ? 'Account details' : 'Back to sign in'}
+      onBack={step === 2 ? () => setStep(1) : () => router.replace('/(auth)/login')}
+      title={step === 1 ? 'Create your account' : 'How will you use PasalManager?'}
+      subtitle={
+        step === 1
+          ? 'Personal books for home, or a full workspace for your shop.'
+          : isPersonal
+            ? 'Keep money, people, and notes in one place.'
+            : 'Name the business and pick the type that matches your shop.'
+      }
+      footer={
+        step === 1 ? (
+          <AuthFooterLink
+            prompt="Already have an account?"
+            action="Sign in"
+            onPress={() => router.replace('/(auth)/login')}
+          />
+        ) : null
+      }>
+      <StepIndicator step={step} total={2} />
+      {error ? <AuthNotice tone="error" message={error} /> : null}
 
-            return (
-              <Pressable
-                key={type.value}
-                style={[styles.gridCard, isSelected && styles.gridCardActive]}
-                onPress={() => setForm((curr) => ({ ...curr, businessType: type.value }))}
-              >
-                <MaterialCommunityIcons
-                  name={getIcon(type.value) as any}
-                  size={22}
-                  color={isSelected ? palette.primary : palette.textSoft}
-                />
-                <View style={styles.gridCardContent}>
-                  <Text style={[styles.gridCardTitle, isSelected && styles.gridCardTitleActive]}>
-                    {type.label}
-                  </Text>
-                  <Text style={styles.gridCardDesc}>
-                    {type.description}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={styles.primaryButton} onPress={handleRegister} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={palette.white} /> : <Text style={styles.primaryLabel}>Create account</Text>}
-        </Pressable>
-      </SurfaceCard>
-      <Link href="/(auth)/login" style={styles.link}>
-        Back to sign in
-      </Link>
-    </Screen>
+      {step === 1 ? (
+        <>
+          <FormField
+            label="Full name"
+            icon="account-outline"
+            value={form.name}
+            onChangeText={(name) => update('name', name)}
+            placeholder="Your name"
+            autoCapitalize="words"
+            autoComplete="name"
+            textContentType="name"
+            error={fieldErrors.name}
+          />
+          <FormField
+            label="Email"
+            icon="email-outline"
+            value={form.email}
+            onChangeText={(email) => update('email', email)}
+            placeholder="you@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
+            error={fieldErrors.email}
+          />
+          <FormField
+            label="Phone"
+            icon="phone-outline"
+            value={form.phone}
+            onChangeText={(phone) => update('phone', phone)}
+            placeholder="98XXXXXXXX"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            textContentType="telephoneNumber"
+            error={fieldErrors.phone}
+            helperText={phoneHelper}
+          />
+          <FormField
+            label="Password"
+            icon="lock-outline"
+            value={form.password}
+            onChangeText={(password) => update('password', password)}
+            placeholder="Create a password"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            error={fieldErrors.password}
+          />
+          <PasswordHints password={form.password} />
+          <FormField
+            label="Confirm password"
+            icon="lock-check-outline"
+            value={form.confirmPassword}
+            onChangeText={(confirmPassword) => update('confirmPassword', confirmPassword)}
+            placeholder="Repeat password"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            error={fieldErrors.confirmPassword}
+            returnKeyType="next"
+            onSubmitEditing={handleContinue}
+          />
+          <AuthButton label="Continue" onPress={handleContinue} />
+        </>
+      ) : (
+        <>
+          <AccountKindPicker value={form.accountKind} onChange={(accountKind) => update('accountKind', accountKind)} />
+          <FormField
+            label={isPersonal ? 'Space name' : 'Business name'}
+            icon={isPersonal ? 'home-outline' : 'domain'}
+            value={form.businessName}
+            onChangeText={(businessName) => update('businessName', businessName)}
+            placeholder={
+              isPersonal
+                ? form.name.trim()
+                  ? personalWorkspaceName(form.name)
+                  : "Your name's workspace"
+                : 'Shop name'
+            }
+            autoCapitalize="words"
+            autoComplete="organization"
+            textContentType="organizationName"
+            helperText={
+              isPersonal
+                ? 'Optional. We create a free workspace from your name if you leave this blank.'
+                : 'This is how invoices and the shop workspace are labeled.'
+            }
+          />
+          {!isPersonal ? (
+            <BusinessTypePicker
+              options={options}
+              value={form.businessType}
+              onChange={(businessType) => update('businessType', businessType)}
+            />
+          ) : null}
+          <AuthButton
+            label={isPersonal ? 'Start tracking money' : 'Create business'}
+            loading={submitting}
+            onPress={() => void handleRegister()}
+          />
+        </>
+      )}
+    </AuthScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  sectionLabel: {
-    fontSize: typography.label,
-    fontWeight: '800',
-    color: palette.textSoft,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  gridContainer: {
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  gridCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundWarm,
-    gap: spacing.md,
-  },
-  gridCardActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.accentSoft,
-  },
-  gridCardContent: {
-    flex: 1,
-    gap: 2,
-  },
-  gridCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: palette.text,
-  },
-  gridCardTitleActive: {
-    color: palette.primary,
-  },
-  gridCardDesc: {
-    fontSize: 11,
-    color: palette.textMuted,
-  },
-  primaryButton: {
-    minHeight: 52,
-    borderRadius: radius.md,
-    backgroundColor: palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.sm,
-  },
-  primaryLabel: {
-    color: palette.white,
-    fontSize: typography.body,
-    fontWeight: '800',
-  },
-  error: {
-    color: palette.danger,
-    fontWeight: '600',
-  },
-  link: {
-    color: palette.primary,
-    fontSize: typography.body,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginTop: spacing.md,
-  },
-});

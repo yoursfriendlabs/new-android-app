@@ -13,10 +13,15 @@ import type {
   PaginatedResponse,
   Party,
   PartyReportItem,
+  PartyStatement,
+  PartyStatementRow,
+  PartyStatementSummary,
   PopularCategoryInsight,
   ProfitLossAnalytics,
   ProfitLossSeriesPoint,
   Product,
+  InventoryBatch,
+  StockLedgerEntry,
   Purchase,
   QuickExpense,
   Sale,
@@ -153,13 +158,22 @@ export function normalizeAccessControl(raw: unknown): AccessControl {
 
 export function normalizeBusinessProfile(raw: unknown): BusinessProfile {
   const record = asRecord(raw) ?? {};
+  const settings = asRecord(record.settings) ?? {};
+  const business = asRecord(record.business) ?? {};
+  const modulesRecord = asRecord(firstDefined(record.modules, settings.modules));
+  const enabledFromFlags = modulesRecord
+    ? Object.entries(modulesRecord)
+        .filter(([, enabled]) => Boolean(enabled))
+        .map(([key]) => key)
+    : [];
+
   return {
     ...(record as BusinessProfile),
-    id: asString(firstDefined(record.id, record._id), ''),
-    businessId: asString(firstDefined(record.businessId, record.business_id, record.id), ''),
-    businessName: asString(firstDefined(record.businessName, record.name), ''),
-    businessType: asString(firstDefined(record.businessType, record.type), 'retail'),
-    enabledModules: asStringArray(firstDefined(record.enabledModules, record.modules)),
+    id: asString(firstDefined(business.id, record.id, record._id), ''),
+    businessId: asString(firstDefined(business.id, record.businessId, record.business_id, record.id), ''),
+    businessName: asString(firstDefined(business.name, record.businessName, record.name), ''),
+    businessType: asString(firstDefined(record.businessType, business.type, record.type), 'retail'),
+    enabledModules: asStringArray(firstDefined(record.enabledModules, settings.enabledModules, enabledFromFlags)),
     salesRoute: asString(record.salesRoute, ''),
     servicesRoute: asString(record.servicesRoute, ''),
     currencyCode: asString(firstDefined(record.currencyCode, record.currency), ''),
@@ -343,22 +357,67 @@ export function normalizeQuickExpense(raw: unknown): QuickExpense {
 }
 
 
+export function normalizeInventoryBatch(raw: unknown): InventoryBatch {
+  const record = asRecord(raw) ?? {};
+  const expiryDate = asString(firstDefined(record.expiryDate, record.expiry_date), '');
+  const isExpired =
+    record.isExpired === true ||
+    (expiryDate ? new Date(expiryDate) < new Date(new Date().toISOString().slice(0, 10)) : false);
+
+  return {
+    ...(record as InventoryBatch),
+    id: asString(firstDefined(record.id, record._id), ''),
+    productId: asString(firstDefined(record.productId, record.product_id), ''),
+    quantityOnHand: asNumber(firstDefined(record.quantityOnHand, record.quantity_on_hand, record.quantity)),
+    expiryDate,
+    batchNumber: asString(firstDefined(record.batchNumber, record.batch_number), ''),
+    costPrice: asNumber(record.costPrice),
+    note: asString(record.note, ''),
+    isExpired,
+    createdAt: asString(record.createdAt, ''),
+  };
+}
+
+export function normalizeStockLedgerEntry(raw: unknown): StockLedgerEntry {
+  const record = asRecord(raw) ?? {};
+  return {
+    ...(record as StockLedgerEntry),
+    id: asString(firstDefined(record.id, record._id), ''),
+    productId: asString(firstDefined(record.productId, record.product_id), ''),
+    refType: asString(firstDefined(record.refType, record.ref_type, record.type), 'adjustment'),
+    quantityChange: asNumber(firstDefined(record.quantityChange, record.quantity_change, record.quantity)),
+    note: asString(firstDefined(record.note, record.notes), ''),
+    createdAt: asString(firstDefined(record.createdAt, record.created_at), ''),
+  };
+}
+
 export function normalizeProduct(raw: unknown): Product {
   const record = asRecord(raw) ?? {};
   const category = asRecord(firstDefined(record.category, record.categoryId));
-  const unit = asRecord(record.primaryUnit);
+  const unit = asRecord(record.primaryUnit) ?? asRecord(record.unit);
   const secondaryUnit = asRecord(firstDefined(record.secondaryUnit, record.secondary_unit));
+  const batchesRaw = firstDefined(record.batches, record.InventoryBatches, record.inventoryBatches);
+  const batches = Array.isArray(batchesRaw)
+    ? batchesRaw.map(normalizeInventoryBatch).filter((item) => item.id)
+    : undefined;
+  const expiredFromBatches = batches?.reduce((sum, batch) => sum + (batch.isExpired ? batch.quantityOnHand : 0), 0);
 
   return {
     ...(record as Product),
     id: asString(firstDefined(record.id, record._id, record.productId), ''),
     name: asString(firstDefined(record.name, record.title), 'Unnamed product'),
+    companyName: asString(firstDefined(record.companyName, record.brand), ''),
     categoryId: asString(firstDefined(record.categoryId, category?.id, category?._id), ''),
     categoryName: asString(firstDefined(record.categoryName, category?.name, record.category), ''),
     salePrice: asNumber(firstDefined(record.salePrice, record.price, record.unitPrice)),
     purchasePrice: asNumber(firstDefined(record.purchasePrice, record.costPrice)),
+    secondarySalePrice: asNumber(record.secondarySalePrice),
+    mrpPrice: asNumber(record.mrpPrice),
+    wholesalePrice: asNumber(record.wholesalePrice),
+    minWholesaleQuantity: asNumber(record.minWholesaleQuantity),
     primaryUnit: asString(firstDefined(unit?.name, unit?.symbol, record.primaryUnit, record.unit), 'unit'),
-    primaryUnitId: asString(firstDefined(record.primaryUnitId, unit?.id, unit?._id), ''),
+    primaryUnitId: asString(firstDefined(record.primaryUnitId, record.unitId, unit?.id, unit?._id), ''),
+    unitId: asString(firstDefined(record.unitId, record.primaryUnitId, unit?.id), ''),
     secondaryUnit: asString(firstDefined(secondaryUnit?.name, secondaryUnit?.symbol, record.secondaryUnitName, record.secondaryUnit), ''),
     secondaryUnitId: asString(firstDefined(record.secondaryUnitId, secondaryUnit?.id, secondaryUnit?._id), ''),
     secondaryUnitSymbol: asString(firstDefined(record.secondaryUnitSymbol, secondaryUnit?.symbol), ''),
@@ -367,10 +426,24 @@ export function normalizeProduct(raw: unknown): Product {
     ),
     taxRate: asNumber(firstDefined(record.taxRate, record.tax)),
     stockOnHand: asNumber(firstDefined(record.stockOnHand, record.currentStock, record.stock, record.quantity)),
+    openingStock: asNumber(record.openingStock),
+    minStockLevel: asNumber(firstDefined(record.minStockLevel, record.lowStockLevel)),
+    lowStockAlert: Boolean(firstDefined(record.lowStockAlert, true)),
     itemType: asString(firstDefined(record.itemType, record.type), 'goods'),
     barcode: asString(record.barcode, ''),
     sku: asString(record.sku, ''),
+    metalType: asString(record.metalType, ''),
+    purity: asString(firstDefined(record.purity, record.metalPurity), ''),
+    imageUrl: asString(firstDefined(record.imageUrl, record.image_url), ''),
+    expiryDate: asString(firstDefined(record.expiryDate, record.expiry_date), ''),
+    batchNumber: asString(firstDefined(record.batchNumber, record.batch_number), ''),
+    batchCount: asNumber(firstDefined(record.batchCount, batches?.length)),
+    expiredQuantity: asNumber(firstDefined(expiredFromBatches, record.expiredQuantity)),
+    sellableQuantity: asNumber(firstDefined(record.sellableQuantity, record.stockOnHand)),
+    hasExpiredStock:
+      Boolean(record.hasExpiredStock) || asNumber(firstDefined(expiredFromBatches, record.expiredQuantity)) > 0,
     isActive: Boolean(firstDefined(record.isActive, true)),
+    batches,
   };
 }
 
@@ -387,9 +460,10 @@ export function normalizeParty(raw: unknown): Party {
     type: asString(firstDefined(record.type, record.partyType), 'customer'),
     openingBalance: asNumber(record.openingBalance),
     balanceType: asString(firstDefined(record.balanceType, record.direction), 'receive') as Party['balanceType'],
+    currentAmount: asNumber(firstDefined(record.currentAmount, record.current_amount)),
     receiveBalance: asNumber(firstDefined(record.receiveBalance, record.toReceive, record.receivable)),
     giveBalance: asNumber(firstDefined(record.giveBalance, record.toGive, record.payable)),
-    balance: asNumber(firstDefined(record.balance, record.currentBalance)),
+    balance: asNumber(firstDefined(record.balance, record.currentBalance, record.currentAmount)),
   };
 }
 
@@ -470,6 +544,7 @@ export function normalizeSale(raw: unknown): Sale {
 
 export function normalizePurchase(raw: unknown): Purchase {
   const record = asRecord(raw) ?? {};
+  const nestedParty = asRecord(record.party);
 
   return {
     ...(record as Purchase),
@@ -477,8 +552,8 @@ export function normalizePurchase(raw: unknown): Purchase {
     entryType: asString(firstDefined(record.entryType, 'purchase')) as Purchase['entryType'],
     invoiceNo: asString(firstDefined(record.invoiceNo, record.billNo), ''),
     purchaseDate: asString(firstDefined(record.purchaseDate, record.createdAt), ''),
-    partyId: asString(firstDefined(record.partyId, record.supplierId), ''),
-    partyName: asString(firstDefined(record.partyName, record.supplierName), ''),
+    partyId: asString(firstDefined(record.partyId, record.supplierId, nestedParty?.id), ''),
+    partyName: asString(firstDefined(record.partyName, record.supplierName, nestedParty?.name), ''),
     subTotal: asNumber(record.subTotal),
     taxTotal: asNumber(record.taxTotal),
     grandTotal: asNumber(firstDefined(record.grandTotal, record.total)),
@@ -491,13 +566,15 @@ export function normalizePurchase(raw: unknown): Purchase {
 
 export function normalizeService(raw: unknown): Service {
   const record = asRecord(raw) ?? {};
+  const nestedParty = asRecord(record.party);
 
   return {
     ...(record as Service),
     id: asString(firstDefined(record.id, record._id), ''),
     orderNo: asString(firstDefined(record.orderNo, record.invoiceNo), ''),
     status: asString(firstDefined(record.status, 'open')),
-    partyId: asString(firstDefined(record.partyId, record.customerId), ''),
+    partyId: asString(firstDefined(record.partyId, record.customerId, nestedParty?.id), ''),
+    partyName: asString(firstDefined(record.partyName, record.customerName, nestedParty?.name), ''),
     deliveryDate: asString(firstDefined(record.deliveryDate, record.createdAt), ''),
     laborTotal: asNumber(record.laborTotal),
     partsTotal: asNumber(record.partsTotal),
@@ -510,6 +587,77 @@ export function normalizeService(raw: unknown): Service {
   };
 }
 
+export function normalizePartyStatementRow(raw: unknown): PartyStatementRow {
+  const record = asRecord(raw) ?? {};
+  const type = asString(firstDefined(record.type, record.entryType, record.entry_type), 'transaction');
+  const isPayment = type === 'payment_in' || type === 'payment_out';
+
+  return {
+    ...(record as PartyStatementRow),
+    id: asString(firstDefined(record.id, record._id), ''),
+    type,
+    date: asString(firstDefined(record.date, record.entryDate, record.txDate, record.createdAt), ''),
+    createdAt: asString(record.createdAt, ''),
+    referenceNo: asString(firstDefined(record.referenceNo, record.refNo, record.invoiceNo), ''),
+    status: asString(record.status, ''),
+    direction: asString(firstDefined(record.direction, isPayment ? (type === 'payment_in' ? 'receive' : 'give') : ''), '') as PartyStatementRow['direction'],
+    paymentMethod: asString(firstDefined(record.paymentMethod, record.payment_method), 'cash') as PartyStatementRow['paymentMethod'],
+    bankId: asString(firstDefined(record.bankId, record.bank_id), ''),
+    totalAmount: asNumber(firstDefined(record.totalAmount, record.grandTotal)),
+    paidAmount: asNumber(firstDefined(record.paidAmount, record.amountReceived, record.receivedTotal)),
+    dueAmount: asNumber(record.dueAmount),
+    amount: asNumber(firstDefined(record.amount, isPayment ? record.totalAmount : undefined)),
+    note: asString(firstDefined(record.note, record.description), ''),
+    runningBalance: record.runningBalance == null && record.running_balance == null
+      ? null
+      : asNumber(firstDefined(record.runningBalance, record.running_balance)),
+  };
+}
+
+function emptyPartyStatementSummary(): PartyStatementSummary {
+  return {
+    totalRows: 0,
+    totalSales: 0,
+    totalServices: 0,
+    totalPurchases: 0,
+    totalExpenses: 0,
+    salesDue: 0,
+    servicesDue: 0,
+    purchasesDue: 0,
+    expensesDue: 0,
+    totalPaymentIn: 0,
+    totalPaymentOut: 0,
+    currentAmount: 0,
+  };
+}
+
+export function normalizePartyStatement(raw: unknown): PartyStatement {
+  const record = asRecord(unwrapEntity(raw)) ?? asRecord(raw) ?? {};
+  const items = extractListItems<unknown>(record);
+  const summaryRecord = asRecord(record.summary) ?? {};
+  const partyRaw = record.party;
+
+  return {
+    party: partyRaw ? normalizeParty(partyRaw) : null,
+    summary: {
+      ...emptyPartyStatementSummary(),
+      totalRows: asNumber(firstDefined(summaryRecord.totalRows, record.total, items.length)),
+      totalSales: asNumber(summaryRecord.totalSales),
+      totalServices: asNumber(summaryRecord.totalServices),
+      totalPurchases: asNumber(summaryRecord.totalPurchases),
+      totalExpenses: asNumber(summaryRecord.totalExpenses),
+      salesDue: asNumber(summaryRecord.salesDue),
+      servicesDue: asNumber(summaryRecord.servicesDue),
+      purchasesDue: asNumber(summaryRecord.purchasesDue),
+      expensesDue: asNumber(firstDefined(summaryRecord.expensesDue, summaryRecord.totalExpensesDue)),
+      totalPaymentIn: asNumber(summaryRecord.totalPaymentIn),
+      totalPaymentOut: asNumber(summaryRecord.totalPaymentOut),
+      currentAmount: asNumber(firstDefined(summaryRecord.currentAmount, record.currentAmount)),
+    },
+    rows: items.map(normalizePartyStatementRow).filter((item) => item.id),
+  };
+}
+
 export function normalizeLedgerEntry(raw: unknown): LedgerEntry {
   const record = asRecord(raw) ?? {};
 
@@ -517,6 +665,7 @@ export function normalizeLedgerEntry(raw: unknown): LedgerEntry {
     ...(record as LedgerEntry),
     id: asString(firstDefined(record.id, record._id), ''),
     partyId: asString(record.partyId, ''),
+    partyName: asString(firstDefined(record.partyName, asRecord(record.party)?.name), ''),
     refType: asString(record.refType, ''),
     refNo: asString(record.refNo, ''),
     entryDate: asString(firstDefined(record.entryDate, record.txDate, record.createdAt), ''),
@@ -566,6 +715,7 @@ export function normalizeInventorySummary(raw: unknown): InventorySummary {
     totalStockValue: asNumber(firstDefined(record.totalStockValue, record.stockValue)),
     lowStockCount: asNumber(firstDefined(record.lowStockCount, record.lowStock)),
     outOfStockCount: asNumber(firstDefined(record.outOfStockCount, record.outOfStock)),
+    nearExpiryCount: asNumber(firstDefined(record.nearExpiryCount, record.nearExpiry)),
   };
 }
 

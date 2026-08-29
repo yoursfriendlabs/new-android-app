@@ -6,27 +6,32 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { cacheRecentPurchases } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
-import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
-import { PartyPickerSheet } from '@/src/components/forms/PartyPickerSheet';
-import { ProductPickerSheet } from '@/src/components/forms/ProductPickerSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { PaymentMethodSelector } from '@/src/components/forms/PaymentMethodSelector';
-import { Screen } from '@/src/components/layout/Screen';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { TotalsCard } from '@/src/components/ui/TotalsCard';
-import { buildReceiptHtml } from '@/src/lib/receipt';
-import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/lib/totals';
-import { formatCurrency, todayIso } from '@/src/lib/format';
-import { useBanks, useNextSequences, useParties, useProducts } from '@/src/hooks/useAppQueries';
-import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
-import { useDraftState } from '@/src/hooks/useDraftState';
-import { generateId } from '@/src/lib/id';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { TotalsCard } from '@/src/shared/ui/TotalsCard';
+import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { formatCurrency, todayIso } from '@/src/shared/lib/format';
+import { useBanks, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
+import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { useDraftState } from '@/src/shared/hooks/useDraftState';
+import { generateId } from '@/src/shared/lib/id';
+import { partyInitials } from '@/src/features/parties/lib/party';
+import { radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import type { DraftPurchaseLine, PurchaseDraft } from '@/src/types/forms';
 import type { Purchase } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 function createPurchaseDraft(): PurchaseDraft {
   return {
@@ -58,6 +63,8 @@ function createPurchaseLine(): DraftPurchaseLine {
 }
 
 export default function PurchaseCreateScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
   const [partySearch, setPartySearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
@@ -218,10 +225,21 @@ export default function PurchaseCreateScreen() {
         />
       }>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <PageHeading subtitle="Pick the supplier, add items, then record what you paid." />
         <SurfaceCard title="Supplier and bill" subtitle="Supplier, date, invoice, and notes stay up top.">
-          <Pressable style={styles.selector} onPress={() => setPartyPickerVisible(true)}>
-            <Text style={styles.selectorTitle}>{draft.value.supplier?.name ?? 'Select supplier'}</Text>
-            <Text style={styles.selectorSubtitle}>{draft.value.supplier?.phone ?? 'Tap to search suppliers'}</Text>
+          <Pressable style={styles.selectorRow} onPress={() => setPartyPickerVisible(true)}>
+            <View style={[styles.selectorAvatar, { backgroundColor: draft.value.supplier ? colors.primary : colors.backgroundAlt }]}>
+              {draft.value.supplier ? (
+                <Text style={styles.selectorAvatarText}>{partyInitials(draft.value.supplier.name)}</Text>
+              ) : (
+                <MaterialCommunityIcons color={colors.textMuted} name="account-search-outline" size={20} />
+              )}
+            </View>
+            <View style={styles.selectorCopy}>
+              <Text style={styles.selectorTitle}>{draft.value.supplier?.name ?? 'Select supplier'}</Text>
+              <Text style={styles.selectorSubtitle}>{draft.value.supplier?.phone ?? 'Tap to search suppliers'}</Text>
+            </View>
+            <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={22} />
           </Pressable>
           <FormField label="Invoice number" value={draft.value.invoiceNo} onChangeText={(invoiceNo) => draft.setValue((current) => ({ ...current, invoiceNo }))} />
           <FormField label="Purchase date" value={draft.value.purchaseDate} onChangeText={(purchaseDate) => draft.setValue((current) => ({ ...current, purchaseDate }))} />
@@ -292,7 +310,7 @@ export default function PurchaseCreateScreen() {
                 ))
               ) : (
                 <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={palette.textMuted} />
+                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
                   <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
                 </Pressable>
               )}
@@ -370,40 +388,66 @@ export default function PurchaseCreateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   content: {
     gap: spacing.md,
     paddingBottom: spacing.md,
   },
   selector: {
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     gap: spacing.xxs,
+  },
+  selectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  selectorAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectorAvatarText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  selectorCopy: {
+    flex: 1,
+    gap: 2,
   },
   selectorTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   selectorSubtitle: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   secondaryButton: {
     minHeight: 46,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   lineCard: {
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     gap: spacing.sm,
   },
@@ -415,16 +459,16 @@ const styles = StyleSheet.create({
   lineTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   removeLabel: {
-    color: palette.danger,
+    color: colors.danger,
     fontWeight: '700',
   },
   lineTotal: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   bankWrap: {
     flexDirection: 'row',
@@ -435,17 +479,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   bankChipActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   bankChipLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyBankInfo: {
     flex: 1,
@@ -456,13 +500,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundAlt,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundAlt,
   },
   emptyBankText: {
     flex: 1,
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
 });

@@ -1,0 +1,16 @@
+---
+description: PasalManager folder structure and where new code belongs
+alwaysApply: true
+---
+
+# Architecture
+
+- `app/` is Expo Router only (layouts, redirects, thin screens).
+- Product code goes in `src/features/<name>/` with `components/`, `lib/`, `hooks/`.
+- Reusable UI and helpers go in `src/shared/` (`ui`, `layout`, `forms`, `feedback`, `lib`, `hooks`).
+- Do not recreate `src/components` or a flat `src/lib`.
+- Import file paths: `@/src/features/money/lib/expense`, `@/src/shared/ui/SurfaceCard`.
+- `usePalette()` at render; `createStyles = (colors) => StyleSheet.create(...)`. No theme colors in static stylesheets.
+- Personal vs business: `isPersonalWorkspace`. Personal copy is Contact / Walk-in / Money.
+- Never statically import `expo-notifications`.
+- New features: follow `docs/adding-features.md`.

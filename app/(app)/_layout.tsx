@@ -1,6 +1,6 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
 
-import { canAccessSegment } from '@/src/lib/business';
+import { canAccessSegment, isGeneralStaffUser } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 
 export default function AppLayout() {
@@ -21,10 +21,10 @@ export default function AppLayout() {
     permissions: accessControl?.permissions ?? user?.permissions,
     accessControl,
     enabledModules: businessProfile?.enabledModules,
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
   };
 
-  const role = session?.role ?? user?.role ?? null;
-  const isGeneralStaff = role === 'staff' || accessControl?.staffCategory === 'general_staff';
+  const isGeneralStaff = isGeneralStaffUser(accessContext);
 
   if (isGeneralStaff && (currentLeafSegment === 'home' || currentLeafSegment === '(tabs)' || (currentLeafSegment as string) === 'index' || !currentLeafSegment)) {
     const membershipId = accessControl?.membershipId || '';
@@ -54,6 +54,7 @@ export default function AppLayout() {
       <Stack.Screen name="tasks/detail" />
       <Stack.Screen name="tasks/form" options={{ presentation: 'modal' }} />
       <Stack.Screen name="tasks/notifications" />
+      <Stack.Screen name="coins" />
       <Stack.Screen name="purchases" />
       <Stack.Screen name="parties" />
       <Stack.Screen name="banks" />

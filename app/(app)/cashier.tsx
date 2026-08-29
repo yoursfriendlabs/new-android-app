@@ -14,24 +14,29 @@ import {
 } from 'react-native';
 
 import { salesApi, tablesApi } from '@/src/api';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { PaymentMethodSelector } from '@/src/components/forms/PaymentMethodSelector';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { TotalsCard } from '@/src/components/ui/TotalsCard';
-import { SearchField } from '@/src/components/ui/SearchField';
-import { useBanks, useSalesList, useTables, useCategories } from '@/src/hooks/useAppQueries';
-import { formatCurrency } from '@/src/lib/format';
-import { buildReceiptHtml } from '@/src/lib/receipt';
-import { computeLineTotal } from '@/src/lib/totals';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { TotalsCard } from '@/src/shared/ui/TotalsCard';
+import { SearchField } from '@/src/shared/ui/SearchField';
+import { useBanks, useSalesList, useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
+import { formatCurrency } from '@/src/shared/lib/format';
+import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { computeLineTotal } from '@/src/shared/lib/totals';
+import { radius, spacing, typography, shadows } from '@/src/theme';
 import type { Sale, Table } from '@/src/types/models';
 import { useReceiptStore } from '@/src/stores/receipt-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function CashierScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const setReceipt = useReceiptStore((state) => state.setReceipt);
 
@@ -309,10 +314,7 @@ export default function CashierScreen() {
   return (
     <Screen topBarTitle="Cashier Billing" topBarLeading="back">
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <PageHeading
-          title="Billing Counter"
-          subtitle="Quick cashier checkout and payment collection on occupied tables."
-        />
+        <PageHeading subtitle="Quick cashier checkout and payment collection on occupied tables." />
 
         {/* Counter Summary Cards */}
         <SurfaceCard>
@@ -330,7 +332,7 @@ export default function CashierScreen() {
               <Text style={styles.summaryLabel}>Occupied</Text>
             </View>
             <View style={[styles.summaryCard, { flexBasis: '100%' }]}>
-              <Text style={[styles.summaryValue, { color: palette.primary }]}>
+              <Text style={[styles.summaryValue, { color: colors.primary }]}>
                 {formatCurrency(counters.totalOpenAmount)}
               </Text>
               <Text style={styles.summaryLabel}>Total Open Bills</Text>
@@ -410,7 +412,7 @@ export default function CashierScreen() {
         {/* Tables Grid Layout */}
         <SurfaceCard title="Seating Maps" subtitle="Tap occupied table to open detailed billing card.">
           {loadingTables || loadingSales ? (
-            <ActivityIndicator color={palette.primary} size="large" style={styles.loader} />
+            <ActivityIndicator color={colors.primary} size="large" style={styles.loader} />
           ) : (
             <View style={styles.tablesGrid}>
               {filteredTables.map((table) => {
@@ -455,7 +457,7 @@ export default function CashierScreen() {
               })}
               {filteredTables.length === 0 ? (
                 <View style={styles.empty}>
-                  <MaterialCommunityIcons color={palette.textSoft} name="table-large-remove" size={36} />
+                  <MaterialCommunityIcons color={colors.textSoft} name="table-large-remove" size={36} />
                   <Text style={styles.emptyText}>No matching tables found.</Text>
                 </View>
               ) : null}
@@ -479,7 +481,7 @@ export default function CashierScreen() {
               disabled={releasingTable}
             >
               {releasingTable ? (
-                <ActivityIndicator color={palette.danger} />
+                <ActivityIndicator color={colors.danger} />
               ) : (
                 <Text style={styles.releaseTableBtnText}>Release Table</Text>
               )}
@@ -490,7 +492,7 @@ export default function CashierScreen() {
               disabled={submittingCheckout || loadingSaleDetails}
             >
               {submittingCheckout ? (
-                <ActivityIndicator color={palette.white} />
+                <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={styles.checkoutSubmitBtnText}>Process Checkout</Text>
               )}
@@ -500,7 +502,7 @@ export default function CashierScreen() {
       >
         {loadingSaleDetails ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={palette.primary} size="large" />
+            <ActivityIndicator color={colors.primary} size="large" />
             <Text style={styles.loadingText}>Fetching order details...</Text>
           </View>
         ) : (
@@ -646,7 +648,7 @@ export default function CashierScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     gap: spacing.md,
     paddingBottom: spacing.xxl,
@@ -664,21 +666,21 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundWarm,
+    backgroundColor: colors.backgroundWarm,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
   },
   summaryValue: {
     fontSize: typography.heading,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
     marginBottom: 2,
   },
   summaryLabel: {
     fontSize: typography.caption,
     fontWeight: '600',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   tablesGrid: {
     flexDirection: 'row',
@@ -696,7 +698,7 @@ const styles = StyleSheet.create({
   },
   tableCardFloorText: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: colors.textMuted,
     marginTop: 2,
     marginBottom: 4,
   },
@@ -716,13 +718,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterChipLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   filterChipLabelActive: {
     color: '#ffffff',
@@ -734,13 +736,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   tableBtnOccupied: {
-    borderColor: palette.accentMuted || '#eeddc8',
+    borderColor: colors.accentMuted || '#eeddc8',
     backgroundColor: '#fffbeb',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
   },
   tableCardHeader: {
     flexDirection: 'row',
@@ -750,7 +747,7 @@ const styles = StyleSheet.create({
   tableCardTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   tableStatusDot: {
     width: 8,
@@ -765,16 +762,16 @@ const styles = StyleSheet.create({
   },
   tableBillDueLabel: {
     fontSize: 11,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   tableBillDueVal: {
     fontSize: 14,
     fontWeight: '800',
-    color: palette.primary,
+    color: colors.primary,
   },
   tableVacantInfo: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
     marginTop: spacing.xs,
   },
@@ -787,7 +784,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   loadingWrap: {
     flex: 1,
@@ -798,7 +795,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   sheetContent: {
     gap: spacing.md,
@@ -812,14 +809,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: palette.danger,
+    borderColor: colors.danger,
   },
   releaseTableBtnText: {
-    color: palette.danger,
+    color: colors.danger,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -827,12 +824,12 @@ const styles = StyleSheet.create({
     flex: 1.2,
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkoutSubmitBtnText: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -853,16 +850,16 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   itemSubtitle: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   itemTotalVal: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   formRow: {
     flexDirection: 'row',
@@ -870,7 +867,7 @@ const styles = StyleSheet.create({
   formFieldLabel: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.xs,
@@ -885,15 +882,15 @@ const styles = StyleSheet.create({
   cashChip: {
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    backgroundColor: palette.backgroundWarm,
+    backgroundColor: colors.backgroundWarm,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     borderRadius: radius.pill,
   },
   cashChipText: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   bankSelectWrap: {
     marginVertical: spacing.xs,
@@ -906,26 +903,26 @@ const styles = StyleSheet.create({
   bankChipBtn: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    backgroundColor: palette.backgroundWarm,
+    backgroundColor: colors.backgroundWarm,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     borderRadius: radius.pill,
   },
   bankChipBtnActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   bankChipBtnLabel: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   bankChipBtnLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyBanksHelp: {
     fontSize: typography.caption,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontStyle: 'italic',
   },
 });

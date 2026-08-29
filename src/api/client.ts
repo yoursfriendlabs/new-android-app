@@ -1,5 +1,5 @@
-import { env } from '@/src/lib/env';
-import { loadSession } from '@/src/lib/session';
+import { env } from '@/src/shared/lib/env';
+import { loadSession } from '@/src/shared/lib/session';
 
 export class ApiError extends Error {
   status?: number;

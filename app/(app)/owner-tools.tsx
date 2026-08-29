@@ -3,29 +3,32 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { orderAttributesApi, staffApi, subscriptionApi } from '@/src/api';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import {
   useOrderAttributes,
   useStaff,
   useSubscription,
   useSubscriptionPaymentSetup,
-} from '@/src/hooks/useAppQueries';
+} from '@/src/shared/hooks/useAppQueries';
 import {
   capabilityDefinitions,
   formatPermissionTokens,
   getCapabilitySummary,
   hasAppCapability,
   parsePermissionTokens,
-} from '@/src/lib/business';
-import { palette, radius, spacing, typography } from '@/src/theme';
+} from '@/src/shared/lib/business';
+import { radius, spacing, typography } from '@/src/theme';
 import { useAuthStore } from '@/src/stores/auth-store';
 import type { OrderAttribute, StaffMember } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 function createStaffForm() {
   return {
@@ -54,6 +57,8 @@ function createAttributeForm(entityType: 'sale' | 'service') {
 }
 
 export default function OwnerToolsScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
@@ -64,6 +69,7 @@ export default function OwnerToolsScreen() {
     permissions: accessControl?.permissions ?? user?.permissions,
     accessControl,
     enabledModules: businessProfile?.enabledModules,
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
   };
   const canManageOwnerTools = hasAppCapability(accessContext, 'owner-tools');
   const { data: subscription } = useSubscription();
@@ -217,7 +223,7 @@ export default function OwnerToolsScreen() {
   if (!canManageOwnerTools) {
     return (
       <Screen>
-        <PageHeading title="Owner tools" subtitle="This area needs owner tools access." />
+        <PageHeading subtitle="This area needs owner tools access." />
         <SurfaceCard>
           <Text style={styles.helperText}>Your account does not have access to staff, subscription, or custom order field administration.</Text>
         </SurfaceCard>
@@ -234,7 +240,7 @@ export default function OwnerToolsScreen() {
         />
       }>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <PageHeading title="Owner tools" subtitle="Subscription, staff, and dynamic sale/service fields stay out of the counter flow for non-owners." />
+        <PageHeading subtitle="Subscription, staff, and dynamic sale/service fields stay out of the counter flow for non-owners." />
 
         {message ? (
           <SurfaceCard>
@@ -284,30 +290,30 @@ export default function OwnerToolsScreen() {
             const pricingModel = String(subscription?.pricingModel ?? 'Flat Rate / Seat-based');
 
             return (
-              <View style={{ marginTop: spacing.md, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: spacing.md, gap: spacing.xs }}>
+              <View style={{ marginTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md, gap: spacing.xs }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: typography.label, fontWeight: '700', color: palette.textSoft }}>
+                  <Text style={{ fontSize: typography.label, fontWeight: '700', color: colors.textSoft }}>
                     Staff Seats Usage
                   </Text>
-                  <Text style={{ fontSize: typography.caption, fontWeight: '800', color: availableSlots > 0 ? palette.success : palette.danger }}>
+                  <Text style={{ fontSize: typography.caption, fontWeight: '800', color: availableSlots > 0 ? colors.success : colors.danger }}>
                     {availableSlots} {availableSlots === 1 ? 'slot' : 'slots'} available
                   </Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: typography.body, fontWeight: '800', color: palette.text }}>
+                  <Text style={{ fontSize: typography.body, fontWeight: '800', color: colors.text }}>
                     {totalStaff} of {seatLimit} Seats Filled
                   </Text>
-                  <Text style={{ fontSize: typography.caption, color: palette.textMuted }}>
+                  <Text style={{ fontSize: typography.caption, color: colors.textMuted }}>
                     Pricing Model: {pricingModel}
                   </Text>
                 </View>
 
-                <View style={{ height: 6, backgroundColor: palette.backgroundAlt, borderRadius: radius.pill, overflow: 'hidden', marginTop: 4 }}>
+                <View style={{ height: 6, backgroundColor: colors.backgroundAlt, borderRadius: radius.pill, overflow: 'hidden', marginTop: 4 }}>
                   <View
                     style={{
                       height: '100%',
-                      backgroundColor: availableSlots > 0 ? palette.primary : palette.danger,
+                      backgroundColor: availableSlots > 0 ? colors.primary : colors.danger,
                       width: `${Math.min(100, seatLimit > 0 ? (totalStaff / seatLimit) * 100 : 0)}%`,
                     }}
                   />
@@ -486,27 +492,27 @@ export default function OwnerToolsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   content: {
     gap: spacing.md,
     paddingBottom: spacing.md,
   },
   message: {
-    color: palette.success,
+    color: colors.success,
     fontWeight: '700',
     fontSize: typography.body,
   },
   link: {
-    color: palette.primary,
+    color: colors.primary,
     fontWeight: '700',
   },
   dangerLink: {
-    color: palette.danger,
+    color: colors.danger,
     fontWeight: '700',
   },
   helperText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     lineHeight: 22,
   },
   summaryGrid: {
@@ -517,18 +523,18 @@ const styles = StyleSheet.create({
   summaryTile: {
     width: '48%',
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     gap: spacing.xxs,
   },
   summaryLabel: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   summaryValue: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   list: {
     gap: spacing.sm,
@@ -538,7 +544,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
   },
   copy: {
@@ -548,15 +554,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   meta: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   permissionMeta: {
     fontSize: typography.caption,
-    color: palette.success,
+    color: colors.success,
     fontWeight: '700',
   },
   rowActions: {
@@ -569,7 +575,7 @@ const styles = StyleSheet.create({
   permissionEditorLabel: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -582,39 +588,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   permissionChipActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   permissionChipText: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.caption,
     fontWeight: '700',
   },
   permissionChipTextActive: {
-    color: palette.white,
+    color: colors.white,
   },
   secondaryButton: {
     minHeight: 44,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '800',
     fontSize: typography.body,
   },

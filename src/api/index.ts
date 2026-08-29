@@ -23,6 +23,8 @@ import type {
   ProductCreatePayload,
   ProductRestockPayload,
   ProductUpdatePayload,
+  ProductBatchUpdatePayload,
+  ProductBatchExchangePayload,
   PurchaseCreatePayload,
   PurchaseUpdatePayload,
   QuickExpenseCreatePayload,
@@ -70,6 +72,7 @@ import type {
   PartyReportItem,
   PartyTransaction,
   Product,
+  StockLedgerEntry,
   Purchase,
   QuickExpense,
   Sale,
@@ -269,11 +272,30 @@ export const productsApi = {
       body: payload,
     }),
   restock: (id: string, payload: ProductRestockPayload) =>
-    apiRequest<Product, ProductRestockPayload>({
+    apiRequest<{ product?: Product; message?: string } | Product, ProductRestockPayload>({
       method: 'POST',
       path: `/api/products/${id}/restock`,
       body: payload,
     }),
+  updateBatch: (productId: string, batchId: string, payload: ProductBatchUpdatePayload) =>
+    apiRequest<{ product?: Product } | Product, ProductBatchUpdatePayload>({
+      method: 'PATCH',
+      path: `/api/products/${productId}/batches/${batchId}`,
+      body: payload,
+    }),
+  destroyBatch: (productId: string, batchId: string) =>
+    apiRequest<{ product?: Product } | Product, Record<string, never>>({
+      method: 'POST',
+      path: `/api/products/${productId}/batches/${batchId}/destroy`,
+      body: {} as Record<string, never>,
+    }),
+  exchangeBatch: (productId: string, batchId: string, payload: ProductBatchExchangePayload) =>
+    apiRequest<{ product?: Product } | Product, ProductBatchExchangePayload>({
+      method: 'POST',
+      path: `/api/products/${productId}/batches/${batchId}/exchange`,
+      body: payload,
+    }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/products/${id}` }),
 };
 
 export const categoriesApi = {
@@ -452,6 +474,8 @@ export const reportsApi = {
   partyDetail: (partyId: string) =>
     apiRequest<PartyDetailResponse>({ path: `/api/reports/party-detail/${partyId}` }),
   ledger: (query: ListQuery) => apiRequest<PaginatedResponse<LedgerEntry>>({ path: '/api/reports/ledger', query }),
+  stockLedger: (query: ListQuery) =>
+    apiRequest<PaginatedResponse<StockLedgerEntry>>({ path: '/api/reports/stock-ledger', query }),
   salesReport: (query: ListQuery) => apiRequest<PaginatedResponse<Sale>>({ path: '/api/reports/sales-report', query }),
   purchaseReport: (query: ListQuery) =>
     apiRequest<PaginatedResponse<Purchase>>({ path: '/api/reports/purchase-report', query }),

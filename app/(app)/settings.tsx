@@ -3,15 +3,21 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { metaApi } from '@/src/api';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { getCapabilitySummary, hasAppCapability } from '@/src/lib/business';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
+import { getCapabilitySummary, hasAppCapability, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { radius, spacing, typography } from '@/src/theme';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function SettingsScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const signOut = useAuthStore((state) => state.signOut);
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
@@ -60,6 +66,7 @@ export default function SettingsScreen() {
 
   const permissionBadges = getCapabilitySummary(accessContext as any);
   const canOpenOwnerTools = hasAppCapability(accessContext as any, 'owner-tools');
+  const isPersonal = isPersonalWorkspace(accessContext as any);
 
   const toggles = [
     {
@@ -111,8 +118,11 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <PageHeading
-        title="Settings"
-        subtitle="Keep mobile focused on quick stats, quick entry, and secure account access."
+        subtitle={
+          isPersonal
+            ? 'Theme, profile, and the money tools on this personal account.'
+            : 'Keep mobile focused on quick stats, quick entry, and secure account access.'
+        }
       />
 
       {message ? (
@@ -122,11 +132,21 @@ export default function SettingsScreen() {
       ) : null}
 
       <SurfaceCard
-        title="Business profile"
-        subtitle={`${businessProfile?.businessType ?? 'Retail'} mobile mode`}>
-        <Text style={styles.profileName}>{businessProfile?.businessName ?? 'Business name'}</Text>
+        title="Appearance"
+        subtitle="Pick a primary color. Buttons, highlights, and navigation follow this theme on this device.">
+        <ThemeSelector />
+      </SurfaceCard>
+
+      <SurfaceCard
+        title={isPersonal ? 'This space' : 'Business profile'}
+        subtitle={isPersonal ? 'Personal finance' : `${businessProfile?.businessType ?? 'Retail'} mobile mode`}>
+        <Text style={styles.profileName}>
+          {businessProfile?.businessName ?? (isPersonal ? 'Personal books' : 'Business name')}
+        </Text>
         <Text style={styles.profileHint}>
-          Use the web app for longer edits. Mobile keeps the essentials at the counter.
+          {isPersonal
+            ? 'This account tracks income, expenses, and party balances. Shop tools stay on a business workspace.'
+            : 'Use the web app for longer edits. Mobile keeps the essentials at the counter.'}
         </Text>
       </SurfaceCard>
 
@@ -144,7 +164,7 @@ export default function SettingsScreen() {
           onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))}
           keyboardType="numeric"
         />
-        <Pressable style={styles.primaryButton} onPress={() => void handleProfileSave()}>
+        <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleProfileSave()}>
           <Text style={styles.primaryButtonLabel}>Save profile</Text>
         </Pressable>
       </SurfaceCard>
@@ -175,11 +195,11 @@ export default function SettingsScreen() {
             placeholder="e.g. 100"
           />
           {geofenceMessage ? (
-            <Text style={[styles.message, geofenceMessage.includes('failed') && { color: palette.danger }, { marginBottom: spacing.sm }]}>
+            <Text style={[styles.message, geofenceMessage.includes('failed') && { color: colors.danger }, { marginBottom: spacing.sm }]}>
               {geofenceMessage}
             </Text>
           ) : null}
-          <Pressable style={styles.primaryButton} onPress={() => void handleGeofencingSave()}>
+          <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleGeofencingSave()}>
             <Text style={styles.primaryButtonLabel}>Save Geofencing Settings</Text>
           </Pressable>
         </SurfaceCard>
@@ -207,6 +227,7 @@ export default function SettingsScreen() {
         </View>
       </SurfaceCard>
 
+      {!isPersonal ? (
       <SurfaceCard title="Mobile defaults" subtitle="These switches shape the faster phone-first experience.">
         <View style={styles.toggleList}>
           {toggles.map((toggle) => (
@@ -218,13 +239,14 @@ export default function SettingsScreen() {
               <Switch
                 value={toggle.value}
                 onValueChange={(value) => void handleToggle(toggle.key, value)}
-                trackColor={{ false: palette.border, true: palette.primary }}
-                thumbColor={palette.white}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor={colors.white}
               />
             </View>
           ))}
         </View>
       </SurfaceCard>
+      ) : null}
 
       <SurfaceCard title="Security" subtitle="Password and session controls for this device.">
         <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/change-password')}>
@@ -241,21 +263,21 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   message: {
-    color: palette.success,
+    color: colors.success,
     fontSize: typography.body,
     fontWeight: '700',
   },
   profileName: {
     fontSize: typography.heading,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   profileHint: {
     fontSize: typography.body,
     lineHeight: 22,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   permissionWrap: {
     flexDirection: 'row',
@@ -266,10 +288,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   permissionChipLabel: {
-    color: palette.success,
+    color: colors.success,
     fontSize: typography.caption,
     fontWeight: '800',
   },
@@ -289,51 +311,51 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   toggleHelper: {
     fontSize: typography.label,
     lineHeight: 18,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   helperText: {
     fontSize: typography.label,
     lineHeight: 20,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
   secondaryButton: {
     minHeight: 48,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.body,
     fontWeight: '700',
   },
   signOutButton: {
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   signOutLabel: {
-    color: palette.danger,
+    color: colors.danger,
     fontSize: typography.body,
     fontWeight: '800',
   },

@@ -11,28 +11,44 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { FormField } from '@/src/components/forms/FormField';
+import { PersonalComposer } from '@/src/features/notes/components/PersonalComposer';
+import { Screen } from '@/src/shared/layout/Screen';
+import { FormField } from '@/src/shared/forms/FormField';
 import {
   useTaskDetail,
   useTaskMetadata,
   useCreateTaskMutation,
   useUpdateTaskMutation,
-} from '@/src/hooks/useTaskQueries';
-import { useStaff } from '@/src/hooks/useAppQueries';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
-import { todayIso } from '@/src/lib/format';
+} from '@/src/features/notes/hooks/useTaskQueries';
+import { useStaff } from '@/src/shared/hooks/useAppQueries';
+import { radius, spacing, typography, shadows } from '@/src/theme';
+import { todayIso } from '@/src/shared/lib/format';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
+import { useAuthStore } from '@/src/stores/auth-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskFormScreen() {
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const personal = isPersonalWorkspace({
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
+  if (personal) return <PersonalComposer />;
+  return <BusinessTaskFormScreen />;
+}
+
+function BusinessTaskFormScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
   // Queries
   const { data: task, isLoading: isTaskLoading } = useTaskDetail(id);
   const { data: metadata } = useTaskMetadata();
-  const { data: staffList } = useStaff();
+  const { data: staffList } = useStaff(true);
 
-  // Mutations
   const createTaskMutation = useCreateTaskMutation();
   const updateTaskMutation = useUpdateTaskMutation(id || '');
 
@@ -94,15 +110,15 @@ export default function TaskFormScreen() {
         ]);
       }
     } catch (error) {
-      Alert.alert('Failed to save task', error instanceof Error ? error.message : 'Please check your input and try again.');
+      Alert.alert('Unable to save', error instanceof Error ? error.message : 'Please check your input and try again.');
     }
   };
 
   if (isEdit && isTaskLoading) {
     return (
-      <Screen scrollable={false} padded={false} topBarTitle="Edit Task" topBarLeading="back">
+      <Screen scrollable={false} padded={false} topBarTitle="Edit" topBarLeading="back">
         <View style={styles.loadingWrap}>
-          <ActivityIndicator color={palette.accent} size="large" />
+          <ActivityIndicator color={colors.accent} size="large" />
           <Text style={styles.loadingText}>Loading task data...</Text>
         </View>
       </Screen>
@@ -112,7 +128,11 @@ export default function TaskFormScreen() {
   const isSaving = createTaskMutation.isPending || updateTaskMutation.isPending;
 
   return (
-    <Screen scrollable={true} padded={false} topBarTitle={isEdit ? 'Edit Task' : 'Create Task'} topBarLeading="back">
+    <Screen
+      scrollable={true}
+      padded={false}
+      topBarTitle={isEdit ? 'Edit' : 'New task or note'}
+      topBarLeading="back">
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <FormField
           label="Title *"
@@ -186,7 +206,6 @@ export default function TaskFormScreen() {
           </View>
         ) : null}
 
-        {/* Assignees Selector */}
         <View style={styles.section}>
           <Text style={styles.label}>Assign Staff Members</Text>
           <View style={styles.staffList}>
@@ -207,7 +226,7 @@ export default function TaskFormScreen() {
                     <Text style={styles.staffRole}>{staff.role || 'Staff member'}</Text>
                   </View>
                   <MaterialCommunityIcons
-                    color={isAssigned ? palette.accent : palette.textMuted}
+                    color={isAssigned ? colors.accent : colors.textMuted}
                     name={isAssigned ? 'checkbox-marked' : 'checkbox-blank-outline'}
                     size={22}
                   />
@@ -226,9 +245,11 @@ export default function TaskFormScreen() {
           style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
           onPress={() => void handleSave()}>
           {isSaving ? (
-            <ActivityIndicator color={palette.white} size="small" />
+            <ActivityIndicator color={colors.white} size="small" />
           ) : (
-            <Text style={styles.saveButtonLabel}>{isEdit ? 'Save Changes' : 'Create Task'}</Text>
+            <Text style={styles.saveButtonLabel}>
+              {isEdit ? 'Save Changes' : 'Create Task'}
+            </Text>
           )}
         </Pressable>
       </ScrollView>
@@ -236,7 +257,7 @@ export default function TaskFormScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     padding: spacing.lg,
     gap: spacing.md,
@@ -250,7 +271,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   section: {
     gap: spacing.xs,
@@ -259,7 +280,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: typography.caption,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
@@ -271,23 +292,23 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 44,
     borderRadius: radius.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   prioChipActive: {
-    backgroundColor: palette.accentSoft,
-    borderColor: palette.accent,
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
   },
   prioChipLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   prioChipLabelActive: {
-    color: palette.accent,
+    color: colors.accent,
   },
   staffList: {
     gap: spacing.sm,
@@ -298,25 +319,25 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     ...shadows.card,
   },
   staffRowActive: {
-    borderColor: palette.accent,
+    borderColor: colors.accent,
     backgroundColor: '#f6fbff',
   },
   avatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: palette.accent,
+    color: colors.accent,
     fontWeight: '800',
     fontSize: typography.body,
   },
@@ -327,33 +348,33 @@ const styles = StyleSheet.create({
   staffName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   staffRole: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'capitalize',
   },
   saveButton: {
     minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.md,
     ...shadows.card,
   },
   saveButtonDisabled: {
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   saveButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
   emptyText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     textAlign: 'center',
     paddingVertical: spacing.md,
     fontStyle: 'italic',

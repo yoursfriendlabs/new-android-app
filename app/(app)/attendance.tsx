@@ -14,14 +14,19 @@ import {
 } from 'react-native';
 
 import { staffApi, metaApi } from '@/src/api';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { palette, spacing, radius, typography, shadows } from '@/src/theme';
+import { spacing, radius, typography, shadows } from '@/src/theme';
 import type { Attendance, StaffMember } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function AttendanceScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const { businessUserId: searchUserId } = useLocalSearchParams<{ businessUserId?: string }>();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -153,11 +158,11 @@ export default function AttendanceScreen() {
 
   return (
     <Screen topBarTitle="Attendance Check">
-      <PageHeading title="Work Shift Attendance" subtitle="Check-in or out of your work shift using geolocation validation." />
+      <PageHeading subtitle="Check-in or out of your work shift using geolocation validation." />
 
       {todayLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={palette.primary} size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.loadingText}>Fetching shift status...</Text>
         </View>
       ) : (
@@ -184,15 +189,15 @@ export default function AttendanceScreen() {
             {/* Geolocation Radius indicator */}
             {officeConfigured ? (
               <View style={styles.officeIndicator}>
-                <MaterialCommunityIcons name="office-building" size={20} color={palette.primary} />
+                <MaterialCommunityIcons name="office-building" size={20} color={colors.primary} />
                 <Text style={styles.officeText}>
                   Office Radius Check Enabled ({(businessSettings?.officeRadiusMeters) || 100}m radius)
                 </Text>
               </View>
             ) : (
               <View style={[styles.officeIndicator, styles.officeIndicatorWarning]}>
-                <MaterialCommunityIcons name="office-building-marker" size={20} color={palette.warning} />
-                <Text style={[styles.officeText, { color: palette.textMuted }]}>
+                <MaterialCommunityIcons name="office-building-marker" size={20} color={colors.warning} />
+                <Text style={[styles.officeText, { color: colors.textMuted }]}>
                   Office Location NOT configured. Check-ins allowed from anywhere.
                 </Text>
               </View>
@@ -201,21 +206,21 @@ export default function AttendanceScreen() {
             {/* Alerts / Success Banners */}
             {gpsError ? (
               <View style={styles.alertBannerError}>
-                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={palette.danger} />
+                <MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.danger} />
                 <Text style={styles.alertText}>{gpsError}</Text>
               </View>
             ) : null}
 
             {errorMessage ? (
               <View style={styles.alertBannerError}>
-                <MaterialCommunityIcons name="close-circle-outline" size={20} color={palette.danger} />
+                <MaterialCommunityIcons name="close-circle-outline" size={20} color={colors.danger} />
                 <Text style={styles.alertText}>{errorMessage}</Text>
               </View>
             ) : null}
 
             {actionSuccessMessage ? (
               <View style={styles.alertBannerSuccess}>
-                <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={20} color={palette.success} />
+                <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={20} color={colors.success} />
                 <Text style={styles.alertSuccessText}>{actionSuccessMessage}</Text>
               </View>
             ) : null}
@@ -224,21 +229,21 @@ export default function AttendanceScreen() {
             <View style={styles.actionBtnContainer}>
               {gpsLoading || punchInMutation.isPending || punchOutMutation.isPending ? (
                 <View style={styles.bigCircleLoading}>
-                  <ActivityIndicator color={palette.primary} size="large" />
+                  <ActivityIndicator color={colors.primary} size="large" />
                 </View>
               ) : !today ? (
                 <Pressable style={styles.bigCircleCheckIn} onPress={handlePunchIn}>
-                  <MaterialCommunityIcons name="fingerprint" size={54} color={palette.white} />
+                  <MaterialCommunityIcons name="fingerprint" size={54} color={colors.white} />
                   <Text style={styles.bigCircleText}>CHECK IN</Text>
                 </Pressable>
               ) : today.punchOutTime ? (
                 <View style={styles.bigCircleCompleted}>
-                  <MaterialCommunityIcons name="check-all" size={54} color={palette.success} />
-                  <Text style={[styles.bigCircleText, { color: palette.success }]}>COMPLETED</Text>
+                  <MaterialCommunityIcons name="check-all" size={54} color={colors.success} />
+                  <Text style={[styles.bigCircleText, { color: colors.success }]}>COMPLETED</Text>
                 </View>
               ) : (
                 <Pressable style={styles.bigCircleCheckOut} onPress={handlePunchOut}>
-                  <MaterialCommunityIcons name="logout" size={54} color={palette.white} />
+                  <MaterialCommunityIcons name="logout" size={54} color={colors.white} />
                   <Text style={styles.bigCircleText}>CHECK OUT</Text>
                 </Pressable>
               )}
@@ -301,7 +306,7 @@ export default function AttendanceScreen() {
           <Text style={styles.sectionHeader}>Attendance logs history</Text>
 
           {historyLoading ? (
-            <ActivityIndicator color={palette.primary} style={{ marginVertical: spacing.md }} />
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
           ) : (
             <View style={styles.historyList}>
               {(historyData?.history || []).map((record) => {
@@ -331,11 +336,11 @@ export default function AttendanceScreen() {
 
                     <View style={styles.histTimesRow}>
                       <View style={styles.histTimeTile}>
-                        <MaterialCommunityIcons name="clock-in" size={16} color={palette.success} />
+                        <MaterialCommunityIcons name="clock-in" size={16} color={colors.success} />
                         <Text style={styles.histTimeText}>In: {inTime}</Text>
                       </View>
                       <View style={styles.histTimeTile}>
-                        <MaterialCommunityIcons name="clock-out" size={16} color={checkedOut ? palette.danger : palette.textSoft} />
+                        <MaterialCommunityIcons name="clock-out" size={16} color={checkedOut ? colors.danger : colors.textSoft} />
                         <Text style={styles.histTimeText}>Out: {outTime}</Text>
                       </View>
                     </View>
@@ -351,7 +356,7 @@ export default function AttendanceScreen() {
 
               {!historyData?.history?.length ? (
                 <View style={styles.emptyState}>
-                  <MaterialCommunityIcons name="calendar-blank-outline" size={48} color={palette.textSoft} />
+                  <MaterialCommunityIcons name="calendar-blank-outline" size={48} color={colors.textSoft} />
                   <Text style={styles.emptyText}>No attendance history records found.</Text>
                 </View>
               ) : null}
@@ -363,7 +368,7 @@ export default function AttendanceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   loading: {
     flex: 1,
     alignItems: 'center',
@@ -371,7 +376,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   loadingText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     marginTop: spacing.sm,
     fontWeight: '600',
@@ -394,7 +399,7 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   badge: {
     paddingHorizontal: spacing.sm,
@@ -402,48 +407,48 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   badgeInactive: {
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
   },
   badgeTextInactive: {
     fontSize: 10,
     fontWeight: '800',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   badgeActive: {
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   badgeTextActive: {
     fontSize: 10,
     fontWeight: '800',
-    color: palette.success,
+    color: colors.success,
   },
   badgeCompleted: {
-    backgroundColor: palette.infoSoft,
+    backgroundColor: colors.infoSoft,
   },
   badgeTextCompleted: {
     fontSize: 10,
     fontWeight: '800',
-    color: palette.info,
+    color: colors.info,
   },
   officeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.sm,
-    backgroundColor: palette.accentSoft,
-    borderColor: palette.accentMuted,
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accentMuted,
     borderWidth: 1,
     borderRadius: radius.md,
     width: '100%',
   },
   officeIndicatorWarning: {
-    backgroundColor: palette.warningSoft,
-    borderColor: palette.warningBright,
+    backgroundColor: colors.warningSoft,
+    borderColor: colors.warningBright,
   },
   officeText: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
     flex: 1,
   },
   alertBannerError: {
@@ -451,12 +456,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.md,
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,
     width: '100%',
   },
   alertText: {
-    color: palette.danger,
+    color: colors.danger,
     fontSize: typography.caption,
     fontWeight: '700',
     flex: 1,
@@ -467,12 +472,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     padding: spacing.md,
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
     borderRadius: radius.md,
     width: '100%',
   },
   alertSuccessText: {
-    color: palette.success,
+    color: colors.success,
     fontSize: typography.caption,
     fontWeight: '700',
     flex: 1,
@@ -488,57 +493,57 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.floating,
     gap: spacing.xs,
     borderWidth: 6,
-    borderColor: palette.accentMuted,
+    borderColor: colors.accentMuted,
   },
   bigCircleCheckOut: {
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: palette.danger,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.floating,
     gap: spacing.xs,
     borderWidth: 6,
-    borderColor: palette.dangerSoft,
+    borderColor: colors.dangerSoft,
   },
   bigCircleCompleted: {
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: palette.white,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 6,
-    borderColor: palette.successSoft,
+    borderColor: colors.successSoft,
     gap: spacing.xxs,
   },
   bigCircleLoading: {
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 6,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   bigCircleText: {
     fontSize: 16,
     fontWeight: '800',
-    color: palette.white,
+    color: colors.white,
     letterSpacing: 1,
   },
   timeline: {
     width: '100%',
     borderTopWidth: 1,
-    borderTopColor: palette.border,
+    borderTopColor: colors.border,
     paddingTop: spacing.md,
     gap: spacing.xs,
   },
@@ -548,16 +553,16 @@ const styles = StyleSheet.create({
   },
   timeLabel: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   timeVal: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   hintText: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     textAlign: 'center',
   },
   filterSection: {
@@ -567,7 +572,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.md,
@@ -582,21 +587,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   presetChipSelected: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   presetChipText: {
     fontSize: typography.label,
     fontWeight: '600',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   presetChipTextSelected: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '700',
   },
   historyList: {
@@ -604,7 +609,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   historyCard: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     padding: spacing.md,
     borderRadius: radius.md,
     gap: spacing.sm,
@@ -618,11 +623,11 @@ const styles = StyleSheet.create({
   histDate: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   histUser: {
     fontSize: typography.caption,
-    color: palette.primary,
+    color: colors.primary,
     fontWeight: '700',
     marginTop: 2,
   },
@@ -632,26 +637,26 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   histStatusGreen: {
-    backgroundColor: palette.successSoft,
+    backgroundColor: colors.successSoft,
   },
   histStatusOrange: {
-    backgroundColor: palette.dangerSoft,
+    backgroundColor: colors.dangerSoft,
   },
   histStatusTextGreen: {
     fontSize: 9,
     fontWeight: '800',
-    color: palette.success,
+    color: colors.success,
   },
   histStatusTextOrange: {
     fontSize: 9,
     fontWeight: '800',
-    color: palette.danger,
+    color: colors.danger,
   },
   histTimesRow: {
     flexDirection: 'row',
     gap: spacing.xl,
     borderTopWidth: 1,
-    borderTopColor: palette.backgroundWarm,
+    borderTopColor: colors.backgroundWarm,
     paddingTop: spacing.xs,
   },
   histTimeTile: {
@@ -662,11 +667,11 @@ const styles = StyleSheet.create({
   histTimeText: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   coordsText: {
     fontSize: 9,
-    color: palette.textSoft,
+    color: colors.textSoft,
     fontStyle: 'italic',
   },
   emptyState: {
@@ -676,7 +681,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   emptyText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.body,
     textAlign: 'center',
   },

@@ -9,10 +9,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initializeDatabase } from '@/src/data/database';
 import { flushQueuedMutations } from '@/src/data/sync';
 import { setUnauthorizedHandler } from '@/src/api/client';
-import { palette } from '@/src/theme';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { useHabitStore } from '@/src/stores/habit-store';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { useSyncStore } from '@/src/stores/sync-store';
+import { usePalette, useThemeStore } from '@/src/stores/theme-store';
+import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,13 +29,35 @@ const queryClient = new QueryClient({
 function BootstrapRuntime() {
   useEffect(() => {
     let isMounted = true;
+    void useThemeStore.getState().hydrate();
+    void useHabitStore.getState().hydrate();
+    if (nativeRemindersAvailable()) {
+      void import('@/src/features/habits/lib/interval-reminders')
+        .then((mod) => {
+          try {
+            mod.configureReminderNotifications();
+          } catch {
+            // Native module missing until a development build.
+          }
+        })
+        .catch(() => undefined);
+    }
 
     initializeDatabase()
+      .catch((error) => {
+        console.warn('[bootstrap] database init failed', error);
+      })
       .then(() => useAuthStore.getState().bootstrap())
       .then(() => useSyncStore.getState().refreshPendingCount())
       .then(async () => {
         if (useAuthStore.getState().status === 'signed-in') {
           await useAuthStore.getState().hydrateRemoteData();
+        }
+      })
+      .catch((error) => {
+        console.warn('[bootstrap] startup failed', error);
+        if (useAuthStore.getState().status === 'booting') {
+          useAuthStore.setState({ status: 'signed-out' });
         }
       })
       .finally(() => {
@@ -83,13 +108,16 @@ function SessionStateBridge() {
 }
 
 export function AppProviders({ children }: PropsWithChildren) {
+  const colors = usePalette();
+
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: palette.background }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" backgroundColor={palette.background} translucent={false} />
+          <StatusBar style="dark" backgroundColor={colors.background} translucent={false} />
           <BootstrapRuntime />
           <SessionStateBridge />
+          <ReminderWatch />
           {children}
         </QueryClientProvider>
       </SafeAreaProvider>

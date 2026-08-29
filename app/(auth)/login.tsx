@@ -1,11 +1,11 @@
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { AuthButton, AuthFooterLink, AuthInlineLink, AuthNotice } from '@/src/features/auth/components/AuthControls';
+import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
+import { FormField } from '@/src/shared/forms/FormField';
+import { getLoginError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
 import { useAuthStore } from '@/src/stores/auth-store';
 
 export default function LoginScreen() {
@@ -16,111 +16,84 @@ export default function LoginScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleLogin() {
+    const nextError = getLoginError(email, password);
+    if (nextError) {
+      setError(nextError);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError('');
       const result = await login({ email, password });
       router.replace(result === 'verify-email' ? '/(auth)/verify-email' : '/(app)/(tabs)/home');
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Unable to sign in.');
+      setError(resolveAuthMessage(nextError, 'Unable to sign in. Check your details and try again.'));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Screen scrollable={true}>
-      <View style={styles.hero}>
-        <Text style={styles.brand}>PasalManager</Text>
-        <Text style={styles.title}>Daily billing and shop control from your phone</Text>
-        <Text style={styles.subtitle}>
-          Sign in and jump straight into sales, quick entry, party balances, and today&apos;s insights.
-        </Text>
-      </View>
-
-      <SurfaceCard title="Sign in" subtitle="Your business session stays secure on device.">
-        <FormField
-          label="Email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
+    <AuthScreen
+      centered
+      title="Welcome back"
+      subtitle="Sign in to run your shop, track money, and keep daily books in one place."
+      footer={
+        <AuthFooterLink
+          prompt="New to PasalManager?"
+          action="Create an account"
+          onPress={() => router.push('/(auth)/register')}
         />
+      }>
+      {error ? <AuthNotice tone="error" message={error} /> : null}
+
+      <FormField
+        label="Email"
+        icon="email-outline"
+        value={email}
+        onChangeText={(value) => {
+          setEmail(value);
+          if (error) setError('');
+        }}
+        placeholder="you@email.com"
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+      />
+
+      <View>
         <FormField
           label="Password"
+          icon="lock-outline"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(value) => {
+            setPassword(value);
+            if (error) setError('');
+          }}
+          placeholder="Your password"
           secureTextEntry
           autoCapitalize="none"
+          autoComplete="password"
+          textContentType="password"
+          returnKeyType="go"
+          onSubmitEditing={() => void handleLogin()}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={styles.primaryButton} onPress={handleLogin} disabled={submitting}>
-          {submitting ? <ActivityIndicator color={palette.white} /> : <Text style={styles.primaryLabel}>Continue to app</Text>}
-        </Pressable>
-      </SurfaceCard>
-
-      <View style={styles.links}>
-        <Link href="/(auth)/register" style={styles.link}>
-          Create a new account
-        </Link>
-        <Link href="/(auth)/verify-email" style={styles.link}>
-          Verify email
-        </Link>
-        <Link href="/(auth)/reset-password" style={styles.link}>
-          Reset password
-        </Link>
+        <View style={styles.forgotRow}>
+          <AuthInlineLink onPress={() => router.push('/(auth)/reset-password')}>Forgot password?</AuthInlineLink>
+        </View>
       </View>
-    </Screen>
+
+      <AuthButton label="Sign in" loading={submitting} onPress={() => void handleLogin()} />
+    </AuthScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    paddingTop: spacing.xl,
-    gap: spacing.sm,
-  },
-  brand: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
-    color: palette.primary,
-    fontWeight: '800',
-  },
-  title: {
-    fontSize: 32,
-    lineHeight: 38,
-    fontWeight: '800',
-    color: palette.text,
-  },
-  subtitle: {
-    fontSize: typography.body,
-    lineHeight: 22,
-    color: palette.textMuted,
-  },
-  primaryButton: {
-    minHeight: 52,
-    borderRadius: radius.md,
-    backgroundColor: palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryLabel: {
-    color: palette.white,
-    fontSize: typography.body,
-    fontWeight: '800',
-  },
-  error: {
-    color: palette.danger,
-    fontWeight: '600',
-  },
-  links: {
-    gap: spacing.sm,
-  },
-  link: {
-    color: palette.primary,
-    fontSize: typography.body,
-    fontWeight: '700',
+  forgotRow: {
+    alignItems: 'flex-end',
+    marginTop: 8,
   },
 });

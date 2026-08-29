@@ -28,6 +28,9 @@ export interface User {
 
 export interface AccessControl {
   permissions?: string[] | Record<string, string>;
+  role?: string | null;
+  staffCategory?: string | null;
+  membershipId?: string | null;
   [key: string]: unknown;
 }
 
@@ -203,25 +206,67 @@ export interface Unit {
   [key: string]: unknown;
 }
 
+export interface InventoryBatch {
+  id: string;
+  productId?: string;
+  quantityOnHand: number;
+  expiryDate?: string;
+  batchNumber?: string;
+  costPrice?: number;
+  note?: string;
+  isExpired?: boolean;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface StockLedgerEntry {
+  id: string;
+  productId?: string;
+  refType: string;
+  quantityChange: number;
+  note?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
 export interface Product {
   id: string;
   name: string;
+  companyName?: string;
   categoryId?: string;
   categoryName?: string;
   salePrice: number;
   purchasePrice?: number;
+  secondarySalePrice?: number;
+  mrpPrice?: number;
+  wholesalePrice?: number;
+  minWholesaleQuantity?: number;
   primaryUnit: string;
   primaryUnitId?: string;
+  unitId?: string;
   secondaryUnit?: string;
   secondaryUnitId?: string;
   secondaryUnitSymbol?: string;
   secondaryConversionRate?: number;
   taxRate?: number;
   stockOnHand?: number;
+  openingStock?: number;
+  minStockLevel?: number;
+  lowStockAlert?: boolean;
   itemType?: string;
   barcode?: string;
   sku?: string;
+  metalType?: string;
+  purity?: string;
+  imageUrl?: string;
+  expiryDate?: string;
+  batchNumber?: string;
+  batchCount?: number;
+  expiredQuantity?: number;
+  sellableQuantity?: number;
+  hasExpiredStock?: boolean;
   isActive?: boolean;
+  batches?: InventoryBatch[];
   [key: string]: unknown;
 }
 
@@ -234,6 +279,7 @@ export interface Party {
   type: PartyType;
   openingBalance?: number;
   balanceType?: PaymentDirection;
+  currentAmount?: number;
   receiveBalance?: number;
   giveBalance?: number;
   balance?: number;
@@ -398,6 +444,7 @@ export interface ServiceItem {
 export interface Service {
   id: string;
   partyId?: string;
+  partyName?: string;
   orderNo: string;
   status: ServiceStatus;
   notes?: string;
@@ -433,6 +480,55 @@ export interface PartyTransaction {
   [key: string]: unknown;
 }
 
+export type PartyStatementType =
+  | 'sale'
+  | 'service'
+  | 'purchase'
+  | 'expense'
+  | 'payment_in'
+  | 'payment_out'
+  | string;
+
+export interface PartyStatementRow {
+  id: string;
+  type: PartyStatementType;
+  date?: string;
+  createdAt?: string;
+  referenceNo?: string;
+  status?: string;
+  direction?: PaymentDirection | string;
+  paymentMethod?: PaymentMethod | string;
+  bankId?: string;
+  totalAmount?: number;
+  paidAmount?: number;
+  dueAmount?: number;
+  amount?: number;
+  note?: string;
+  runningBalance?: number | null;
+  [key: string]: unknown;
+}
+
+export interface PartyStatementSummary {
+  totalRows: number;
+  totalSales: number;
+  totalServices: number;
+  totalPurchases: number;
+  totalExpenses: number;
+  salesDue: number;
+  servicesDue: number;
+  purchasesDue: number;
+  expensesDue: number;
+  totalPaymentIn: number;
+  totalPaymentOut: number;
+  currentAmount: number;
+}
+
+export interface PartyStatement {
+  party: Party | null;
+  summary: PartyStatementSummary;
+  rows: PartyStatementRow[];
+}
+
 export interface OrderAttribute {
   id: string;
   entityType: 'sale' | 'service' | string;
@@ -458,6 +554,7 @@ export interface UploadResult {
 export interface LedgerEntry {
   id: string;
   partyId?: string;
+  partyName?: string;
   refType?: string;
   refNo?: string;
   entryDate: string;
@@ -474,6 +571,7 @@ export interface InventorySummary {
   totalStockValue?: number;
   lowStockCount?: number;
   outOfStockCount?: number;
+  nearExpiryCount?: number;
   [key: string]: unknown;
 }
 

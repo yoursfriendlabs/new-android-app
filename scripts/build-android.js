@@ -32,7 +32,19 @@ function loadEnv() {
   return env;
 }
 
+const DEFAULT_API_BASE_URL = 'https://api-dev.yoursfriend.com/';
 const env = loadEnv();
+Object.assign(process.env, env);
+process.env.NODE_ENV = 'production';
+process.env.EXPO_PUBLIC_API_BASE_URL = env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
+
+const gradleEnv = {
+  ...process.env,
+  NODE_ENV: 'production',
+  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+};
+
+console.log(`Using EXPO_PUBLIC_API_BASE_URL=${process.env.EXPO_PUBLIC_API_BASE_URL}`);
 
 // Detect Java 17 Home
 let javaHome;
@@ -45,13 +57,14 @@ try {
 if (javaHome) {
   console.log(`Setting JAVA_HOME environment variable to Java 17: ${javaHome}`);
   process.env.JAVA_HOME = javaHome;
+  gradleEnv.JAVA_HOME = javaHome;
 }
 
 console.log('Starting Android release build preparation...');
 
 // 1. Run expo prebuild
 console.log('Running expo prebuild...');
-execSync('npx expo prebuild --platform android --clean', { stdio: 'inherit' });
+execSync('npx expo prebuild --platform android --clean', { stdio: 'inherit', env: gradleEnv });
 
 // Configure local.properties with Android SDK location
 const localPropertiesPath = path.resolve(__dirname, '..', 'android', 'local.properties');
@@ -109,7 +122,7 @@ fs.writeFileSync(gradlePropertiesPath, gradleProperties, 'utf8');
 // 3. Clean Gradle cache
 console.log('Stopping Gradle daemon and clearing build cache...');
 try {
-  execSync('cd android && ./gradlew --stop', { stdio: 'inherit' });
+  execSync('cd android && ./gradlew --stop', { stdio: 'inherit', env: gradleEnv });
 } catch (e) {
   console.log('Warning: Failed to stop Gradle daemon.');
 }
@@ -124,12 +137,15 @@ if (fs.existsSync(appBuildDir)) {
   }
 }
 
-execSync('cd android && ./gradlew clean', { stdio: 'inherit' });
+execSync('cd android && ./gradlew clean', { stdio: 'inherit', env: gradleEnv });
 
 // 4. Build AAB / APK
 const isApk = process.argv.includes('apk');
 const buildType = isApk ? 'assembleRelease' : 'bundleRelease';
 console.log(`Building Android ${isApk ? 'APK' : 'AAB'} (limiting architectures to arm64-v8a for speed and stability)...`);
-execSync(`cd android && ./gradlew ${buildType} -PreactNativeArchitectures=arm64-v8a`, { stdio: 'inherit' });
+execSync(`cd android && ./gradlew ${buildType} -PreactNativeArchitectures=arm64-v8a`, {
+  stdio: 'inherit',
+  env: gradleEnv,
+});
 
 console.log('Android build completed successfully!');

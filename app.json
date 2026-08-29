@@ -11,22 +11,26 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f7f3ee"
+      "backgroundColor": "#0A2E20"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yoursfriend.pasalmanager",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSContactsUsageDescription": "PasalManager uses your contacts so you can add people you pay or get paid by."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#f7f3ee"
+        "backgroundColor": "#0A2E20"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.yoursfriend.pasalmanager",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": ["READ_CONTACTS", "POST_NOTIFICATIONS"]
     },
     "web": {
       "bundler": "metro",
@@ -36,7 +40,30 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A2E20",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "PasalManager uses your contacts so you can add people you pay or get paid by."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo-mark.png",
+          "color": "#0A2E20",
+          "sounds": [],
+          "mode": "production"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

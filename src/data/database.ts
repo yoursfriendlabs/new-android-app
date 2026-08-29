@@ -1,6 +1,6 @@
 import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 
-import { generateId } from '@/src/lib/id';
+import { generateId } from '@/src/shared/lib/id';
 import type { QueuedMutation } from '@/src/types/models';
 
 const DATABASE_NAME = 'counterflow.db';

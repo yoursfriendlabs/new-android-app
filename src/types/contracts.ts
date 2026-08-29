@@ -74,24 +74,52 @@ export interface ChangePasswordPayload {
 
 export interface ProductCreatePayload {
   name: string;
+  companyName?: string;
   categoryId?: string;
+  sku?: string;
+  itemType?: string;
+  metalType?: string;
+  purity?: string;
   salePrice: number;
   purchasePrice?: number;
+  secondarySalePrice?: number;
+  mrpPrice?: number;
+  wholesalePrice?: number;
+  minWholesaleQuantity?: number;
   primaryUnit: string;
   primaryUnitId?: string;
+  unitId?: string;
   secondaryUnit?: string;
   secondaryUnitId?: string;
   secondaryConversionRate?: number;
+  conversionRate?: number;
   taxRate?: number;
-  itemType?: string;
+  openingStock?: number;
+  expiryDate?: string;
+  batchNumber?: string;
+  lowStockAlert?: boolean;
 }
 
 export type ProductUpdatePayload = Partial<ProductCreatePayload>;
 
 export interface ProductRestockPayload {
   quantity: number;
-  unitType: string;
+  action?: 'add' | 'remove';
+  unitType?: string;
   notes?: string;
+  note?: string;
+  expiryDate?: string;
+  batchNumber?: string;
+}
+
+export interface ProductBatchUpdatePayload {
+  expiryDate?: string | null;
+  batchNumber?: string | null;
+}
+
+export interface ProductBatchExchangePayload {
+  batchNumber: string;
+  expiryDate: string;
 }
 
 export interface CategoryCreatePayload {
@@ -201,6 +229,7 @@ export interface ListQuery {
   categoryKey?: string;
   category?: string;
   entityType?: string;
+  productId?: string;
 }
 
 export interface AuthResponseShape {

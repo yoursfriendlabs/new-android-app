@@ -12,16 +12,21 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
+import { Screen } from '@/src/shared/layout/Screen';
 import {
   useTaskNotificationSummary,
   useMarkNotificationsReadMutation,
-} from '@/src/hooks/useTaskQueries';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
-import { prettyDate } from '@/src/lib/format';
+} from '@/src/features/notes/hooks/useTaskQueries';
+import { radius, spacing, typography, shadows } from '@/src/theme';
+import { prettyDate } from '@/src/shared/lib/format';
 import type { TaskActivity } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskNotificationsScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const { data: summary, isLoading, refetch, isFetching } = useTaskNotificationSummary();
   const markReadMutation = useMarkNotificationsReadMutation();
 
@@ -61,7 +66,7 @@ export default function TaskNotificationsScreen() {
       <Pressable style={styles.notificationCard} onPress={() => handleNotificationPress(item)}>
         <View style={styles.iconWrap}>
           <MaterialCommunityIcons
-            color={palette.accent}
+            color={colors.accent}
             name={getIconForActivity(item.type) as never}
             size={18}
           />
@@ -89,7 +94,7 @@ export default function TaskNotificationsScreen() {
       <View style={styles.container}>
         {isLoading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={palette.accent} size="large" />
+            <ActivityIndicator color={colors.accent} size="large" />
             <Text style={styles.loadingText}>Loading notifications...</Text>
           </View>
         ) : (
@@ -103,7 +108,7 @@ export default function TaskNotificationsScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons color={palette.textMuted} name="bell-off-outline" size={48} />
+                <MaterialCommunityIcons color={colors.textMuted} name="bell-off-outline" size={48} />
                 <Text style={styles.emptyTitle}>All caught up!</Text>
                 <Text style={styles.emptySubtitle}>No recent task activities or updates found.</Text>
               </View>
@@ -115,10 +120,10 @@ export default function TaskNotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   loadingWrap: {
     flex: 1,
@@ -128,7 +133,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   listContainer: {
     padding: spacing.lg,
@@ -137,10 +142,10 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.md,
     ...shadows.card,
@@ -149,7 +154,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: palette.accentSoft,
+    backgroundColor: colors.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -165,21 +170,21 @@ const styles = StyleSheet.create({
   actorName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   timeText: {
     fontSize: 10,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   contentText: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     lineHeight: 18,
   },
   taskBadge: {
     alignSelf: 'flex-start',
     marginTop: spacing.xxs,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.sm,
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
   },
   taskTitleText: {
     fontSize: 10,
-    color: palette.textSoft,
+    color: colors.textSoft,
     fontWeight: '700',
   },
   emptyWrap: {
@@ -200,11 +205,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   emptySubtitle: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     textAlign: 'center',
   },
 });

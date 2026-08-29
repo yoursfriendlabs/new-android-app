@@ -12,18 +12,34 @@ import {
   View,
 } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { SearchField } from '@/src/components/ui/SearchField';
-import { useTasks, useTaskMetadata } from '@/src/hooks/useTaskQueries';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PersonalNotesInbox } from '@/src/features/notes/components/PersonalNotesInbox';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { SearchField } from '@/src/shared/ui/SearchField';
+import { useTasks, useTaskMetadata } from '@/src/features/notes/hooks/useTaskQueries';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
-import { formatCurrency, prettyDate } from '@/src/lib/format';
+import { radius, spacing, typography, shadows } from '@/src/theme';
+import { prettyDate } from '@/src/shared/lib/format';
 import type { Task } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 type TabType = 'assigned-to-me' | 'created-by-me' | 'all';
 
 export default function TaskInboxScreen() {
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const personal = isPersonalWorkspace({
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
+  if (personal) return <PersonalNotesInbox />;
+  return <BusinessTaskInboxScreen />;
+}
+
+function BusinessTaskInboxScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
@@ -66,27 +82,27 @@ export default function TaskInboxScreen() {
   const getPriorityColor = (prio: string) => {
     switch (prio.toLowerCase()) {
       case 'high':
-        return palette.danger;
+        return colors.danger;
       case 'medium':
-        return palette.warning;
+        return colors.warning;
       case 'low':
-        return palette.success;
+        return colors.success;
       default:
-        return palette.textSoft;
+        return colors.textSoft;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-        return palette.success;
+        return colors.success;
       case 'in_progress':
-        return palette.accent;
+        return colors.accent;
       case 'todo':
       case 'open':
-        return palette.primary;
+        return colors.primary;
       default:
-        return palette.textSoft;
+        return colors.textSoft;
     }
   };
 
@@ -119,7 +135,7 @@ export default function TaskInboxScreen() {
 
         <View style={styles.cardFooter}>
           <View style={styles.footerInfo}>
-            <MaterialCommunityIcons color={palette.textSoft} name="calendar-clock" size={14} />
+            <MaterialCommunityIcons color={colors.textSoft} name="calendar-clock" size={14} />
             <Text style={[styles.dueDateText, isOverdue && styles.overdueText]}>
               {item.dueDate ? prettyDate(item.dueDate) : 'No due date'}
             </Text>
@@ -137,7 +153,7 @@ export default function TaskInboxScreen() {
 
         <View style={styles.cardFooterSub}>
           <Text style={styles.metaText}>
-            Creator: {item.creator?.name || 'Unknown'}
+            {`Creator: ${item.creator?.name || 'Unknown'}`}
           </Text>
           <Text style={styles.metaText}>
             Assignees: {item.assigneeCount || 0}
@@ -151,29 +167,34 @@ export default function TaskInboxScreen() {
     <Pressable
       style={styles.headerButton}
       onPress={() => router.push('/tasks/form' as any)}>
-      <MaterialCommunityIcons color={palette.white} name="plus" size={24} />
+      <MaterialCommunityIcons color={colors.white} name="plus" size={24} />
     </Pressable>
   ) : undefined;
 
   return (
-    <Screen scrollable={false} padded={false} topBarTitle="Task Inbox" topBarRight={topBarRight} topBarLeading="back">
+    <Screen
+      scrollable={false}
+      padded={false}
+      topBarTitle="Tasks & notes"
+      topBarRight={topBarRight}
+      topBarLeading="back">
       <View style={styles.container}>
         <SegmentedTabs
           value={tab}
           onChange={(v) => setTab(v as TabType)}
           style={styles.segmentedTabs}
           contentContainerStyle={styles.tabBar}
-          activeBackgroundColor={palette.accent}
+          activeBackgroundColor={colors.accent}
           options={[
             { label: 'Assigned to me', value: 'assigned-to-me' },
             { label: 'Created by me', value: 'created-by-me' },
-            { label: 'All tasks', value: 'all' },
+            { label: 'All', value: 'all' },
           ]}
         />
 
         <View style={styles.searchBlock}>
           <SearchField
-            placeholder="Search tasks by title/desc..."
+            placeholder="Search tasks and notes"
             value={search}
             onChangeText={setSearch}
           />
@@ -232,7 +253,7 @@ export default function TaskInboxScreen() {
                     {item.label}
                   </Text>
                   {item.selected ? (
-                    <MaterialCommunityIcons color={palette.white} name="close-circle" size={14} />
+                    <MaterialCommunityIcons color={colors.white} name="close-circle" size={14} />
                   ) : null}
                 </Pressable>
               );
@@ -242,8 +263,8 @@ export default function TaskInboxScreen() {
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={palette.accent} size="large" />
-            <Text style={styles.loadingText}>Fetching tasks...</Text>
+            <ActivityIndicator color={colors.accent} size="large" />
+            <Text style={styles.loadingText}>Loading tasks and notes...</Text>
           </View>
         ) : (
           <FlatList
@@ -256,9 +277,11 @@ export default function TaskInboxScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons color={palette.textMuted} name="checkbox-marked-circle-outline" size={48} />
-                <Text style={styles.emptyTitle}>No tasks found</Text>
-                <Text style={styles.emptySubtitle}>Adjust your filters or create a new task to get started.</Text>
+                <MaterialCommunityIcons color={colors.textMuted} name="checkbox-marked-circle-outline" size={48} />
+                <Text style={styles.emptyTitle}>No tasks or notes yet</Text>
+                <Text style={styles.emptySubtitle}>
+                  Add a reminder, to-do, or note to get started.
+                </Text>
               </View>
             }
           />
@@ -268,16 +291,16 @@ export default function TaskInboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.background,
+    backgroundColor: colors.background,
   },
   headerButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: palette.accent,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -308,21 +331,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
   },
   filterChipActive: {
-    backgroundColor: palette.accent,
-    borderColor: palette.accent,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   filterChipLabel: {
     fontSize: typography.caption,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   filterChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   listContainer: {
     padding: spacing.lg,
@@ -330,10 +353,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   taskCard: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.sm,
     ...shadows.card,
@@ -348,7 +371,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   priorityBadge: {
     paddingHorizontal: spacing.sm,
@@ -361,7 +384,7 @@ const styles = StyleSheet.create({
   },
   taskDesc: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     lineHeight: 18,
   },
   cardFooter: {
@@ -369,7 +392,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: palette.border,
+    borderTopColor: colors.border,
     paddingTop: spacing.sm,
   },
   footerInfo: {
@@ -379,11 +402,11 @@ const styles = StyleSheet.create({
   },
   dueDateText: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     fontWeight: '600',
   },
   overdueText: {
-    color: palette.dangerBright,
+    color: colors.dangerBright,
     fontWeight: '700',
   },
   statusBadge: {
@@ -404,7 +427,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 10,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
   loadingWrap: {
@@ -415,7 +438,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: typography.body,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   emptyWrap: {
     flex: 1,
@@ -427,11 +450,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   emptySubtitle: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
     textAlign: 'center',
     paddingHorizontal: spacing.xxl,
   },

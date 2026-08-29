@@ -3,13 +3,18 @@ import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function PrintPreviewScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const title = useReceiptStore((state) => state.title);
   const subtitle = useReceiptStore((state) => state.subtitle);
   const html = useReceiptStore((state) => state.html);
@@ -42,7 +47,7 @@ export default function PrintPreviewScreen() {
 
   return (
     <Screen>
-      <PageHeading title="Print preview" subtitle="Receipt output stays one tap away after saving." />
+      <PageHeading subtitle="Receipt output stays one tap away after saving." />
       <SurfaceCard title={title || 'No prepared receipt'} subtitle={subtitle || 'Save a transaction to build the preview.'}>
         <Text style={styles.description}>
           {html
@@ -51,7 +56,7 @@ export default function PrintPreviewScreen() {
         </Text>
       </SurfaceCard>
       <Pressable style={styles.primaryButton} onPress={printNow} disabled={busy || !html}>
-        {busy ? <ActivityIndicator color={palette.white} /> : <Text style={styles.primaryLabel}>Print now</Text>}
+        {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryLabel}>Print now</Text>}
       </Pressable>
       <Pressable style={styles.secondaryButton} onPress={sharePdf} disabled={busy || !html}>
         <Text style={styles.secondaryLabel}>Export PDF</Text>
@@ -60,33 +65,33 @@ export default function PrintPreviewScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   description: {
     fontSize: typography.body,
     lineHeight: 22,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
   secondaryLabel: {
-    color: palette.text,
+    color: colors.text,
     fontSize: typography.body,
     fontWeight: '700',
   },

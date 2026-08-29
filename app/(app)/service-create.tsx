@@ -9,29 +9,32 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 
 import { cacheRecentServices } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
-import { SuccessSheet } from '@/src/components/feedback/SuccessSheet';
-import { PartyPickerSheet } from '@/src/components/forms/PartyPickerSheet';
-import { ProductPickerSheet } from '@/src/components/forms/ProductPickerSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { PaymentMethodSelector } from '@/src/components/forms/PaymentMethodSelector';
-import { Screen } from '@/src/components/layout/Screen';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { StickyActionBar } from '@/src/components/ui/StickyActionBar';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { TotalsCard } from '@/src/components/ui/TotalsCard';
-import { buildReceiptHtml } from '@/src/lib/receipt';
-import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/lib/uploads';
-import { formatCurrency, todayIso } from '@/src/lib/format';
-import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/lib/totals';
-import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts } from '@/src/hooks/useAppQueries';
-import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
-import { useDraftState } from '@/src/hooks/useDraftState';
-import { generateId } from '@/src/lib/id';
-import { palette, radius, spacing, typography } from '@/src/theme';
+import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { Screen } from '@/src/shared/layout/Screen';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { TotalsCard } from '@/src/shared/ui/TotalsCard';
+import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
+import { formatCurrency, todayIso } from '@/src/shared/lib/format';
+import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
+import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { useDraftState } from '@/src/shared/hooks/useDraftState';
+import { generateId } from '@/src/shared/lib/id';
+import { radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { useAuthStore } from '@/src/stores/auth-store';
 import type { DraftServiceLine, ServiceDraft } from '@/src/types/forms';
 import type { Service } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 const steps = ['Customer', 'Job', 'Items', 'Payment', 'Review'] as const;
 
@@ -69,6 +72,8 @@ function createLine(itemType: 'labor' | 'part'): DraftServiceLine {
 }
 
 export default function ServiceCreateScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
   const { businessProfile } = useAuthStore();
   const isGym = businessProfile?.businessType === 'gym' || businessProfile?.type === 'gym';
@@ -355,7 +360,7 @@ export default function ServiceCreateScreen() {
                       isActive && styles.stepCircleActive,
                     ]}>
                     {isCompleted ? (
-                      <MaterialCommunityIcons name="check" size={14} color={palette.white} />
+                      <MaterialCommunityIcons name="check" size={14} color={colors.white} />
                     ) : (
                       <Text
                         style={[
@@ -400,26 +405,26 @@ export default function ServiceCreateScreen() {
                 <Text style={styles.selectedCustomerName}>{draft.value.customer.name}</Text>
                 {draft.value.customer.phone ? (
                   <View style={styles.detailRowMini}>
-                    <MaterialCommunityIcons name="phone" size={14} color={palette.textSoft} />
+                    <MaterialCommunityIcons name="phone" size={14} color={colors.textSoft} />
                     <Text style={styles.selectedCustomerPhone}>{draft.value.customer.phone}</Text>
                   </View>
                 ) : null}
                 {draft.value.customer.address ? (
                   <View style={styles.detailRowMini}>
-                    <MaterialCommunityIcons name="map-marker" size={14} color={palette.textSoft} />
+                    <MaterialCommunityIcons name="map-marker" size={14} color={colors.textSoft} />
                     <Text style={styles.selectedCustomerPhone}>{draft.value.customer.address}</Text>
                   </View>
                 ) : null}
               </View>
               <Pressable style={styles.swapCustomerBtn} onPress={() => setPartyPickerVisible(true)}>
-                <MaterialCommunityIcons name="swap-horizontal" size={18} color={palette.primary} />
+                <MaterialCommunityIcons name="swap-horizontal" size={18} color={colors.primary} />
                 <Text style={styles.swapCustomerBtnLabel}>Change</Text>
               </Pressable>
             </View>
           ) : (
             <Pressable style={styles.emptySelectorCard} onPress={() => setPartyPickerVisible(true)}>
               <View style={styles.emptySelectorIconWrap}>
-                <MaterialCommunityIcons name="account-search-outline" size={32} color={palette.textSoft} />
+                <MaterialCommunityIcons name="account-search-outline" size={32} color={colors.textSoft} />
               </View>
               <Text style={styles.emptySelectorLabel}>Select Customer for Service</Text>
               <Text style={styles.emptySelectorSub}>Tap to search your customer database</Text>
@@ -562,14 +567,14 @@ export default function ServiceCreateScreen() {
                     <Image source={{ uri: attachment }} style={styles.attachmentPreview} />
                   ) : (
                     <View style={styles.attachmentFallback}>
-                      <MaterialCommunityIcons color={palette.textMuted} name="file-outline" size={24} />
+                      <MaterialCommunityIcons color={colors.textMuted} name="file-outline" size={24} />
                     </View>
                   )}
                   <Text numberOfLines={1} style={styles.attachmentText}>
                     {getAttachmentLabel(attachment)}
                   </Text>
                   <Pressable style={styles.attachmentRemoveButton} onPress={() => removeAttachment(attachment)}>
-                    <MaterialCommunityIcons color={palette.danger} name="close-circle" size={18} />
+                    <MaterialCommunityIcons color={colors.danger} name="close-circle" size={18} />
                   </Pressable>
                 </View>
               ))}
@@ -595,14 +600,14 @@ export default function ServiceCreateScreen() {
                   <MaterialCommunityIcons
                     name={item.itemType === 'labor' ? 'wrench-outline' : 'package-variant-closed'}
                     size={16}
-                    color={item.itemType === 'labor' ? palette.info : palette.success}
+                    color={item.itemType === 'labor' ? colors.info : colors.success}
                   />
-                  <Text style={[styles.lineBadgeLabel, { color: item.itemType === 'labor' ? palette.info : palette.success }]}>
+                  <Text style={[styles.lineBadgeLabel, { color: item.itemType === 'labor' ? colors.info : colors.success }]}>
                     {item.itemType === 'labor' ? 'Labor Job' : 'Part Item'}
                   </Text>
                 </View>
                 <Pressable onPress={() => removeLine(item.id)}>
-                  <MaterialCommunityIcons name="delete-outline" size={20} color={palette.danger} />
+                  <MaterialCommunityIcons name="delete-outline" size={20} color={colors.danger} />
                 </Pressable>
               </View>
               {item.itemType === 'part' ? (
@@ -690,7 +695,7 @@ export default function ServiceCreateScreen() {
                 ))
               ) : (
                 <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={palette.textMuted} />
+                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
                   <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
                 </Pressable>
               )}
@@ -844,21 +849,21 @@ export default function ServiceCreateScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   content: {
     gap: spacing.md,
     paddingBottom: spacing.md,
   },
   errorText: {
-    color: palette.danger,
+    color: colors.danger,
     fontSize: typography.body,
     fontWeight: '700',
     lineHeight: 22,
   },
   wizardHeader: {
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: colors.border,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     marginBottom: spacing.xs,
@@ -874,7 +879,7 @@ const styles = StyleSheet.create({
     left: 44,
     right: 44,
     height: 3,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
     top: 16,
     zIndex: 1,
   },
@@ -882,7 +887,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 44,
     height: 3,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     top: 16,
     zIndex: 2,
   },
@@ -900,73 +905,73 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepCircleActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.surface,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   stepCircleCompleted: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   stepNodeText: {
     fontSize: typography.caption,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   stepNodeTextActive: {
-    color: palette.primary,
+    color: colors.primary,
   },
   stepNodeLabel: {
     fontSize: 9,
     fontWeight: '700',
-    color: palette.textSoft,
+    color: colors.textSoft,
     marginTop: spacing.xxs,
     textTransform: 'uppercase',
   },
   stepNodeLabelActive: {
-    color: palette.primary,
+    color: colors.primary,
   },
   selector: {
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     gap: spacing.xxs,
   },
   selectorTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   selectorSubtitle: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   selectedCustomerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: radius.md,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     gap: spacing.md,
   },
   customerAvatarLarge: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   customerAvatarText: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '800',
     fontSize: typography.subheading,
   },
@@ -977,11 +982,11 @@ const styles = StyleSheet.create({
   selectedCustomerName: {
     fontSize: typography.subheading,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   selectedCustomerPhone: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '600',
   },
   detailRowMini: {
@@ -997,21 +1002,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   swapCustomerBtnLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   emptySelectorCard: {
     height: 140,
     borderRadius: radius.md,
     borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: palette.borderStrong,
-    backgroundColor: palette.surfaceMuted,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -1020,7 +1025,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
@@ -1028,18 +1033,18 @@ const styles = StyleSheet.create({
   emptySelectorLabel: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   emptySelectorSub: {
     fontSize: typography.label,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   lineCardLabor: {
-    borderColor: palette.info,
+    borderColor: colors.info,
     borderLeftWidth: 4,
   },
   lineCardPart: {
-    borderColor: palette.success,
+    borderColor: colors.success,
     borderLeftWidth: 4,
   },
   lineBadge: {
@@ -1049,7 +1054,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   lineBadgeLabel: {
     fontSize: typography.caption,
@@ -1059,20 +1064,20 @@ const styles = StyleSheet.create({
   reviewSectionHeading: {
     fontSize: typography.subheading,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
   reviewTableCard: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     overflow: 'hidden',
   },
   reviewTableHeader: {
     flexDirection: 'row',
-    backgroundColor: palette.backgroundWarm,
+    backgroundColor: colors.backgroundWarm,
     padding: spacing.md,
   },
   tableCol: {
@@ -1092,43 +1097,43 @@ const styles = StyleSheet.create({
   tableHeadText: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
     textTransform: 'uppercase',
   },
   tableDivider: {
     height: 1,
-    backgroundColor: palette.border,
+    backgroundColor: colors.border,
   },
   reviewTableRow: {
     flexDirection: 'row',
     padding: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: palette.border,
+    borderBottomColor: colors.border,
   },
   reviewItemName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   reviewItemMeta: {
     fontSize: typography.caption,
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   reviewItemQty: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
     textAlign: 'center',
   },
   reviewItemTotal: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
     textAlign: 'right',
   },
   emptyTableText: {
     padding: spacing.lg,
-    color: palette.textSoft,
+    color: colors.textSoft,
     textAlign: 'center',
   },
   attributeWrap: {
@@ -1137,31 +1142,31 @@ const styles = StyleSheet.create({
   attributeRow: {
     gap: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
   },
   attributeLabel: {
     fontSize: typography.label,
     fontWeight: '700',
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   removeMini: {
     alignSelf: 'flex-start',
   },
   removeMiniLabel: {
-    color: palette.danger,
+    color: colors.danger,
     fontWeight: '700',
   },
   secondaryButton: {
     minHeight: 46,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
   secondaryButtonLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   attachmentsActions: {
@@ -1176,9 +1181,9 @@ const styles = StyleSheet.create({
   attachmentCard: {
     width: 110,
     borderRadius: radius.md,
-    backgroundColor: palette.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     padding: spacing.xs,
     gap: spacing.xs,
   },
@@ -1186,18 +1191,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 84,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   attachmentFallback: {
     width: '100%',
     height: 84,
     borderRadius: radius.sm,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   attachmentText: {
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontSize: typography.caption,
   },
   attachmentRemoveButton: {
@@ -1205,7 +1210,7 @@ const styles = StyleSheet.create({
     top: 6,
     right: 6,
     borderRadius: radius.pill,
-    backgroundColor: palette.white,
+    backgroundColor: colors.white,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -1213,7 +1218,7 @@ const styles = StyleSheet.create({
   },
   lineCard: {
     borderRadius: radius.md,
-    backgroundColor: palette.surfaceMuted,
+    backgroundColor: colors.surfaceMuted,
     padding: spacing.md,
     gap: spacing.sm,
   },
@@ -1225,12 +1230,12 @@ const styles = StyleSheet.create({
   lineCardTitle: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   lineTotal: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.primary,
+    color: colors.primary,
   },
   bankWrap: {
     flexDirection: 'row',
@@ -1241,17 +1246,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
   },
   bankChipActive: {
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
   },
   bankChipLabel: {
-    color: palette.text,
+    color: colors.text,
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
   },
   emptyBankInfo: {
     flex: 1,
@@ -1262,23 +1267,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: palette.border,
-    backgroundColor: palette.backgroundAlt,
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundAlt,
   },
   emptyBankText: {
     flex: 1,
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
     fontWeight: '500',
   },
   reviewHeading: {
     fontSize: typography.heading,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   reviewMeta: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   reviewLine: {
     flexDirection: 'row',
@@ -1288,12 +1293,12 @@ const styles = StyleSheet.create({
   reviewLineLabel: {
     flex: 1,
     fontSize: typography.body,
-    color: palette.text,
+    color: colors.text,
   },
   reviewLineValue: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   presetRow: {
     flexDirection: 'row',
@@ -1306,9 +1311,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundAlt,
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 34,
@@ -1316,6 +1321,6 @@ const styles = StyleSheet.create({
   presetButtonText: {
     fontSize: typography.caption,
     fontWeight: '600',
-    color: palette.text,
+    color: colors.text,
   },
 });

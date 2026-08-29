@@ -1,6 +1,6 @@
 import { readCacheRecords, replaceCacheRecords, searchCacheRecords, upsertCacheRecord } from '@/src/data/database';
 import type { BankAccount, LedgerEntry, Party, Product, Purchase, Sale, Service, QuickExpense } from '@/src/types/models';
-import { generateId } from '@/src/lib/id';
+import { generateId } from '@/src/shared/lib/id';
 
 export const cacheKeys = {
   products: 'products',

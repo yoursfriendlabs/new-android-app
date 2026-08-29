@@ -14,18 +14,23 @@ import {
 } from 'react-native';
 
 import { tablesApi } from '@/src/api';
-import { BottomSheet } from '@/src/components/feedback/BottomSheet';
-import { FormField } from '@/src/components/forms/FormField';
-import { Screen } from '@/src/components/layout/Screen';
-import { PageHeading } from '@/src/components/ui/PageHeading';
-import { SurfaceCard } from '@/src/components/ui/SurfaceCard';
-import { SearchField } from '@/src/components/ui/SearchField';
-import { SegmentedTabs } from '@/src/components/ui/SegmentedTabs';
-import { useTables, useCategories } from '@/src/hooks/useAppQueries';
-import { palette, radius, spacing, typography, shadows } from '@/src/theme';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FormField } from '@/src/shared/forms/FormField';
+import { Screen } from '@/src/shared/layout/Screen';
+import { PageHeading } from '@/src/shared/ui/PageHeading';
+import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { SearchField } from '@/src/shared/ui/SearchField';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
+import { useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
+import { radius, spacing, typography, shadows } from '@/src/theme';
 import type { Table } from '@/src/types/models';
+import { usePalette } from '@/src/stores/theme-store';
+import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TableManagementScreen() {
+  const colors = usePalette();
+  const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const { data: tables = [], isLoading } = useTables();
   const { data: categories = [] } = useCategories();
@@ -168,17 +173,14 @@ export default function TableManagementScreen() {
 
   const topBarRight = (
     <Pressable style={styles.topBarBtn} onPress={handleOpenAdd}>
-      <MaterialCommunityIcons color={palette.primary} name="plus" size={24} />
+      <MaterialCommunityIcons color={colors.primary} name="plus" size={24} />
     </Pressable>
   );
 
   return (
     <Screen topBarTitle="Table Seating Setup" topBarLeading="back" topBarRight={topBarRight}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <PageHeading
-          title="Table Seating"
-          subtitle="Manage tables, seating capacity, and occupancy status for dining order workflows."
-        />
+        <PageHeading subtitle="Manage tables, seating capacity, and occupancy status for dining order workflows." />
 
         <SearchField
           placeholder="Search tables by name..."
@@ -249,7 +251,7 @@ export default function TableManagementScreen() {
 
         <SurfaceCard title="Seating Layout" subtitle="Currently configured cafe tables.">
           {isLoading && localTables.length === 0 ? (
-            <ActivityIndicator color={palette.primary} size="large" style={styles.loader} />
+            <ActivityIndicator color={colors.primary} size="large" style={styles.loader} />
           ) : (
             <View style={styles.list}>
               {filteredTables.map((table) => {
@@ -278,10 +280,10 @@ export default function TableManagementScreen() {
                     </View>
                     <View style={styles.actions}>
                       <Pressable style={styles.actionIconBtn} onPress={() => handleOpenEdit(table)}>
-                        <MaterialCommunityIcons color={palette.primary} name="pencil-outline" size={20} />
+                        <MaterialCommunityIcons color={colors.primary} name="pencil-outline" size={20} />
                       </Pressable>
                       <Pressable style={styles.actionIconBtn} onPress={() => handleDelete(table)}>
-                        <MaterialCommunityIcons color={palette.danger} name="trash-can-outline" size={20} />
+                        <MaterialCommunityIcons color={colors.danger} name="trash-can-outline" size={20} />
                       </Pressable>
                     </View>
                   </View>
@@ -289,7 +291,7 @@ export default function TableManagementScreen() {
               })}
               {filteredTables.length === 0 ? (
                 <View style={styles.empty}>
-                  <MaterialCommunityIcons color={palette.textSoft} name="table-off" size={32} />
+                  <MaterialCommunityIcons color={colors.textSoft} name="table-off" size={32} />
                   <Text style={styles.emptyText}>No tables found.</Text>
                 </View>
               ) : null}
@@ -308,7 +310,7 @@ export default function TableManagementScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={palette.white} />
+              <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={styles.primaryButtonLabel}>
                 {editingTable ? 'Save Table' : 'Create Table'}
@@ -389,8 +391,8 @@ export default function TableManagementScreen() {
             <Switch
               value={isActive}
               onValueChange={setIsActive}
-              trackColor={{ false: palette.border, true: palette.primary }}
-              thumbColor={palette.white}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.white}
             />
           </View>
         </ScrollView>
@@ -399,7 +401,7 @@ export default function TableManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppPalette) => StyleSheet.create({
   container: {
     gap: spacing.md,
     paddingBottom: spacing.xxl,
@@ -434,7 +436,7 @@ const styles = StyleSheet.create({
   tableName: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: palette.text,
+    color: colors.text,
   },
   statusDot: {
     width: 8,
@@ -447,7 +449,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   actions: {
     flexDirection: 'row',
@@ -457,7 +459,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.md,
-    backgroundColor: palette.backgroundWarm,
+    backgroundColor: colors.backgroundWarm,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -469,7 +471,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: typography.body,
-    color: palette.textMuted,
+    color: colors.textMuted,
   },
   formScroll: {
     gap: spacing.md,
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: typography.label,
     fontWeight: '800',
-    color: palette.textSoft,
+    color: colors.textSoft,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: spacing.xs,
@@ -497,22 +499,22 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: typography.body,
     fontWeight: '700',
-    color: palette.text,
+    color: colors.text,
   },
   toggleHelper: {
     fontSize: typography.label,
-    color: palette.textMuted,
+    color: colors.textMuted,
     lineHeight: 18,
   },
   primaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: palette.primary,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: palette.white,
+    color: colors.white,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -529,16 +531,16 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   floorSelectChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   floorSelectChipLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   floorSelectChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '700',
   },
   chipsScroll: {
@@ -554,16 +556,16 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   filterChipActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   filterChipLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: palette.textSoft,
+    color: colors.textSoft,
   },
   filterChipLabelActive: {
-    color: palette.white,
+    color: colors.white,
     fontWeight: '700',
   },
 });
