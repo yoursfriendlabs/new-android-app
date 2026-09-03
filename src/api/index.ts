@@ -6,6 +6,7 @@ import type {
   CategoryCreatePayload,
   CategoryUpdatePayload,
   ChangePasswordPayload,
+  CreateBusinessPayload,
   ExpenseAnalyticsResponse,
   InventorySummaryResponse,
   ListQuery,
@@ -56,6 +57,12 @@ import type {
   AttendanceHistoryResponse,
   TableCreatePayload,
   TableUpdatePayload,
+  CoinAwardPayload,
+  CoinAwardResponse,
+  CoinImportPayload,
+  CoinRedeemPayload,
+  CoinRedeemResponse,
+  CoinSnapshotResponse,
 } from '@/src/types/contracts';
 import type {
   BankAccount,
@@ -91,6 +98,7 @@ import type {
   Attendance,
   StaffSalaryRecord,
   Table,
+  WorkspaceMembership,
 } from '@/src/types/models';
 
 
@@ -111,7 +119,19 @@ export const authApi = {
       businessScoped: false,
       body: payload,
     }),
-  me: () => apiRequest<AuthResponseShape | User>({ path: '/api/auth/me', businessScoped: false }),
+  me: () => apiRequest<AuthResponseShape | User>({ path: '/api/auth/me', businessScoped: true }),
+  listBusinesses: () =>
+    apiRequest<{ items: WorkspaceMembership[]; canCreateBusiness?: boolean; extraBusinessTypes?: string[] }>({
+      path: '/api/auth/businesses',
+      businessScoped: false,
+    }),
+  createBusiness: (payload: CreateBusinessPayload) =>
+    apiRequest<AuthResponseShape, CreateBusinessPayload>({
+      method: 'POST',
+      path: '/api/auth/businesses',
+      body: payload,
+      businessScoped: false,
+    }),
   updateMe: (payload: UpdateMePayload) =>
     apiRequest<AuthResponseShape | User, UpdateMePayload>({
       method: 'PATCH',
@@ -537,6 +557,29 @@ export const tablesApi = {
     apiRequest<Table, TableUpdatePayload>({ method: 'PATCH', path: `/api/tables/${id}`, body: payload }),
   remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/tables/${id}` }),
 };
+
+export const coinsApi = {
+  snapshot: () => apiRequest<CoinSnapshotResponse>({ path: '/api/coins' }),
+  award: (payload: CoinAwardPayload) =>
+    apiRequest<CoinAwardResponse, CoinAwardPayload>({
+      method: 'POST',
+      path: '/api/coins/award',
+      body: payload,
+    }),
+  redeem: (payload: CoinRedeemPayload) =>
+    apiRequest<CoinRedeemResponse, CoinRedeemPayload>({
+      method: 'POST',
+      path: '/api/coins/redeem',
+      body: payload,
+    }),
+  importLocal: (payload: CoinImportPayload) =>
+    apiRequest<CoinSnapshotResponse, CoinImportPayload>({
+      method: 'POST',
+      path: '/api/coins/import',
+      body: payload,
+    }),
+};
+
 
 
 

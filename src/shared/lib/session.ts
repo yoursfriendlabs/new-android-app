@@ -44,6 +44,21 @@ function sanitizeSession(session: SessionData | null) {
     business: session.business
       ? pickDefined(session.business as JsonRecord, ['id', 'businessId', 'name', 'businessName', 'businessType']) as SessionData['business']
       : null,
+    businesses: Array.isArray(session.businesses)
+      ? session.businesses.map((item) => ({
+          id: item.id,
+          businessId: item.businessId ?? item.id,
+          name: item.name,
+          type: item.type,
+          label: item.label,
+          role: item.role,
+          isOwner: Boolean(item.isOwner),
+          isPersonal: Boolean(item.isPersonal),
+          membershipId: item.membershipId ?? null,
+          isActive: item.isActive !== false,
+        }))
+      : [],
+    canCreateBusiness: Boolean(session.canCreateBusiness),
     subscription: session.subscription
       ? pickDefined(session.subscription as JsonRecord, ['id', 'status', 'planName', 'planCode', 'billingCycle', 'renewalDate', 'expiryDate', 'isActive', 'role']) as SessionData['subscription']
       : null,

@@ -1,13 +1,24 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
-import { newCoinEvent, type CoinEvent, type CoinReason, type CoinRedemption } from '@/src/features/habits/lib/coins';
+import { COIN_MERCH, newCoinEvent, serverReason, type CoinEvent, type CoinMerch, type CoinReason, type CoinRedemption } from '@/src/features/habits/lib/coins';
+import {
+  fetchCoinSnapshot,
+  importLocalCoinClaims,
+  isCoinsUnavailable,
+  localImportClaims,
+  mapCoinSnapshot,
+  pushCoinAward,
+  pushCoinRedeem,
+} from '@/src/features/habits/lib/coin-sync';
 import { DEFAULT_SAVE_GOAL, uniqueLogDays } from '@/src/features/habits/lib/habits';
 import { nativeRemindersAvailable, type IntervalHabit } from '@/src/features/habits/lib/interval-habits';
+import { generateId } from '@/src/shared/lib/id';
 
 const STORAGE_KEY = 'pasalmanager.habits';
 const REWARDS_KEY = 'pasalmanager.rewards';
 const COINBOOK_KEY = 'pasalmanager.coinbook';
+const OWNER_KEY = 'pasalmanager.coin-owner';
 
 interface PersistedHabits {
   saveGoal: number;
@@ -37,9 +48,17 @@ interface PersistedCoinbook {
   scheduledPings: ScheduledPing[];
 }
 
+interface CoinOwner {
+  userId: string;
+  businessId: string;
+}
+
 interface HabitState extends PersistedHabits, PersistedRewards, PersistedCoinbook {
   status: 'booting' | 'ready';
+  merch: CoinMerch[];
+  remoteReady: boolean;
   hydrate: () => Promise<void>;
+  syncRemote: (options: { userId?: string | null; businessId?: string | null; personal: boolean }) => Promise<void>;
   setSaveGoal: (amount: number) => Promise<void>;
   recordLog: (date: string) => Promise<string[]>;
   markBadges: (ids: string[]) => Promise<void>;
@@ -91,6 +110,34 @@ async function persistCoinbook(state: PersistedCoinbook) {
   await SecureStore.setItemAsync(COINBOOK_KEY, JSON.stringify(coinbookSnapshot(state)));
 }
 
+async function loadCoinOwner(): Promise<CoinOwner | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(OWNER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CoinOwner>;
+    if (!parsed.userId || !parsed.businessId) return null;
+    return { userId: String(parsed.userId), businessId: String(parsed.businessId) };
+  } catch {
+    return null;
+  }
+}
+
+async function persistCoinOwner(owner: CoinOwner) {
+  await SecureStore.setItemAsync(OWNER_KEY, JSON.stringify(owner));
+}
+
+async function persistRemoteWallet(state: {
+  coins: number;
+  claimedRewardIds: string[];
+  history: CoinEvent[];
+  redemptions: CoinRedemption[];
+  intervalHabits: IntervalHabit[];
+  scheduledPings: ScheduledPing[];
+}) {
+  await persistRewards(state);
+  await persistCoinbook(state);
+}
+
 export const useHabitStore = create<HabitState>((set, get) => ({
   status: 'booting',
   saveGoal: DEFAULT_SAVE_GOAL,
@@ -103,6 +150,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   history: [],
   redemptions: [],
   scheduledPings: [],
+  merch: COIN_MERCH,
+  remoteReady: false,
   hydrate: async () => {
     try {
       const [habitsRaw, rewardsRaw, bookRaw] = await Promise.all([
@@ -147,6 +196,74 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       // Notifications need a native rebuild; habits still work in-app.
     }
   },
+  syncRemote: async ({ userId, businessId, personal }) => {
+    if (!personal || !userId || !businessId) {
+      set({ remoteReady: false });
+      return;
+    }
+
+    try {
+      let snapshot = await fetchCoinSnapshot();
+      const owner = await loadCoinOwner();
+      const sameOwner = owner?.userId === userId && owner?.businessId === businessId;
+      const serverHasLedger = Boolean(snapshot.importedAt) || (snapshot.history?.length ?? 0) > 0;
+
+      if (owner && !sameOwner && !serverHasLedger) {
+        await persistCoinOwner({ userId, businessId });
+        await persistRemoteWallet({
+          coins: 0,
+          claimedRewardIds: [],
+          history: [],
+          redemptions: [],
+          intervalHabits: get().intervalHabits,
+          scheduledPings: get().scheduledPings,
+        });
+        set({
+          coins: 0,
+          claimedRewardIds: [],
+          history: [],
+          redemptions: [],
+          merch: COIN_MERCH,
+          remoteReady: true,
+        });
+        return;
+      }
+
+      if (!serverHasLedger) {
+        const claims = localImportClaims({
+          history: get().history,
+          claimedRewardIds: get().claimedRewardIds,
+        });
+        if (claims.length) {
+          snapshot = await importLocalCoinClaims(claims);
+        }
+      }
+
+      const mapped = mapCoinSnapshot(snapshot);
+      await persistCoinOwner({ userId, businessId });
+      await persistRemoteWallet({
+        ...get(),
+        coins: mapped.coins,
+        claimedRewardIds: mapped.claimedRewardIds,
+        history: mapped.history,
+        redemptions: mapped.redemptions,
+      });
+      set({
+        coins: mapped.coins,
+        claimedRewardIds: mapped.claimedRewardIds,
+        history: mapped.history,
+        redemptions: mapped.redemptions,
+        merch: mapped.merch,
+        remoteReady: true,
+      });
+    } catch (error) {
+      if (isCoinsUnavailable(error)) {
+        set({ remoteReady: false });
+        return;
+      }
+      set({ remoteReady: false });
+    }
+  },
   setSaveGoal: async (amount) => {
     const saveGoal = Math.max(0, Math.round(amount));
     const next = { ...get(), saveGoal };
@@ -172,22 +289,29 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   awardCoins: async (amount, options) => {
     const value = Math.max(0, Math.round(amount));
     if (!value) return 0;
-    if (options?.claimId && get().claimedRewardIds.includes(options.claimId)) return 0;
+    const claimId = options?.claimId?.trim() || (serverReason(options?.reason) ? generateId('claim') : undefined);
+    if (claimId && get().claimedRewardIds.includes(claimId)) return 0;
     const coins = get().coins + value;
-    const claimedRewardIds = options?.claimId
-      ? [...get().claimedRewardIds, options.claimId].slice(-48)
+    const claimedRewardIds = claimId
+      ? [...get().claimedRewardIds, claimId].slice(-48)
       : get().claimedRewardIds;
     const history = [
       newCoinEvent({
         amount: value,
         reason: options?.reason ?? 'other',
         label: options?.label ?? 'Coins earned',
+        claimId,
       }),
       ...get().history,
     ].slice(0, 80);
     await persistRewards({ ...get(), coins, claimedRewardIds });
     await persistCoinbook({ ...get(), history });
     set({ coins, claimedRewardIds, history });
+    void pushCoinAward({
+      claimId,
+      reason: options?.reason,
+      label: options?.label,
+    }).catch(() => undefined);
     return value;
   },
   spendCoins: async (amount, label, itemId) => {
@@ -210,6 +334,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     await persistRewards({ ...get(), coins });
     await persistCoinbook({ ...get(), history, redemptions });
     set({ coins, history, redemptions });
+    void pushCoinRedeem(itemId).catch(() => undefined);
     return { ok: true, remaining: coins };
   },
   upsertIntervalHabit: async (habit) => {

@@ -20,6 +20,7 @@ const titleMap: Record<string, string> = {
   ledger: 'Ledger',
   inventory: 'Inventory',
   settings: 'Settings',
+  workspaces: 'Workspaces',
   'change-password': 'Change Password',
   'owner-tools': 'Owner Tools',
   'service-create': 'New Service',

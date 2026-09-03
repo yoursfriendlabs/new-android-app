@@ -77,6 +77,12 @@ export function getWorkspaceError(form: {
   return '';
 }
 
+export function getCreateBusinessError(form: { name: string; type: string }) {
+  if (!form.name.trim()) return 'Enter a business name.';
+  if (form.type !== 'retail' && form.type !== 'cafe') return 'Choose Standard or Cafe.';
+  return '';
+}
+
 export function resolveAuthMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) return fallback;

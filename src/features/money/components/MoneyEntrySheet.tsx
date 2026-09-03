@@ -18,7 +18,7 @@ import { submitWithOfflineQueue } from '@/src/data/sync';
 import { pickNativeDeviceContact, type DeviceContactDraft } from '@/src/features/parties/lib/device-contacts';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
-import { COIN_REWARDS } from '@/src/features/habits/lib/coins';
+import { COIN_REWARDS, moneyClaimId } from '@/src/features/habits/lib/coins';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import {
   buildWinMoment,
@@ -36,7 +36,7 @@ import {
   WALK_IN_LABEL,
 } from '@/src/features/money/lib/money';
 import { partyInitials, partyTypeLabel } from '@/src/features/parties/lib/party';
-import { workspaceAccessMessage } from '@/src/shared/lib/workspace';
+import { workspaceAccessMessage, firstNonEmptyId } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { invalidatePartyQueries, useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
@@ -168,9 +168,10 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
     setSaving(true);
     try {
       const note = moneyNote(form.category, form.notes);
+      let moneySourceId = '';
       if (isIncome) {
         const contact = form.party ?? (await ensureWalkInParty());
-        await withWorkspaceRetry(() =>
+        const created = await withWorkspaceRetry(() =>
           partyTransactionsApi.create({
             partyId: contact.id,
             direction: 'receive',
@@ -181,6 +182,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
             note,
           }),
         );
+        moneySourceId = firstNonEmptyId(created);
         if (!isWalkInParty(contact)) {
           await invalidatePartyQueries(queryClient, [contact.id]);
         } else {
@@ -216,7 +218,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
             },
           ],
         };
-        await withWorkspaceRetry(() =>
+        const queued = await withWorkspaceRetry(() =>
           submitWithOfflineQueue<{ id?: string }, typeof payload>({
             entityType: 'expense',
             method: 'POST',
@@ -224,6 +226,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
             body: payload,
           }),
         );
+        moneySourceId = firstNonEmptyId(queued.data);
         await queryClient.invalidateQueries({ queryKey: ['purchases'] });
         await queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
         await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -246,6 +249,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
       await useHabitStore.getState().markBadges(freshBadges.map((badge) => badge.id));
       await useHabitStore.getState().noteBestStreak(next.best);
       const coins = await useHabitStore.getState().awardCoins(COIN_REWARDS.moneyLog, {
+        claimId: moneyClaimId(moneySourceId),
         reason: 'money',
         label: isIncome ? 'Logged income' : 'Logged expense',
       });

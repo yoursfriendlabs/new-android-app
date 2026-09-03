@@ -5,7 +5,6 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 import { Screen } from '@/src/shared/layout/Screen';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import {
-  COIN_MERCH,
   coinLabel,
   coinReasonLabel,
   minusCoins,
@@ -36,6 +35,7 @@ export default function CoinsScreen() {
   const coins = useHabitStore((state) => state.coins);
   const history = useHabitStore((state) => state.history);
   const redemptions = useHabitStore((state) => state.redemptions);
+  const merch = useHabitStore((state) => state.merch);
   const [tab, setTab] = useState<Tab>('history');
 
   const requested = useMemo(() => new Set(redemptions.map((item) => item.itemId)), [redemptions]);
@@ -124,7 +124,7 @@ export default function CoinsScreen() {
         />
       ) : (
         <FlatList
-          data={COIN_MERCH}
+          data={merch}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => {

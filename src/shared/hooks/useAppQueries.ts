@@ -162,8 +162,11 @@ export function useBusinessTypes() {
         const items = extractListItems<BusinessTypeOption>(response)
           .map(normalizeBusinessTypeOption)
           .filter((item) => item.value);
-        if (items.length) {
-          return items;
+        const allowed = items.filter(
+          (item) => item.value && !/^(gym|fitness|jewellery|jewelry|personal)$/i.test(item.value),
+        );
+        if (allowed.length) {
+          return allowed;
         }
       } catch {
         // Fall through to defaults.
@@ -172,8 +175,6 @@ export function useBusinessTypes() {
       return [
         { value: 'retail', label: 'Retail / Grocery', description: 'Counter POS and inventory tracking' },
         { value: 'cafe', label: 'Restaurant / Cafe', description: 'Seating layout plans and counter billing' },
-        { value: 'gym', label: 'Gym / Fitness', description: 'Membership subscriptions and expiry tracking' },
-        { value: 'jewellery', label: 'Jewellery Shop', description: 'Detailed custom orders and valuations' },
       ];
     },
     staleTime: 5 * 60_000,

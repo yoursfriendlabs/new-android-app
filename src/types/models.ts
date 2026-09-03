@@ -44,6 +44,19 @@ export interface BusinessSummary {
   [key: string]: unknown;
 }
 
+export interface WorkspaceMembership {
+  id: string;
+  businessId?: string;
+  name: string;
+  type: string;
+  label: string;
+  role: string;
+  isOwner: boolean;
+  isPersonal: boolean;
+  membershipId?: string | null;
+  isActive?: boolean;
+}
+
 export interface BusinessProfile {
   id?: string;
   businessId?: string;
@@ -601,6 +614,8 @@ export interface SessionData {
   businessId: string;
   user?: User | null;
   business?: BusinessSummary | null;
+  businesses?: WorkspaceMembership[];
+  canCreateBusiness?: boolean;
   role?: string | null;
   accessControl?: AccessControl | null;
   subscription?: Subscription | null;

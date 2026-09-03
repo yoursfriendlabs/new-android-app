@@ -7,7 +7,7 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
-import { canAccessSegment, isPersonalWorkspace } from '@/src/shared/lib/business';
+import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import type { AppPalette } from '@/src/theme/app-palette';
@@ -232,6 +232,8 @@ export default function MoreScreen() {
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
   const businessProfile = useAuthStore((state) => state.businessProfile);
+  const businesses = useAuthStore((state) => state.businesses);
+  const canCreateBusiness = useAuthStore((state) => state.canCreateBusiness);
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name ?? '',
@@ -298,6 +300,20 @@ export default function MoreScreen() {
     user?.role,
   ]);
 
+  const showWorkspaces = useMemo(() => {
+    return !isGeneralStaffUser({
+      role: session?.role ?? user?.role ?? undefined,
+      permissions: accessControl?.permissions ?? user?.permissions,
+      accessControl,
+    });
+  }, [accessControl, session?.role, user?.permissions, user?.role]);
+
+  const workspaceSubtitle = canCreateBusiness
+    ? 'Switch shops or add another business'
+    : businesses.length > 1
+      ? 'Switch between your workspaces'
+      : 'This account’s workspace';
+
   async function handleProfileSave() {
     try {
       setSaving(true);
@@ -338,6 +354,30 @@ export default function MoreScreen() {
           ) : null}
         </View>
       </View>
+
+      {showWorkspaces ? (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>Workspaces</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Pressable
+              onPress={() => router.push('/(app)/workspaces' as never)}
+              style={({ pressed }) => [styles.row, pressed && { opacity: 0.72 }]}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
+                <MaterialCommunityIcons color={colors.primary} name="storefront-outline" size={20} />
+              </View>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>
+                  {businessProfile?.businessName || 'Workspaces'}
+                </Text>
+                <Text numberOfLines={1} style={[styles.rowSubtitle, { color: colors.textMuted }]}>
+                  {workspaceSubtitle}
+                </Text>
+              </View>
+              <MaterialCommunityIcons color={colors.textSoft} name="chevron-right" size={20} />
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
 
       {message ? (
         <View

@@ -9,8 +9,9 @@ import {
   normalizeUser,
   unwrapEntity,
 } from '@/src/api/normalize';
-import { clearAllLocalData } from '@/src/data/database';
+import { clearAllCacheRecords, clearAllLocalData, countQueuedMutations } from '@/src/data/database';
 import { hasAccessControlPayload, resolveStoredPermissions } from '@/src/features/staff/lib/access-control';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { firstNonEmptyId } from '@/src/shared/lib/workspace';
 import {
   clearSessionStorage,
@@ -21,8 +22,10 @@ import {
   persistBusinessSettings,
   persistSession,
 } from '@/src/shared/lib/session';
+import { useHabitStore } from '@/src/stores/habit-store';
 import type {
   ChangePasswordPayload,
+  CreateBusinessPayload,
   LoginPayload,
   RegisterPayload,
   UpdateMePayload,
@@ -36,6 +39,7 @@ import type {
   SessionData,
   Subscription,
   User,
+  WorkspaceMembership,
 } from '@/src/types/models';
 
 type AuthStatus = 'booting' | 'signed-out' | 'signed-in';
@@ -53,6 +57,8 @@ interface AuthState {
   businessSettings: BusinessSettings | null;
   subscription: Subscription | null;
   accessControl: AccessControl | null;
+  businesses: WorkspaceMembership[];
+  canCreateBusiness: boolean;
   pendingVerification: PendingVerificationState | null;
   bootstrap: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<AuthActionResult>;
@@ -60,6 +66,9 @@ interface AuthState {
   requestEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (payload: VerifyOtpPayload) => Promise<AuthActionResult>;
   hydrateRemoteData: (options?: { refreshSession?: boolean }) => Promise<void>;
+  switchWorkspace: (businessId: string) => Promise<void>;
+  createBusiness: (payload: CreateBusinessPayload) => Promise<void>;
+  refreshWorkspaces: () => Promise<void>;
   updateProfile: (payload: UpdateMePayload) => Promise<User>;
   updateSettings: (settings: BusinessSettings) => Promise<void>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
@@ -73,8 +82,62 @@ interface ParsedAuthResponse {
   businessProfile: BusinessProfile | null;
   subscription: Subscription | null;
   accessControl: AccessControl | null;
+  businesses: WorkspaceMembership[];
+  canCreateBusiness: boolean;
   requiresVerification: boolean;
   verificationEmail: string;
+}
+
+function parseWorkspaceList(
+  source: AuthResponseShape,
+  fallback: WorkspaceMembership[] = [],
+): WorkspaceMembership[] {
+  const raw = source.businesses;
+  if (!Array.isArray(raw)) return fallback;
+  const items = raw.flatMap((item) => {
+      if (!item || typeof item !== 'object') return [];
+      const id = String(item.id ?? item.businessId ?? '').trim();
+      if (!id) return [];
+      const workspace: WorkspaceMembership = {
+        id,
+        businessId: String(item.businessId ?? item.id ?? id),
+        name: String(item.name || 'Workspace'),
+        type: String(item.type || ''),
+        label: String(item.label || item.type || ''),
+        role: String(item.role ?? ''),
+        isOwner: Boolean(item.isOwner),
+        isPersonal: Boolean(item.isPersonal),
+        membershipId: item.membershipId ? String(item.membershipId) : null,
+        isActive: item.isActive !== false,
+      };
+      return [workspace];
+    });
+  return items.length ? items : fallback;
+}
+
+function parseCanCreateBusiness(source: AuthResponseShape, fallback = false) {
+  if (typeof source.canCreateBusiness === 'boolean') return source.canCreateBusiness;
+  return fallback;
+}
+
+function attachWorkspaceFields(session: SessionData | null, parsed: ParsedAuthResponse): SessionData | null {
+  if (!session) return null;
+  return {
+    ...session,
+    businesses: parsed.businesses.length ? parsed.businesses : session.businesses ?? [],
+    canCreateBusiness: parsed.canCreateBusiness,
+  };
+}
+
+async function assertQueueEmpty(action: 'switch' | 'create') {
+  const pending = await countQueuedMutations();
+  if (pending > 0) {
+    throw new Error(
+      action === 'switch'
+        ? 'Finish syncing unsaved changes before switching workspaces.'
+        : 'Finish syncing unsaved changes before adding a business.',
+    );
+  }
 }
 
 function parseAuthResponse(
@@ -134,6 +197,11 @@ function parseAuthResponse(
       responseRecord.verificationRequired,
   );
   const verificationEmail = user?.email ?? fallbackEmail;
+  const businesses = parseWorkspaceList(source, parseWorkspaceList(responseRecord, fallbackSession?.businesses ?? []));
+  const canCreateBusiness = parseCanCreateBusiness(
+    source,
+    parseCanCreateBusiness(responseRecord, fallbackSession?.canCreateBusiness ?? false),
+  );
 
   if (!token || !businessId) {
     return {
@@ -142,6 +210,8 @@ function parseAuthResponse(
       businessProfile,
       subscription,
       accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
+      businesses,
+      canCreateBusiness,
       requiresVerification,
       verificationEmail,
     };
@@ -153,6 +223,8 @@ function parseAuthResponse(
       businessId,
       user,
       business,
+      businesses,
+      canCreateBusiness,
       role: typeof role === 'string' && role.trim() ? role : user?.role ?? null,
       accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
       subscription,
@@ -161,6 +233,8 @@ function parseAuthResponse(
     businessProfile,
     subscription,
     accessControl: hasAccessControlPayload(accessControl) ? accessControl : null,
+    businesses,
+    canCreateBusiness,
     requiresVerification,
     verificationEmail,
   };
@@ -168,7 +242,7 @@ function parseAuthResponse(
 
 async function persistResolvedState(parsed: ParsedAuthResponse) {
   if (parsed.session) {
-    await persistSession(parsed.session);
+    await persistSession(attachWorkspaceFields(parsed.session, parsed));
   }
   if (parsed.businessProfile) {
     await persistBusinessProfile(parsed.businessProfile);
@@ -183,6 +257,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   businessSettings: null,
   subscription: null,
   accessControl: null,
+  businesses: [],
+  canCreateBusiness: false,
   pendingVerification: null,
   bootstrap: async () => {
     let session: SessionData | null = null;
@@ -205,6 +281,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         businessSettings: null,
         subscription: null,
         accessControl: null,
+        businesses: [],
+        canCreateBusiness: false,
       });
       return;
     }
@@ -218,6 +296,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         businessSettings,
         subscription: session?.subscription ?? null,
         accessControl: null,
+        businesses: session?.businesses ?? [],
+        canCreateBusiness: session?.canCreateBusiness ?? false,
       });
       return;
     }
@@ -242,6 +322,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         businessSettings,
         subscription: parsed.subscription ?? resolvedSession.subscription ?? null,
         accessControl: parsed.accessControl ?? resolvedSession.accessControl ?? null,
+        businesses: parsed.businesses.length ? parsed.businesses : resolvedSession.businesses ?? [],
+        canCreateBusiness: parsed.canCreateBusiness,
         pendingVerification: null,
       });
       await get().hydrateRemoteData({ refreshSession: false });
@@ -256,6 +338,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           businessSettings: null,
           subscription: null,
           accessControl: null,
+          businesses: [],
+          canCreateBusiness: false,
           pendingVerification: null,
         });
         return;
@@ -269,6 +353,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         businessSettings,
         subscription: session.subscription ?? null,
         accessControl: session.accessControl ?? null,
+        businesses: session.businesses ?? [],
+        canCreateBusiness: session.canCreateBusiness ?? false,
         pendingVerification: null,
       });
     }
@@ -283,6 +369,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         status: 'signed-out',
         accessControl: null,
+        businesses: parsed.businesses,
+        canCreateBusiness: parsed.canCreateBusiness,
         pendingVerification: parsed.requiresVerification ? { email: parsed.verificationEmail || email } : null,
       });
       return parsed.requiresVerification ? 'verify-email' : 'signed-in';
@@ -296,6 +384,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       businessProfile: parsed.businessProfile,
       subscription: parsed.subscription,
       accessControl: parsed.accessControl,
+      businesses: parsed.businesses,
+      canCreateBusiness: parsed.canCreateBusiness,
       pendingVerification: null,
     });
     await get().hydrateRemoteData({ refreshSession: false });
@@ -311,6 +401,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         status: 'signed-out',
         accessControl: null,
+        businesses: parsed.businesses,
+        canCreateBusiness: parsed.canCreateBusiness,
         pendingVerification: { email: parsed.verificationEmail || email },
       });
       return 'verify-email';
@@ -324,6 +416,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       businessProfile: parsed.businessProfile,
       subscription: parsed.subscription,
       accessControl: parsed.accessControl,
+      businesses: parsed.businesses,
+      canCreateBusiness: parsed.canCreateBusiness,
       pendingVerification: null,
     });
     await get().hydrateRemoteData({ refreshSession: false });
@@ -353,6 +447,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       businessProfile: parsed.businessProfile,
       subscription: parsed.subscription,
       accessControl: parsed.accessControl,
+      businesses: parsed.businesses,
+      canCreateBusiness: parsed.canCreateBusiness,
       pendingVerification: null,
     });
     await get().hydrateRemoteData({ refreshSession: false });
@@ -385,10 +481,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         get().user?.email ?? '',
         get().session,
       );
-      const nextSession = parsed.session ?? get().session;
+      const nextSession = attachWorkspaceFields(parsed.session ?? get().session, parsed);
       nextState.user = parsed.user ?? get().user;
       nextState.session = nextSession;
       nextState.accessControl = parsed.accessControl ?? get().accessControl;
+      nextState.businesses = parsed.businesses.length ? parsed.businesses : get().businesses;
+      nextState.canCreateBusiness = parsed.canCreateBusiness;
       if (parsed.businessProfile) {
         nextState.businessProfile = parsed.businessProfile;
         await persistBusinessProfile(parsed.businessProfile);
@@ -420,7 +518,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (subscriptionResult.status === 'fulfilled') {
       const subscription = normalizeSubscription(subscriptionResult.value);
       nextState.subscription = subscription;
-      const existingSession = get().session;
+      const existingSession = nextState.session ?? get().session;
       if (existingSession) {
         const nextSession = { ...existingSession, subscription };
         nextState.session = nextSession;
@@ -429,6 +527,69 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set(nextState as Partial<AuthState>);
+
+    const profile = nextState.businessProfile ?? get().businessProfile;
+    const session = nextState.session ?? get().session;
+    const user = nextState.user ?? get().user;
+    void useHabitStore.getState().syncRemote({
+      userId: user?.id,
+      businessId: session?.businessId,
+      personal: isPersonalWorkspace({
+        businessType: String(profile?.businessType ?? ''),
+      }),
+    });
+  },
+  switchWorkspace: async (businessId) => {
+    const id = String(businessId || '').trim();
+    const current = get().session;
+    if (!current?.token || !id || id === current.businessId) return;
+
+    await assertQueueEmpty('switch');
+    const nextSession = { ...current, businessId: id };
+    await persistSession(nextSession);
+    await clearAllCacheRecords();
+    set({ session: nextSession });
+    await get().hydrateRemoteData({ refreshSession: true });
+  },
+  createBusiness: async (payload) => {
+    await assertQueueEmpty('create');
+    const response = await authApi.createBusiness(payload);
+    const parsed = parseAuthResponse(response, get().user?.email ?? '', get().session);
+    if (!parsed.session) {
+      throw new Error('Could not open the new business.');
+    }
+    await persistResolvedState(parsed);
+    await clearAllCacheRecords();
+    set({
+      status: 'signed-in',
+      session: parsed.session,
+      user: parsed.user,
+      businessProfile: parsed.businessProfile,
+      subscription: parsed.subscription,
+      accessControl: parsed.accessControl,
+      businesses: parsed.businesses,
+      canCreateBusiness: parsed.canCreateBusiness,
+      pendingVerification: null,
+    });
+    await get().hydrateRemoteData({ refreshSession: true });
+  },
+  refreshWorkspaces: async () => {
+    const response = await authApi.listBusinesses();
+    const items = Array.isArray(response.items) ? response.items : [];
+    const current = get();
+    const canCreateBusiness =
+      typeof response.canCreateBusiness === 'boolean' ? response.canCreateBusiness : current.canCreateBusiness;
+    const nextSession = current.session
+      ? { ...current.session, businesses: items.length ? items : current.session.businesses ?? [], canCreateBusiness }
+      : current.session;
+    if (nextSession) {
+      await persistSession(nextSession);
+    }
+    set({
+      businesses: items.length ? items : current.businesses,
+      canCreateBusiness,
+      session: nextSession,
+    });
   },
   updateProfile: async (payload) => {
     const response = await authApi.updateMe(payload);
@@ -436,12 +597,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = parsed.user ?? normalizeUser(unwrapEntity(response));
     const existingSession = get().session;
     const nextSession = existingSession
-      ? {
-          ...existingSession,
-          user,
-          role: parsed.session?.role ?? existingSession.role,
-          accessControl: parsed.accessControl ?? existingSession.accessControl ?? null,
-        }
+      ? attachWorkspaceFields(
+          {
+            ...existingSession,
+            user,
+            role: parsed.session?.role ?? existingSession.role,
+            accessControl: parsed.accessControl ?? existingSession.accessControl ?? null,
+          },
+          parsed,
+        )
       : null;
     if (nextSession) {
       await persistSession(nextSession);
@@ -454,6 +618,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       session: nextSession,
       businessProfile: parsed.businessProfile ?? get().businessProfile,
       accessControl: parsed.accessControl ?? get().accessControl,
+      businesses: parsed.businesses.length ? parsed.businesses : get().businesses,
+      canCreateBusiness: parsed.canCreateBusiness,
     });
     return user;
   },
@@ -475,6 +641,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       businessSettings: null,
       subscription: null,
       accessControl: null,
+      businesses: [],
+      canCreateBusiness: false,
       pendingVerification: null,
     });
   },

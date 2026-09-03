@@ -64,14 +64,28 @@ const FALLBACK_BUSINESS_TYPES: WorkspaceOption[] = [
     description: 'Tables, orders, and daily counter sales.',
     icon: 'coffee-outline',
   },
+];
+
+export const EXTRA_BUSINESS_TYPE_OPTIONS: WorkspaceOption[] = [
   {
-    value: 'gym',
-    apiValue: 'gym',
-    label: 'Gym / Fitness',
-    description: 'Memberships, check-ins, and member balances.',
-    icon: 'dumbbell',
+    value: 'retail',
+    apiValue: 'retail',
+    label: 'Standard',
+    description: 'Counter billing, stock, and party balances. Each shop has its own trial.',
+    icon: 'storefront-outline',
+  },
+  {
+    value: 'cafe',
+    apiValue: 'cafe',
+    label: 'Cafe',
+    description: 'Tables, orders, and daily counter sales. Each shop has its own trial.',
+    icon: 'coffee-outline',
   },
 ];
+
+function isRetiredBusinessType(value?: string | null) {
+  return /^(gym|fitness|workout|health_club|crossfit|jewellery|jewelry)$/i.test(String(value || ''));
+}
 
 function isPersonalType(value?: string | null) {
   return /personal|household|individual/i.test(String(value || ''));
@@ -89,9 +103,27 @@ function toWorkspaceOption(type: BusinessTypeOption): WorkspaceOption {
 
 export function buildBusinessTypeOptions(remote?: BusinessTypeOption[] | null): WorkspaceOption[] {
   const fromApi = (remote ?? [])
-    .filter((item) => item.value && !isPersonalType(item.value) && !isPersonalType(item.label))
+    .filter(
+      (item) =>
+        item.value &&
+        !isPersonalType(item.value) &&
+        !isPersonalType(item.label) &&
+        !isRetiredBusinessType(item.value),
+    )
     .map(toWorkspaceOption);
   return fromApi.length ? fromApi : FALLBACK_BUSINESS_TYPES;
+}
+
+export function buildExtraBusinessTypeOptions(remote?: BusinessTypeOption[] | null): WorkspaceOption[] {
+  const allowed = new Set(['retail', 'cafe']);
+  const fromApi = (remote ?? [])
+    .filter((item) => allowed.has(String(item.value || '').toLowerCase()))
+    .map(toWorkspaceOption)
+    .map((option) => {
+      const extra = EXTRA_BUSINESS_TYPE_OPTIONS.find((item) => item.value === option.value);
+      return extra ? { ...option, label: extra.label, description: extra.description } : option;
+    });
+  return fromApi.length ? fromApi : EXTRA_BUSINESS_TYPE_OPTIONS;
 }
 
 interface AccountKindPickerProps {

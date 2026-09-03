@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import NetInfo from '@react-native-community/netinfo';
 import { StatusBar } from 'expo-status-bar';
 import type { PropsWithChildren } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -93,6 +93,8 @@ function BootstrapRuntime() {
 function SessionStateBridge() {
   const queryClient = useQueryClient();
   const status = useAuthStore((state) => state.status);
+  const businessId = useAuthStore((state) => state.session?.businessId);
+  const previousBusinessId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (status !== 'signed-out') {
@@ -103,6 +105,18 @@ function SessionStateBridge() {
     useReceiptStore.getState().clearReceipt();
     void useSyncStore.getState().refreshPendingCount();
   }, [queryClient, status]);
+
+  useEffect(() => {
+    if (status !== 'signed-in' || !businessId) {
+      previousBusinessId.current = businessId;
+      return;
+    }
+
+    if (previousBusinessId.current && previousBusinessId.current !== businessId) {
+      queryClient.clear();
+    }
+    previousBusinessId.current = businessId;
+  }, [businessId, queryClient, status]);
 
   return null;
 }

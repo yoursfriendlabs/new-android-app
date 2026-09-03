@@ -5,10 +5,12 @@ type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export const COIN_REWARDS = {
   moneyLog: 6,
+  money: 6,
   note: 10,
   reminder: 12,
   complete: 18,
   intervalCheckIn: 8,
+  checkin: 8,
 } as const;
 
 export function coinLabel(amount: number) {
@@ -39,6 +41,7 @@ export interface CoinEvent {
   amount: number;
   reason: CoinReason;
   label: string;
+  claimId?: string;
 }
 
 export interface CoinRedemption {
@@ -47,7 +50,7 @@ export interface CoinRedemption {
   title: string;
   cost: number;
   at: string;
-  status: 'requested';
+  status: 'requested' | 'fulfilled' | 'rejected' | string;
 }
 
 export interface CoinMerch {
@@ -86,12 +89,48 @@ export function coinReasonLabel(reason: CoinReason) {
   }
 }
 
-export function newCoinEvent(input: { amount: number; reason: CoinReason; label: string }): CoinEvent {
+export function newCoinEvent(input: {
+  amount: number;
+  reason: CoinReason;
+  label: string;
+  claimId?: string;
+}): CoinEvent {
   return {
     id: `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
     at: new Date().toISOString(),
     amount: Math.round(input.amount),
     reason: input.reason,
     label: input.label,
+    claimId: input.claimId,
+  };
+}
+
+export function moneyClaimId(sourceId?: string | null) {
+  if (sourceId && String(sourceId).trim()) return `money:${String(sourceId).trim()}`;
+  return `money:${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function serverReason(reason: CoinReason | undefined) {
+  if (reason === 'money') return 'money';
+  if (reason === 'note') return 'note';
+  if (reason === 'reminder') return 'reminder';
+  if (reason === 'complete') return 'complete';
+  if (reason === 'checkin') return 'checkin';
+  return null;
+}
+
+export const MERCH_ICONS: Record<string, IconName> = {
+  sticker: 'sticker-emoji',
+  pen: 'pen',
+  notebook: 'notebook-outline',
+  cup: 'cup',
+  tote: 'bag-personal-outline',
+  tshirt: 'tshirt-crew',
+};
+
+export function withMerchIcon(item: Omit<CoinMerch, 'icon'> & { icon?: IconName }): CoinMerch {
+  return {
+    ...item,
+    icon: item.icon ?? MERCH_ICONS[item.id] ?? 'gift-outline',
   };
 }

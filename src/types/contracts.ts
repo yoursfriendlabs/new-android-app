@@ -31,6 +31,7 @@ import type {
   User,
   Attendance,
   StaffSalaryRecord,
+  WorkspaceMembership,
 } from '@/src/types/models';
 
 export interface RegisterPayload {
@@ -40,6 +41,11 @@ export interface RegisterPayload {
   password: string;
   businessName: string;
   businessType: string;
+}
+
+export interface CreateBusinessPayload {
+  name: string;
+  type: 'retail' | 'cafe' | string;
 }
 
 export interface LoginPayload {
@@ -237,6 +243,8 @@ export interface AuthResponseShape {
   accessToken?: string;
   businessId?: string;
   business?: BusinessSummary;
+  businesses?: WorkspaceMembership[];
+  canCreateBusiness?: boolean;
   businessProfile?: Record<string, unknown>;
   subscription?: Subscription;
   role?: string;
@@ -250,6 +258,8 @@ export interface AuthResponseShape {
     accessToken?: string;
     businessId?: string;
     business?: BusinessSummary;
+    businesses?: WorkspaceMembership[];
+    canCreateBusiness?: boolean;
     businessProfile?: Record<string, unknown>;
     subscription?: Subscription;
     role?: string;
@@ -366,7 +376,78 @@ export interface TableCreatePayload {
   categoryId?: string | null;
 }
 
-export type TableUpdatePayload = Partial<TableCreatePayload>;
+export interface TableUpdatePayload extends Partial<TableCreatePayload> {}
+
+export type CoinAwardReason = 'money' | 'note' | 'reminder' | 'complete' | 'checkin';
+
+export interface CoinAwardPayload {
+  claimId: string;
+  reason: CoinAwardReason;
+  label?: string;
+}
+
+export interface CoinRedeemPayload {
+  itemId: string;
+}
+
+export interface CoinImportPayload {
+  claims: Array<{
+    claimId: string;
+    reason: CoinAwardReason;
+    label?: string;
+    at?: string;
+  }>;
+}
+
+export interface CoinHistoryItem {
+  id: string;
+  claimId?: string;
+  reason: string;
+  amount: number;
+  label: string;
+  at?: string;
+  createdAt?: string;
+}
+
+export interface CoinSnapshotResponse {
+  enabled?: boolean;
+  balance: number;
+  rewards?: Partial<Record<CoinAwardReason, number>>;
+  merch?: Array<{ id: string; title: string; hint: string; cost: number }>;
+  history?: CoinHistoryItem[];
+  redemptions?: Array<{
+    id: string;
+    itemId: string;
+    title: string;
+    cost: number;
+    status?: string;
+    at?: string;
+    createdAt?: string;
+  }>;
+  importedAt?: string | null;
+  imported?: number;
+  skipped?: boolean;
+}
+
+export interface CoinAwardResponse {
+  awarded: number;
+  duplicate?: boolean;
+  balance: number;
+  event?: CoinHistoryItem;
+}
+
+export interface CoinRedeemResponse {
+  ok: boolean;
+  remaining: number;
+  redemption?: {
+    id: string;
+    itemId: string;
+    title: string;
+    cost: number;
+    status?: string;
+    at?: string;
+  };
+}
 
 
 
