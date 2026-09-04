@@ -6,32 +6,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { spacing } from '@/src/theme';
 
 type TabDef = {
   name: string;
-  title: string;
+  titleKey: string;
+  fallbackTitle: string;
   inactiveIcon: keyof typeof MaterialCommunityIcons.glyphMap;
   activeIcon: keyof typeof MaterialCommunityIcons.glyphMap;
 };
 
 const PRIMARY_TABS: TabDef[] = [
-  { name: 'home', title: 'Home', inactiveIcon: 'home-outline', activeIcon: 'home' },
-  { name: 'pos', title: 'Sale', inactiveIcon: 'cash-register', activeIcon: 'cash-register' },
-  { name: 'parties', title: 'Parties', inactiveIcon: 'account-group-outline', activeIcon: 'account-group' },
-  { name: 'more', title: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
+  { name: 'home', titleKey: 'nav.home', fallbackTitle: 'Home', inactiveIcon: 'home-outline', activeIcon: 'home' },
+  { name: 'pos', titleKey: 'nav.pos', fallbackTitle: 'Sale', inactiveIcon: 'cash-register', activeIcon: 'cash-register' },
+  { name: 'parties', titleKey: 'nav.parties', fallbackTitle: 'Parties', inactiveIcon: 'account-group-outline', activeIcon: 'account-group' },
+  { name: 'more', titleKey: 'nav.more', fallbackTitle: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
 ];
 
 const PERSONAL_TABS: TabDef[] = [
-  { name: 'home', title: 'Home', inactiveIcon: 'home-outline', activeIcon: 'home' },
-  { name: 'expenses', title: 'Money', inactiveIcon: 'wallet-outline', activeIcon: 'wallet' },
-  { name: 'parties', title: 'Contacts', inactiveIcon: 'account-outline', activeIcon: 'account' },
-  { name: 'more', title: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
+  { name: 'home', titleKey: 'nav.home', fallbackTitle: 'Home', inactiveIcon: 'home-outline', activeIcon: 'home' },
+  { name: 'expenses', titleKey: 'money.title', fallbackTitle: 'Money', inactiveIcon: 'wallet-outline', activeIcon: 'wallet' },
+  { name: 'parties', titleKey: 'parties.title', fallbackTitle: 'Contacts', inactiveIcon: 'account-outline', activeIcon: 'account' },
+  { name: 'more', titleKey: 'nav.more', fallbackTitle: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
 ];
 
 const STAFF_TABS: TabDef[] = [
-  { name: 'attendance-tab', title: 'Attendance', inactiveIcon: 'map-marker-radius', activeIcon: 'map-marker-radius' },
-  { name: 'salary-tab', title: 'Salary', inactiveIcon: 'wallet-outline', activeIcon: 'wallet' },
+  { name: 'attendance-tab', titleKey: 'nav.attendance', fallbackTitle: 'Attendance', inactiveIcon: 'map-marker-radius', activeIcon: 'map-marker-radius' },
+  { name: 'salary-tab', titleKey: 'nav.salaries', fallbackTitle: 'Salary', inactiveIcon: 'wallet-outline', activeIcon: 'wallet' },
 ];
 
 const ALL_TAB_SCREENS = [
@@ -52,6 +54,7 @@ const ALL_TAB_SCREENS = [
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const colors = usePalette();
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
@@ -110,7 +113,7 @@ export default function TabsLayout() {
             options={
               visible && def
                 ? {
-                    title: def.title,
+                    title: t(def.titleKey) || def.fallbackTitle,
                     tabBarIcon: ({ color, focused }) => (
                       <View style={[styles.iconWrap, focused && { backgroundColor: colors.accentSoft }]}>
                         <MaterialCommunityIcons
@@ -128,7 +131,7 @@ export default function TabsLayout() {
                           { color: focused ? colors.primary : color },
                           focused && styles.tabLabelActive,
                         ]}>
-                        {def.title}
+                        {t(def.titleKey) || def.fallbackTitle}
                       </Text>
                     ),
                   }

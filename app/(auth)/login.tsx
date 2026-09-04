@@ -7,8 +7,10 @@ import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
 import { FormField } from '@/src/shared/forms/FormField';
 import { getLoginError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { useTranslation } from '@/src/i18n';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const login = useAuthStore((state) => state.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,19 +39,19 @@ export default function LoginScreen() {
   return (
     <AuthScreen
       centered
-      title="Welcome back"
-      subtitle="Sign in to run your shop, track money, and keep daily books in one place."
+      title={t('auth.welcomeBack')}
+      subtitle={t('auth.enterCredentials')}
       footer={
         <AuthFooterLink
           prompt="New to PasalManager?"
-          action="Create an account"
+          action={t('auth.register')}
           onPress={() => router.push('/(auth)/register')}
         />
       }>
       {error ? <AuthNotice tone="error" message={error} /> : null}
 
       <FormField
-        label="Email"
+        label={t('auth.email')}
         icon="email-outline"
         value={email}
         onChangeText={(value) => {
@@ -66,14 +68,14 @@ export default function LoginScreen() {
 
       <View>
         <FormField
-          label="Password"
+          label={t('auth.password')}
           icon="lock-outline"
           value={password}
           onChangeText={(value) => {
             setPassword(value);
             if (error) setError('');
           }}
-          placeholder="Your password"
+          placeholder="••••••••"
           secureTextEntry
           autoCapitalize="none"
           autoComplete="password"
@@ -82,11 +84,11 @@ export default function LoginScreen() {
           onSubmitEditing={() => void handleLogin()}
         />
         <View style={styles.forgotRow}>
-          <AuthInlineLink onPress={() => router.push('/(auth)/reset-password')}>Forgot password?</AuthInlineLink>
+          <AuthInlineLink onPress={() => router.push('/(auth)/reset-password')}>{t('auth.forgotPassword')}</AuthInlineLink>
         </View>
       </View>
 
-      <AuthButton label="Sign in" loading={submitting} onPress={() => void handleLogin()} />
+      <AuthButton label={t('auth.login')} loading={submitting} onPress={() => void handleLogin()} />
     </AuthScreen>
   );
 }

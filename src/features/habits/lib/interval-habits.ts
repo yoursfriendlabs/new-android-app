@@ -55,6 +55,20 @@ export const INTERVAL_TEMPLATES: IntervalTemplate[] = [
   },
 ];
 
+export const CUSTOM_TEMPLATE: IntervalTemplate = {
+  kind: 'custom' as any,
+  title: 'Custom ping',
+  message: 'Time for your scheduled check-in.',
+  icon: 'bell-ring-outline',
+  defaultMinutes: 60,
+  chips: [15, 30, 45, 60, 90, 120, 180],
+};
+
+export const ALL_INTERVAL_TEMPLATES: IntervalTemplate[] = [
+  ...INTERVAL_TEMPLATES,
+  CUSTOM_TEMPLATE,
+];
+
 export const CUSTOM_INTERVAL_CHIPS = [15, 30, 45, 60, 90, 120, 180];
 
 const MIN_MINUTES = 1;
@@ -87,11 +101,61 @@ export function intervalCheckInBucket(habit: Pick<IntervalHabit, 'id' | 'interva
   return `checkin:${habit.id}:${Math.floor(Date.now() / windowMs)}`;
 }
 
+export type IntervalStatusKind = 'ready' | 'waiting' | 'missed' | 'paused';
+
+export interface IntervalStatusInfo {
+  status: IntervalStatusKind;
+  canClaim: boolean;
+  message: string;
+  waitMinutesLeft?: number;
+}
+
+export function getIntervalClaimStatus(habit: IntervalHabit, now = Date.now()): IntervalStatusInfo {
+  if (!habit.enabled) {
+    return {
+      status: 'paused',
+      canClaim: false,
+      message: 'Interval is paused.',
+    };
+  }
+
+  const cycleMs = clampIntervalMinutes(habit.intervalMinutes) * 60_000;
+  const lastTime = habit.lastCheckInAt
+    ? new Date(habit.lastCheckInAt).getTime()
+    : new Date(habit.createdAt).getTime();
+  const elapsed = Math.max(0, now - lastTime);
+
+  const minWaitMs = Math.max(45_000, cycleMs * 0.35);
+  const maxWindowMs = cycleMs * 1.6;
+
+  if (elapsed < minWaitMs) {
+    const waitMinutesLeft = Math.max(1, Math.ceil((minWaitMs - elapsed) / 60_000));
+    return {
+      status: 'waiting',
+      canClaim: false,
+      waitMinutesLeft,
+      message: `Next ping soon. Ready in ${waitMinutesLeft} min.`,
+    };
+  }
+
+  if (elapsed > maxWindowMs && habit.lastCheckInAt !== null) {
+    return {
+      status: 'missed',
+      canClaim: false,
+      message: 'You missed the previous notification window. Check-in resets your interval timer for the next ping.',
+    };
+  }
+
+  return {
+    status: 'ready',
+    canClaim: true,
+    message: 'Active check-in window! Check in now to claim your coins.',
+  };
+}
+
 export function canCheckIn(habit: IntervalHabit, now = Date.now()) {
-  if (!habit.lastCheckInAt) return true;
-  const elapsed = now - new Date(habit.lastCheckInAt).getTime();
-  const wait = Math.max(45_000, clampIntervalMinutes(habit.intervalMinutes) * 60_000 * 0.35);
-  return elapsed >= wait;
+  const statusInfo = getIntervalClaimStatus(habit, now);
+  return statusInfo.status === 'ready' || statusInfo.status === 'missed';
 }
 
 export function makeIntervalHabit(input: {
@@ -100,7 +164,7 @@ export function makeIntervalHabit(input: {
   message?: string;
   intervalMinutes: number;
 }): IntervalHabit {
-  const template = INTERVAL_TEMPLATES.find((item) => item.kind === input.kind);
+  const template = ALL_INTERVAL_TEMPLATES.find((item) => item.kind === input.kind);
   return {
     id: `ih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     kind: input.kind,

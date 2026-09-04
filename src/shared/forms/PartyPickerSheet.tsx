@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { formatCurrency } from '@/src/shared/lib/format';
+import { getPartyBalanceMeta } from '@/src/features/parties/lib/party';
 import { usePalette } from '@/src/stores/theme-store';
 import { spacing, typography } from '@/src/theme';
 import type { Party } from '@/src/types/models';
@@ -99,42 +100,52 @@ export function PartyPickerSheet({
       ) : null}
       <FlashList
         data={parties}
-        renderItem={({ item }) => (
-          <Pressable
-            style={[styles.partyRow, { borderBottomColor: colors.border }]}
-            onPress={() => onPick(item)}>
-            <View style={styles.partyLead}>
-              <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
-                <Text style={[styles.avatarLabel, { color: colors.text }]}>
-                  {item.name
-                    .split(' ')
-                    .map((part) => part[0])
-                    .join('')
-                    .slice(0, 2)
-                    .toUpperCase()}
+        renderItem={({ item }) => {
+          const meta = getPartyBalanceMeta(item);
+          return (
+            <Pressable
+              style={[styles.partyRow, { borderBottomColor: colors.border }]}
+              onPress={() => onPick(item)}>
+              <View style={styles.partyLead}>
+                <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
+                  <Text style={[styles.avatarLabel, { color: colors.text }]}>
+                    {item.name
+                      .split(' ')
+                      .map((part) => part[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.partyMeta}>
+                  <Text style={[styles.partyName, { color: colors.text }]}>{item.name}</Text>
+                  <Text style={[styles.partyInfo, { color: colors.textMuted }]}>
+                    {typeLabel ? typeLabel(item) : item.type || 'Customer'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.balanceWrap}>
+                <Text
+                  style={[
+                    styles.balanceAmount,
+                    {
+                      color:
+                        meta.tone === 'pay'
+                          ? colors.danger
+                          : meta.tone === 'receive'
+                            ? colors.success
+                            : colors.textMuted,
+                    },
+                  ]}>
+                  {formatCurrency(meta.absoluteAmount)}
+                </Text>
+                <Text style={[styles.balanceType, { color: colors.textMuted }]}>
+                  {meta.label}
                 </Text>
               </View>
-              <View style={styles.partyMeta}>
-                <Text style={[styles.partyName, { color: colors.text }]}>{item.name}</Text>
-                <Text style={[styles.partyInfo, { color: colors.textMuted }]}>
-                  {typeLabel ? typeLabel(item) : item.type || 'Customer'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.balanceWrap}>
-              <Text
-                style={[
-                  styles.balanceAmount,
-                  { color: (item.giveBalance ?? 0) > 0 ? colors.danger : colors.success },
-                ]}>
-                {formatCurrency(item.receiveBalance ?? item.giveBalance ?? item.balance ?? 0)}
-              </Text>
-              <Text style={[styles.balanceType, { color: colors.textMuted }]}>
-                {(item.receiveBalance ?? 0) > 0 ? 'To receive' : (item.giveBalance ?? 0) > 0 ? 'To give' : 'Clear'}
-              </Text>
-            </View>
-          </Pressable>
-        )}
+            </Pressable>
+          );
+        }}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
       />

@@ -23,7 +23,7 @@ export {
 type NotificationsModule = {
   AndroidImportance: { DEFAULT: number };
   IosAuthorizationStatus: { PROVISIONAL: number };
-  SchedulableTriggerInputTypes: { TIME_INTERVAL: string; DATE: string };
+  SchedulableTriggerInputTypes: { TIME_INTERVAL: string; DATE: string; DAILY?: string; CALENDAR?: string };
   setNotificationHandler: (handler: {
     handleNotification: () => Promise<{
       shouldShowAlert: boolean;
@@ -135,6 +135,11 @@ export async function scheduleIntervalNotification(habit: IntervalHabit) {
         title: habit.title,
         body: habit.message,
         sound: true,
+        data: {
+          url: '/tasks/inbox',
+          habitId: habit.id,
+          kind: habit.kind,
+        },
         ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
       },
       trigger: {
@@ -166,6 +171,9 @@ export async function scheduleOneShotReminder(options: {
         title: options.title,
         body: options.body || 'Time for your reminder.',
         sound: true,
+        data: {
+          url: '/tasks/inbox',
+        },
         ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
       },
       trigger: {
@@ -200,6 +208,10 @@ export async function scheduleExactReminder(options: {
         title: options.title,
         body: options.body || 'Time for your reminder.',
         sound: true,
+        data: {
+          url: '/tasks/inbox',
+          reminderId: options.id,
+        },
         ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
       },
       trigger: {
@@ -217,6 +229,10 @@ export async function scheduleExactReminder(options: {
           title: options.title,
           body: options.body || 'Time for your reminder.',
           sound: true,
+          data: {
+            url: '/tasks/inbox',
+            reminderId: options.id,
+          },
           ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
         },
         trigger: {
@@ -230,6 +246,77 @@ export async function scheduleExactReminder(options: {
       return false;
     }
   }
+}
+
+export async function scheduleDailyReminder(options: {
+  id: string;
+  title: string;
+  body?: string;
+  hour: number;
+  minute: number;
+}) {
+  const Notifications = notifications();
+  if (!Notifications) return false;
+  const allowed = await requestReminderPermission();
+  if (!allowed) return false;
+  await ensureChannel();
+  await cancelReminderNotification(options.id);
+
+  const content = {
+    title: options.title,
+    body: options.body || 'Time for your reminder.',
+    sound: true,
+    ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
+  };
+
+  const dailyType = Notifications.SchedulableTriggerInputTypes.DAILY;
+  if (dailyType) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: options.id,
+        content,
+        trigger: {
+          type: dailyType,
+          hour: options.hour,
+          minute: options.minute,
+        },
+      });
+      return true;
+    } catch {
+      // Fall through to a calendar or one-shot trigger.
+    }
+  }
+
+  const calendarType = Notifications.SchedulableTriggerInputTypes.CALENDAR;
+  if (calendarType) {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        identifier: options.id,
+        content,
+        trigger: {
+          type: calendarType,
+          hour: options.hour,
+          minute: options.minute,
+          repeats: true,
+        },
+      });
+      return true;
+    } catch {
+      // Fall through to the next occurrence.
+    }
+  }
+
+  const next = new Date();
+  next.setHours(options.hour, options.minute, 0, 0);
+  if (next.getTime() <= Date.now() + 3000) {
+    next.setDate(next.getDate() + 1);
+  }
+  return scheduleExactReminder({
+    id: options.id,
+    title: options.title,
+    body: options.body,
+    at: next,
+  });
 }
 
 export async function rescheduleEnabledHabits(habits: IntervalHabit[]) {

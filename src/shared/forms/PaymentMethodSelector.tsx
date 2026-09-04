@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { radius, spacing, typography } from '@/src/theme';
 import type { PaymentMethod } from '@/src/types/models';
 
@@ -22,6 +23,7 @@ export function PaymentMethodSelector({
   value,
 }: PaymentMethodSelectorProps) {
   const colors = usePalette();
+  const { t } = useTranslation();
   const activeBg = activeBackgroundColor ?? colors.primary;
   const activeFg = activeTextColor ?? colors.onPrimary;
   const inactiveBg = inactiveBackgroundColor ?? colors.backgroundAlt;
@@ -37,7 +39,7 @@ export function PaymentMethodSelector({
             style={[styles.option, { backgroundColor: active ? activeBg : inactiveBg }]}
             onPress={() => onChange(item)}>
             <Text style={[styles.label, { color: active ? activeFg : inactiveFg }]}>
-              {item === 'cash' ? 'Cash' : 'Bank'}
+              {item === 'cash' ? t('common.cash') : t('common.bank')}
             </Text>
           </Pressable>
         );

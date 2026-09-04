@@ -1,187 +1,155 @@
 import * as SecureStore from 'expo-secure-store';
 
+import { deleteLocalJson, readLocalJson, writeLocalJson } from '@/src/shared/lib/local-json-store';
+import {
+  LEGACY_PROFILE_KEY,
+  LEGACY_SESSION_KEY,
+  LEGACY_SETTINGS_KEY,
+  mergeStoredSession,
+  migrateLegacySecureSession,
+  PROFILE_DRAFT_KEY,
+  sanitizeBusinessProfile,
+  sanitizeBusinessSettings,
+  SESSION_DRAFT_KEY,
+  SESSION_TOKEN_KEY,
+  SETTINGS_DRAFT_KEY,
+  splitSessionForStorage,
+} from '@/src/shared/lib/session-storage';
 import type { BusinessProfile, BusinessSettings, SessionData } from '@/src/types/models';
-
-const STORAGE_KEYS = {
-  session: 'counterflow.session',
-  profile: 'counterflow.profile',
-  settings: 'counterflow.settings',
-};
 
 let sessionCache: SessionData | null = null;
 let profileCache: BusinessProfile | null = null;
 let settingsCache: BusinessSettings | null = null;
 
-type JsonRecord = Record<string, unknown>;
-
-function pickDefined<T extends JsonRecord>(input: T, keys: Array<keyof T>) {
-  return keys.reduce<Partial<T>>((result, key) => {
-    const value = input[key];
-    if (value !== undefined) {
-      result[key] = value;
-    }
-    return result;
-  }, {});
-}
-
-function sanitizeSession(session: SessionData | null) {
-  if (!session) return null;
-
-  return {
-    token: session.token,
-    businessId: session.businessId,
-    role: session.role ?? null,
-    accessControl: session.accessControl
-      ? pickDefined(session.accessControl as JsonRecord, [
-          'permissions',
-          'staffCategory',
-          'role',
-          'membershipId',
-          'category',
-          'jobTitle',
-        ]) as SessionData['accessControl']
-      : null,
-    business: session.business
-      ? pickDefined(session.business as JsonRecord, ['id', 'businessId', 'name', 'businessName', 'businessType']) as SessionData['business']
-      : null,
-    businesses: Array.isArray(session.businesses)
-      ? session.businesses.map((item) => ({
-          id: item.id,
-          businessId: item.businessId ?? item.id,
-          name: item.name,
-          type: item.type,
-          label: item.label,
-          role: item.role,
-          isOwner: Boolean(item.isOwner),
-          isPersonal: Boolean(item.isPersonal),
-          membershipId: item.membershipId ?? null,
-          isActive: item.isActive !== false,
-        }))
-      : [],
-    canCreateBusiness: Boolean(session.canCreateBusiness),
-    subscription: session.subscription
-      ? pickDefined(session.subscription as JsonRecord, ['id', 'status', 'planName', 'planCode', 'billingCycle', 'renewalDate', 'expiryDate', 'isActive', 'role']) as SessionData['subscription']
-      : null,
-    user: session.user
-      ? pickDefined(session.user as JsonRecord, ['id', 'name', 'email', 'phone', 'role', 'permissions', 'businessId']) as SessionData['user']
-      : null,
-  } satisfies SessionData;
-}
-
-function sanitizeBusinessProfile(profile: BusinessProfile | null) {
-  if (!profile) return null;
-
-  return pickDefined(profile as JsonRecord, [
-    'id',
-    'businessId',
-    'businessName',
-    'businessType',
-    'enabledModules',
-    'salesRoute',
-    'servicesRoute',
-    'currencyCode',
-  ]) as BusinessProfile;
-}
-
-function sanitizeBusinessSettings(settings: BusinessSettings | null) {
-  if (!settings) return null;
-
-  return pickDefined(settings as JsonRecord, [
-    'businessName',
-    'quickEntryDefaults',
-    'counterMode',
-    'taxEnabled',
-    'lowStockAlert',
-  ]) as BusinessSettings;
-}
-
-async function saveJson<T>(key: string, value: T | null) {
-  if (!value) {
-    await SecureStore.deleteItemAsync(key);
-    return;
-  }
-
-  await SecureStore.setItemAsync(key, JSON.stringify(value));
-}
-
-async function readJson<T>(key: string) {
-  const storedValue = await SecureStore.getItemAsync(key);
-  if (!storedValue) return null;
-
+async function readSecureToken() {
   try {
-    return JSON.parse(storedValue) as T;
+    return await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
+async function writeSecureToken(token: string | null) {
+  try {
+    if (!token) {
+      await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
+      return;
+    }
+    await SecureStore.setItemAsync(SESSION_TOKEN_KEY, token);
+  } catch {
+    // Token persistence failed; session meta may still load for retry.
+  }
+}
+
+async function loadSessionMeta() {
+  const meta = await readLocalJson<Omit<SessionData, 'token'>>(SESSION_DRAFT_KEY);
+  if (meta) return meta;
+
+  const legacyRaw = await SecureStore.getItemAsync(LEGACY_SESSION_KEY);
+  if (!legacyRaw) return null;
+
+  const migrated = migrateLegacySecureSession(legacyRaw);
+  if (migrated.meta) {
+    await writeLocalJson(SESSION_DRAFT_KEY, migrated.meta);
+  }
+  if (migrated.token) {
+    await writeSecureToken(migrated.token);
+  }
+  try {
+    await SecureStore.deleteItemAsync(LEGACY_SESSION_KEY);
+  } catch {
+    // Ignore.
+  }
+  return migrated.meta;
+}
+
+function applySessionGlobals(session: SessionData | null) {
+  if (session?.token) {
+    (global as any).apiToken = session.token;
+  } else {
+    delete (global as any).apiToken;
+  }
+  if (session?.businessId) {
+    (global as any).apiBusinessId = session.businessId;
+  } else {
+    delete (global as any).apiBusinessId;
+  }
+}
+
 export async function loadSession() {
   if (sessionCache) {
-    if (sessionCache.token) {
-      (global as any).apiToken = sessionCache.token;
-    }
-    if (sessionCache.businessId) {
-      (global as any).apiBusinessId = sessionCache.businessId;
-    }
+    applySessionGlobals(sessionCache);
     return sessionCache;
   }
-  sessionCache = await readJson<SessionData>(STORAGE_KEYS.session);
-  if (sessionCache?.token) {
-    (global as any).apiToken = sessionCache.token;
-  }
-  if (sessionCache?.businessId) {
-    (global as any).apiBusinessId = sessionCache.businessId;
-  }
+
+  const [token, meta] = await Promise.all([readSecureToken(), loadSessionMeta()]);
+  sessionCache = mergeStoredSession(token, meta);
+  applySessionGlobals(sessionCache);
   return sessionCache;
 }
 
 export async function persistSession(session: SessionData | null) {
-  const sanitized = sanitizeSession(session);
-  sessionCache = sanitized;
-  if (sanitized?.token) {
-    (global as any).apiToken = sanitized.token;
-  } else {
-    delete (global as any).apiToken;
-  }
-  if (sanitized?.businessId) {
-    (global as any).apiBusinessId = sanitized.businessId;
-  } else {
-    delete (global as any).apiBusinessId;
-  }
-  await saveJson(STORAGE_KEYS.session, sanitized);
+  const { token, meta } = splitSessionForStorage(session);
+  sessionCache = mergeStoredSession(token, meta);
+  applySessionGlobals(sessionCache);
+
+  await Promise.all([
+    writeSecureToken(token),
+    meta ? writeLocalJson(SESSION_DRAFT_KEY, meta) : deleteLocalJson(SESSION_DRAFT_KEY, LEGACY_SESSION_KEY),
+  ]);
 }
 
 export async function loadBusinessProfile() {
   if (profileCache) return profileCache;
-  profileCache = await readJson<BusinessProfile>(STORAGE_KEYS.profile);
+  profileCache = await readLocalJson<BusinessProfile>(PROFILE_DRAFT_KEY, LEGACY_PROFILE_KEY);
   return profileCache;
 }
 
 export async function persistBusinessProfile(profile: BusinessProfile | null) {
   const sanitized = sanitizeBusinessProfile(profile);
   profileCache = sanitized;
-  await saveJson(STORAGE_KEYS.profile, sanitized);
+  if (sanitized) {
+    await writeLocalJson(PROFILE_DRAFT_KEY, sanitized);
+    try {
+      await SecureStore.deleteItemAsync(LEGACY_PROFILE_KEY);
+    } catch {
+      // Ignore.
+    }
+    return;
+  }
+  await deleteLocalJson(PROFILE_DRAFT_KEY, LEGACY_PROFILE_KEY);
 }
 
 export async function loadBusinessSettings() {
   if (settingsCache) return settingsCache;
-  settingsCache = await readJson<BusinessSettings>(STORAGE_KEYS.settings);
+  settingsCache = await readLocalJson<BusinessSettings>(SETTINGS_DRAFT_KEY, LEGACY_SETTINGS_KEY);
   return settingsCache;
 }
 
 export async function persistBusinessSettings(settings: BusinessSettings | null) {
   const sanitized = sanitizeBusinessSettings(settings);
   settingsCache = sanitized;
-  await saveJson(STORAGE_KEYS.settings, sanitized);
+  if (sanitized) {
+    await writeLocalJson(SETTINGS_DRAFT_KEY, sanitized);
+    try {
+      await SecureStore.deleteItemAsync(LEGACY_SETTINGS_KEY);
+    } catch {
+      // Ignore.
+    }
+    return;
+  }
+  await deleteLocalJson(SETTINGS_DRAFT_KEY, LEGACY_SETTINGS_KEY);
 }
 
 export async function clearSessionStorage() {
   sessionCache = null;
   profileCache = null;
   settingsCache = null;
+  applySessionGlobals(null);
   await Promise.all([
-    SecureStore.deleteItemAsync(STORAGE_KEYS.session),
-    SecureStore.deleteItemAsync(STORAGE_KEYS.profile),
-    SecureStore.deleteItemAsync(STORAGE_KEYS.settings),
+    writeSecureToken(null),
+    deleteLocalJson(SESSION_DRAFT_KEY, LEGACY_SESSION_KEY),
+    deleteLocalJson(PROFILE_DRAFT_KEY, LEGACY_PROFILE_KEY),
+    deleteLocalJson(SETTINGS_DRAFT_KEY, LEGACY_SETTINGS_KEY),
   ]);
 }

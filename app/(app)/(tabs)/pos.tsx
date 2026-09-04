@@ -6,12 +6,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,10 +20,10 @@ import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
-import { FormField } from '@/src/shared/forms/FormField';
-import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { TopAppBar } from '@/src/shared/layout/TopAppBar';
 import { BillSummaryBar } from '@/src/features/pos/components/BillSummaryBar';
+import { PosCheckoutSheet } from '@/src/features/pos/components/PosCheckoutSheet';
 import { ProductCard } from '@/src/features/pos/components/ProductCard';
 import { ProductFilters } from '@/src/features/pos/components/ProductFilters';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
@@ -33,7 +31,7 @@ import { SearchField } from '@/src/shared/ui/SearchField';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { TotalsCard } from '@/src/shared/ui/TotalsCard';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
-import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
+import { uploadAttachments } from '@/src/shared/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { isCafeWorkspace } from '@/src/shared/lib/business';
 import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts, useTables } from '@/src/shared/hooks/useAppQueries';
@@ -68,7 +66,7 @@ function createEmptyPosDraft(): PosDraft {
     bankId: undefined,
     paymentNote: '',
     amountReceived: 0,
-    fullyPaid: false,
+    fullyPaid: true,
     items: [],
   };
 }
@@ -92,6 +90,7 @@ export default function PosScreen() {
   const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const [partyPickerVisible, setPartyPickerVisible] = useState(false);
+  const [partyCreateVisible, setPartyCreateVisible] = useState(false);
   const [successState, setSuccessState] = useState<{ visible: boolean; queued: boolean }>({
     visible: false,
     queued: false,
@@ -373,6 +372,17 @@ export default function PosScreen() {
 
   const activeBanks = (banks ?? []).filter((bank) => bank.isActive);
 
+  function openCheckout() {
+    if (!value.items.length) {
+      Alert.alert('Add items first', 'You need at least one item in the bill before checkout.');
+      return;
+    }
+    setValue((current) =>
+      current.fullyPaid ? { ...current, amountReceived: grandTotal } : current,
+    );
+    setCheckoutVisible(true);
+  }
+
   async function saveSale(mode: 'save' | 'print') {
     if (!value.items.length) {
       Alert.alert('Add items first', 'You need at least one item in the bill before saving.');
@@ -440,7 +450,7 @@ export default function PosScreen() {
         }
       }
 
-      const receiptHtml = buildReceiptHtml({
+      const receiptData = {
         heading: 'Sale Invoice',
         reference: value.invoiceNo,
         date: value.saleDate,
@@ -456,12 +466,15 @@ export default function PosScreen() {
         discountTotal: value.discount,
         grandTotal,
         amountReceived,
-      });
+      };
+
+      const receiptHtml = buildReceiptHtml(receiptData);
 
       setReceipt({
         title: value.invoiceNo,
         subtitle: value.party?.name ?? 'Walk-in customer',
         html: receiptHtml,
+        data: receiptData,
       });
 
       if (result.data) {
@@ -640,8 +653,8 @@ export default function PosScreen() {
         grandTotal={grandTotal}
         amountReceived={value.fullyPaid ? grandTotal : value.amountReceived}
       />
-      <Pressable style={styles.checkoutButton} onPress={() => setCheckoutVisible(true)}>
-        <Text style={styles.checkoutLabel}>Open checkout</Text>
+      <Pressable style={styles.checkoutButton} onPress={openCheckout}>
+        <Text style={styles.checkoutLabel}>Checkout</Text>
       </Pressable>
     </SurfaceCard>
   );
@@ -654,39 +667,48 @@ export default function PosScreen() {
           leadingMode="brand"
           showBack={false}
           right={
-            <Pressable
-              style={styles.clearCartButton}
-              onPress={() => {
-                if (!value.items.length) return;
-                Alert.alert(
-                  'Clear cart',
-                  'Remove all items from this sale?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Clear',
-                      style: 'destructive',
-                      onPress: async () => {
-                        if (orderType === 'dine_in' && activeTableId && editingId) {
-                          try {
-                            await salesApi.remove(editingId);
-                            await tablesApi.update(activeTableId, { status: 'vacant' });
-                          } catch (e) {
-                            console.error(e);
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Pressable
+                style={styles.clearCartButton}
+                hitSlop={8}
+                onPress={() => router.push('/(app)/sales' as any)}>
+                <MaterialCommunityIcons color={colors.text} name="receipt-text-outline" size={22} />
+              </Pressable>
+              <Pressable
+                style={styles.clearCartButton}
+                hitSlop={8}
+                onPress={() => {
+                  if (!value.items.length) return;
+                  Alert.alert(
+                    'Clear cart',
+                    'Remove all items from this sale?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Clear',
+                        style: 'destructive',
+                        onPress: async () => {
+                          if (orderType === 'dine_in' && activeTableId && editingId) {
+                            try {
+                              await salesApi.remove(editingId);
+                              await tablesApi.update(activeTableId, { status: 'vacant' });
+                            } catch (e) {
+                              console.error(e);
+                            }
                           }
-                        }
-                        setActiveTableId(null);
-                        setOrderType('takeaway');
-                        setEditingId(null);
-                        void reset(createEmptyPosDraft());
-                        await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+                          setActiveTableId(null);
+                          setOrderType('takeaway');
+                          setEditingId(null);
+                          void reset(createEmptyPosDraft());
+                          await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+                        },
                       },
-                    },
-                  ],
-                );
-              }}>
-              <MaterialCommunityIcons color={value.items.length ? colors.danger : colors.textSoft} name="trash-can-outline" size={22} />
-            </Pressable>
+                    ],
+                  );
+                }}>
+                <MaterialCommunityIcons color={value.items.length ? colors.danger : colors.textSoft} name="trash-can-outline" size={22} />
+              </Pressable>
+            </View>
           }
         />
 
@@ -818,306 +840,28 @@ export default function PosScreen() {
         ) : (
           <>
             {productsPane}
-            <BillSummaryBar itemCount={cartItemCount} total={grandTotal} onPress={() => setCheckoutVisible(true)} />
+            <BillSummaryBar itemCount={cartItemCount} total={grandTotal} onPress={openCheckout} />
           </>
         )}
       </View>
 
-      <BottomSheet
+      <PosCheckoutSheet
         visible={checkoutVisible}
-        title="Confirm Sale"
-        subtitle="Review billing details, payment mode, and notes before saving."
+        cafeMode={cafeMode}
+        value={value}
+        setValue={setValue}
+        subTotal={subTotal}
+        taxTotal={taxTotal}
+        grandTotal={grandTotal}
+        banks={activeBanks}
+        orderAttributes={orderAttributes ?? []}
         onClose={() => setCheckoutVisible(false)}
-        fullHeight={!isTablet}
-        footer={
-          <View style={styles.sheetFooter}>
-            <Pressable style={styles.secondaryFooterButton} onPress={() => saveSale('print')}>
-              <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />
-              <Text style={styles.secondaryFooterLabel}>Save & print</Text>
-            </Pressable>
-            <Pressable style={styles.primaryFooterButton} onPress={() => saveSale('save')}>
-              <MaterialCommunityIcons color={colors.white} name="content-save-outline" size={20} />
-              <Text style={styles.primaryFooterLabel}>Save</Text>
-            </Pressable>
-          </View>
-        }>
-        <ScrollView
-          style={styles.checkoutScroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.checkoutContent}>
-          <View style={styles.invoiceSplitCard}>
-            <View style={styles.invoiceSplitColumn}>
-              <Text style={styles.invoiceSplitLabel}>Invoice Number</Text>
-              <Text style={styles.invoiceSplitValue}>{value.invoiceNo}</Text>
-            </View>
-            <View style={styles.invoiceDivider} />
-            <Pressable style={styles.invoiceSplitColumn} onPress={() => {}}>
-              <Text style={styles.invoiceSplitLabel}>Date</Text>
-              <View style={styles.invoiceDateRow}>
-                <Text style={styles.invoiceSplitValue}>{value.saleDate}</Text>
-                <MaterialCommunityIcons color={colors.textSoft} name="calendar-month-outline" size={22} />
-              </View>
-            </Pressable>
-          </View>
-
-          <Pressable style={styles.partyCard} onPress={() => setPartyPickerVisible(true)}>
-            <View style={styles.partyCardLead}>
-              <View style={styles.partyCardIcon}>
-                <Text style={styles.partyCardIconText}>
-                  {value.party?.name ? partyInitials(value.party.name) : 'W'}
-                </Text>
-              </View>
-              <View>
-                <Text style={styles.partyCardTitle}>{value.party?.name ?? 'Walk-in'}</Text>
-                <Text style={styles.partyCardSubtitle}>{value.party?.phone ?? 'Tap to choose a customer'}</Text>
-              </View>
-            </View>
-            <View style={styles.changePill}>
-              <MaterialCommunityIcons color={colors.primary} name="swap-horizontal" size={18} />
-              <Text style={styles.changePillLabel}>Change</Text>
-            </View>
-          </Pressable>
-
-          <Pressable style={styles.addItemsCard} onPress={() => setCheckoutVisible(false)}>
-            <MaterialCommunityIcons color={colors.primary} name="plus-circle" size={22} />
-            <Text style={styles.addItemsLabel}>Add items</Text>
-          </Pressable>
-
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderTitle}>Billing Items ({value.items.length})</Text>
-              <Pressable onPress={() => setCheckoutVisible(false)}>
-                <MaterialCommunityIcons color={colors.primary} name="plus-circle" size={24} />
-              </Pressable>
-            </View>
-            <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
-              {value.items.map((item) => {
-                const product = (products ?? []).find((p) => p.id === item.productId);
-                return (
-                  <View key={item.productId} style={styles.billItemContainer}>
-                    <View style={styles.billRow}>
-                      <View style={styles.billCopy}>
-                        <Text style={styles.billTitle}>{item.name}</Text>
-                        <Text style={styles.billMeta}>
-                          Qty: {item.quantity} {item.unit} x {formatCurrency(item.unitPrice)}
-                        </Text>
-                      </View>
-                      <Text style={styles.billLineAmount}>{formatCurrency(computeLineTotal(item))}</Text>
-                    </View>
-                    {item.secondaryUnit ? (
-                      <View style={styles.unitSelectorRow}>
-                        <Pressable
-                          style={[
-                            styles.unitChip,
-                            item.unitType !== 'secondary' && styles.unitChipActive,
-                          ]}
-                          onPress={() => toggleItemUnit(item.productId, 'primary')}
-                        >
-                          <Text
-                            style={[
-                              styles.unitChipLabel,
-                              item.unitType !== 'secondary' && styles.unitChipLabelActive,
-                            ]}
-                          >
-                            {item.primaryUnit || 'Primary'} ({formatCurrency(product?.salePrice ?? item.unitPrice)})
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={[
-                            styles.unitChip,
-                            item.unitType === 'secondary' && styles.unitChipActive,
-                          ]}
-                          onPress={() => toggleItemUnit(item.productId, 'secondary')}
-                        >
-                          <Text
-                            style={[
-                              styles.unitChipLabel,
-                              item.unitType === 'secondary' && styles.unitChipLabelActive,
-                            ]}
-                          >
-                            {item.secondaryUnit} ({formatCurrency(product?.salePrice && item.secondaryConversionRate ? Number((product.salePrice / item.secondaryConversionRate).toFixed(2)) : item.unitPrice)})
-                          </Text>
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })}
-              {!value.items.length ? (
-                <Text style={styles.emptyCart}>No items yet. Go back to add items.</Text>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.chargeCard}>
-            <View style={styles.chargeRow}>
-              <MaterialCommunityIcons color={colors.warning} name="tag-outline" size={22} />
-              <Text style={styles.chargeLabel}>Discount</Text>
-              <Text style={styles.chargeSuffix}>Rs.</Text>
-              <TextInput
-                value={String(value.discount || '')}
-                onChangeText={(discount) => setValue((current) => ({ ...current, discount: Number(discount || 0) }))}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={colors.textSoft}
-                style={styles.chargeInput}
-              />
-            </View>
-            <View style={styles.chargeRow}>
-              <MaterialCommunityIcons color={colors.info} name="percent-outline" size={22} />
-              <Text style={styles.chargeLabel}>Tax</Text>
-              <Text style={styles.chargeStatic}>VAT 13%</Text>
-              <Text style={styles.chargeValue}>{formatCurrency(taxTotal)}</Text>
-            </View>
-          </View>
-
-          <View style={styles.totalCard}>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>{formatCurrency(grandTotal)}</Text>
-            </View>
-            <View style={styles.paymentModeRow}>
-              <Text style={styles.paymentModeLabel}>Payment Mode</Text>
-              <View style={styles.paymentModeValueWrap}>
-                <Text style={styles.paymentModeValue}>{value.paymentMethod === 'bank' ? 'Bank' : 'Cash'}</Text>
-                <MaterialCommunityIcons color={colors.textSoft} name="chevron-right" size={20} />
-              </View>
-            </View>
-          </View>
-
-          <PaymentMethodSelector
-            value={value.paymentMethod}
-            onChange={(paymentMethod) => setValue((current) => ({ ...current, paymentMethod }))}
-            activeBackgroundColor={colors.primary}
-          />
-          {value.paymentMethod === 'bank' ? (
-            <View style={styles.bankWrap}>
-              {activeBanks.length > 0 ? (
-                activeBanks.map((bank) => (
-                  <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, value.bankId === bank.id && styles.bankChipActive]}
-                    onPress={() => setValue((current) => ({ ...current, bankId: bank.id }))}>
-                    <Text
-                      style={[
-                        styles.bankChipLabel,
-                        value.bankId === bank.id && styles.bankChipLabelActive,
-                      ]}>
-                      {bank.name}
-                    </Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                  <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
-          <FormField
-            label="Amount received"
-            value={String(value.fullyPaid ? grandTotal : value.amountReceived)}
-            onChangeText={(amountReceived) =>
-              setValue((current) => ({
-                ...current,
-                fullyPaid: false,
-                amountReceived: Number(amountReceived || 0),
-              }))
-            }
-            keyboardType="numeric"
-          />
-          <FormField
-            label="Payment note"
-            value={value.paymentNote}
-            onChangeText={(paymentNote) => setValue((current) => ({ ...current, paymentNote }))}
-          />
-          <View style={styles.quickPayments}>
-            {[
-              { label: 'No payment', amount: 0 },
-              { label: '50%', amount: grandTotal / 2 },
-              { label: 'Full', amount: grandTotal },
-            ].map((option) => (
-              <Pressable
-                key={option.label}
-                style={styles.quickPaymentChip}
-                onPress={() =>
-                  setValue((current) => ({
-                    ...current,
-                    fullyPaid: option.amount === grandTotal,
-                    amountReceived: Math.round(option.amount),
-                  }))
-                }>
-                <Text style={styles.quickPaymentLabel}>{option.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Pressable
-            style={[styles.fullToggle, value.fullyPaid && styles.fullToggleActive]}
-            onPress={() =>
-              setValue((current) => ({
-                ...current,
-                fullyPaid: !current.fullyPaid,
-                amountReceived: !current.fullyPaid ? grandTotal : current.amountReceived,
-              }))
-            }>
-            <Text style={[styles.fullToggleLabel, value.fullyPaid && styles.fullToggleLabelActive]}>
-              Mark invoice fully paid
-            </Text>
-          </Pressable>
-          <FormField
-            label="Notes or remarks"
-            value={value.notes}
-            placeholder="Notes or Remarks"
-            onChangeText={(notes) => setValue((current) => ({ ...current, notes }))}
-            multiline
-          />
-          <Pressable style={styles.addImagesRow} onPress={() => void addImageAttachment()}>
-            <MaterialCommunityIcons color={colors.primary} name="image-plus-outline" size={22} />
-            <Text style={styles.addImagesLabel}>
-              Add Images {value?.attachments?.length ? `(${value.attachments.length})` : ''}
-            </Text>
-          </Pressable>
-          {value.attachments.length ? (
-            <View style={styles.attachmentsPreviewGrid}>
-              {value.attachments.map((attachment) => (
-                <View key={attachment} style={styles.attachmentCard}>
-                  {isImageAttachment(attachment) ? (
-                    <Image source={{ uri: attachment }} style={styles.attachmentPreview} />
-                  ) : (
-                    <View style={styles.attachmentFallback}>
-                      <MaterialCommunityIcons color={colors.textMuted} name="file-outline" size={24} />
-                    </View>
-                  )}
-                  <Text numberOfLines={1} style={styles.attachmentName}>
-                    {getAttachmentLabel(attachment)}
-                  </Text>
-                  <Pressable style={styles.attachmentRemoveButton} onPress={() => removeAttachment(attachment)}>
-                    <MaterialCommunityIcons color={colors.danger} name="close-circle" size={18} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : null}
-          {(orderAttributes ?? []).map((attribute) => (
-            <FormField
-              key={attribute.id || attribute.key}
-              label={attribute.required ? `${attribute.label} *` : attribute.label}
-              value={String(value.attributes[attribute.key] ?? '')}
-              onChangeText={(nextValue) =>
-                setValue((current) => ({
-                  ...current,
-                  attributes: { ...current.attributes, [attribute.key]: nextValue },
-                }))
-              }
-              keyboardType={attribute.fieldType === 'number' ? 'numeric' : 'default'}
-              multiline={attribute.fieldType === 'textarea'}
-              placeholder={attribute.placeholder}
-            />
-          ))}
-        </ScrollView>
-      </BottomSheet>
+        onSelectParty={() => setPartyPickerVisible(true)}
+        onEditItems={() => setCheckoutVisible(false)}
+        onSave={(mode) => void saveSale(mode)}
+        onAddImage={() => void addImageAttachment()}
+        onRemoveAttachment={removeAttachment}
+      />
 
       <BottomSheet
         visible={categoryPickerVisible}
@@ -1147,6 +891,11 @@ export default function PosScreen() {
         search={partySearch}
         onSearchChange={setPartySearch}
         parties={parties ?? []}
+        createLabel="+ Add New Customer"
+        onCreatePress={() => {
+          setPartyPickerVisible(false);
+          setPartyCreateVisible(true);
+        }}
         onPick={(party) => {
           setValue((current) => ({ ...current, party }));
           setPartyPickerVisible(false);
@@ -1154,6 +903,15 @@ export default function PosScreen() {
         onClose={() => setPartyPickerVisible(false)}
         title="Select Party for Sale"
         subtitle="Pick a customer or keep this bill as a cash sale."
+      />
+
+      <PartyFormSheet
+        visible={partyCreateVisible}
+        onClose={() => setPartyCreateVisible(false)}
+        onSaved={(newParty) => {
+          setValue((current) => ({ ...current, party: newParty }));
+          setPartyCreateVisible(false);
+        }}
       />
 
       <SuccessSheet

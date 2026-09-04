@@ -582,8 +582,12 @@ export function normalizeService(raw: unknown): Service {
     taxTotal: asNumber(record.taxTotal),
     grandTotal: asNumber(firstDefined(record.grandTotal, record.total)),
     receivedTotal: asNumber(firstDefined(record.receivedTotal, record.amountReceived)),
-    items: Array.isArray(record.items) ? (record.items as Service['items']) : [],
-    attachments: Array.isArray(record.attachments) ? (record.attachments as string[]) : [],
+    attachment: asString(firstDefined(record.attachment, record.photo, record.image, record.imageUrl), ''),
+    attachments: Array.isArray(record.attachments)
+      ? (record.attachments as string[])
+      : record.attachment
+        ? [String(record.attachment)]
+        : [],
   };
 }
 
@@ -908,7 +912,8 @@ export function normalizeTaskActivity(raw: unknown): TaskActivity {
 }
 
 export function normalizeTask(raw: unknown): Task {
-  const record = asRecord(raw) ?? {};
+  const entity = unwrapEntity<unknown>(raw);
+  const record = asRecord(entity) ?? asRecord(raw) ?? {};
   const creator = asRecord(record.creator);
   const completedBy = asRecord(record.completedBy);
   const lastActivityBy = asRecord(record.lastActivityBy);

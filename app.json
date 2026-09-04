@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PasalManager",
+    "name": "PM",
     "slug": "counterflow-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -27,6 +27,7 @@
         "backgroundColor": "#0A2E20"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.yoursfriend.pasalmanager",
       "versionCode": 1,

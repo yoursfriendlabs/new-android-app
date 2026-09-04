@@ -10,6 +10,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { cacheRecentServices } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { FormField } from '@/src/shared/forms/FormField';
@@ -42,7 +43,7 @@ function createEmptyServiceDraft(): ServiceDraft {
   return {
     customer: null,
     orderNo: `SO-${Date.now().toString().slice(-6)}`,
-    status: 'open',
+    status: 'in_progress',
     deliveryDate: todayIso(),
     notes: '',
     paymentMethod: 'cash',
@@ -83,6 +84,8 @@ export default function ServiceCreateScreen() {
   const [partyPickerVisible, setPartyPickerVisible] = useState(false);
   const [productPickerVisible, setProductPickerVisible] = useState(false);
   const [targetLineId, setTargetLineId] = useState<string | null>(null);
+  const [editingLine, setEditingLine] = useState<DraftServiceLine | null>(null);
+  const [lineModalVisible, setLineModalVisible] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
   const [queued, setQueued] = useState(false);
   const [formError, setFormError] = useState('');
@@ -170,6 +173,31 @@ export default function ServiceCreateScreen() {
     }));
   }
 
+  function openAddLine(itemType: 'labor' | 'part') {
+    setEditingLine(createLine(itemType));
+    setLineModalVisible(true);
+  }
+
+  function openEditLine(item: DraftServiceLine) {
+    setEditingLine({ ...item });
+    setLineModalVisible(true);
+  }
+
+  function saveEditingLine() {
+    if (!editingLine) return;
+    draft.setValue((current) => {
+      const existingIndex = current.items.findIndex((i) => i.id === editingLine.id);
+      if (existingIndex >= 0) {
+        const nextItems = [...current.items];
+        nextItems[existingIndex] = editingLine;
+        return { ...current, items: nextItems };
+      }
+      return { ...current, items: [...current.items, editingLine] };
+    });
+    setLineModalVisible(false);
+    setEditingLine(null);
+  }
+
   async function addPhotoAttachment() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
@@ -236,10 +264,12 @@ export default function ServiceCreateScreen() {
 
       const payload = {
         partyId: draft.value.customer.id,
+        partyName: draft.value.customer.name,
+        customerName: draft.value.customer.name,
         orderNo: draft.value.orderNo,
         status: draft.value.status,
         notes: draft.value.notes,
-        deliveryDate: draft.value.deliveryDate,
+        deliveryDate: draft.value.deliveryDate?.trim() || undefined,
         paymentMethod: draft.value.paymentMethod,
         bankId:
           draft.value.paymentMethod === 'bank' ? draft.value.bankId : undefined,
@@ -336,7 +366,12 @@ export default function ServiceCreateScreen() {
   }
 
   const content = (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets={true}
+      keyboardDismissMode="interactive"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.content}>
       <View style={styles.wizardHeader}>
         <View style={styles.progressTimeline}>
           <View style={styles.progressLineBg} />
@@ -447,42 +482,61 @@ export default function ServiceCreateScreen() {
             helperText="The backend keeps service order numbers unique per business."
           />
           <SegmentedTabs
-            value={draft.value.status as 'open' | 'in_progress' | 'ready'}
+            value={draft.value.status === 'closed' ? 'closed' : 'in_progress'}
             onChange={(status) => draft.setValue((current) => ({ ...current, status }))}
             options={[
-              { label: 'Open', value: 'open' },
               { label: 'In progress', value: 'in_progress' },
-              { label: 'Ready', value: 'ready' },
+              { label: isGym ? 'Completed' : 'Closed', value: 'closed' },
             ]}
           />
-          <FormField
-            label={isGym ? "Subscription End Date" : "Delivery date"}
-            value={draft.value.deliveryDate}
-            onChangeText={(deliveryDate) => draft.setValue((current) => ({ ...current, deliveryDate }))}
-          />
-          {isGym && (
-            <View style={styles.presetRow}>
-              {[
-                { label: '+1 Month', days: 30 },
-                { label: '+3 Months', days: 90 },
-                { label: '+6 Months', days: 180 },
-                { label: '+1 Year', days: 365 },
-              ].map((preset) => (
-                <Pressable
-                  key={preset.label}
-                  style={styles.presetButton}
-                  onPress={() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + preset.days);
-                    const val = d.toISOString().split('T')[0];
-                    draft.setValue((current) => ({ ...current, deliveryDate: val }));
-                  }}
-                >
-                  <Text style={styles.presetButtonText}>{preset.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <Pressable
+            style={styles.deliveryToggleRow}
+            onPress={() => {
+              draft.setValue((current) => ({
+                ...current,
+                deliveryDate: current.deliveryDate ? '' : todayIso(),
+              }));
+            }}>
+            <MaterialCommunityIcons
+              name={draft.value.deliveryDate ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={22}
+              color={draft.value.deliveryDate ? colors.primary : colors.textMuted}
+            />
+            <Text style={[styles.deliveryToggleText, { color: colors.text }]}>
+              {isGym ? 'Set membership expiry date' : 'Set target delivery date'}
+            </Text>
+          </Pressable>
+          {draft.value.deliveryDate ? (
+            <>
+              <FormField
+                label={isGym ? "Subscription End Date" : "Delivery date"}
+                value={draft.value.deliveryDate}
+                onChangeText={(deliveryDate) => draft.setValue((current) => ({ ...current, deliveryDate }))}
+              />
+              {isGym && (
+                <View style={styles.presetRow}>
+                  {[
+                    { label: '+1 Month', days: 30 },
+                    { label: '+3 Months', days: 90 },
+                    { label: '+6 Months', days: 180 },
+                    { label: '+1 Year', days: 365 },
+                  ].map((preset) => (
+                    <Pressable
+                      key={preset.label}
+                      style={styles.presetButton}
+                      onPress={() => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + preset.days);
+                        const val = d.toISOString().split('T')[0];
+                        draft.setValue((current) => ({ ...current, deliveryDate: val }));
+                      }}>
+                      <Text style={styles.presetButtonText}>{preset.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </>
+          ) : null}
           <FormField
             label="Notes"
             value={draft.value.notes}
@@ -584,83 +638,80 @@ export default function ServiceCreateScreen() {
       ) : null}
 
       {stepIndex === 2 ? (
-        <SurfaceCard title="Items and labor" subtitle="Labor and parts stay together so the final job total is always obvious.">
+        <SurfaceCard title="Services and Products" subtitle="Keep services and products organized for this job.">
           <View style={styles.actionsRow}>
-            <Pressable style={styles.secondaryButton} onPress={() => draft.setValue((current) => ({ ...current, items: [...current.items, createLine('labor')] }))}>
-              <Text style={styles.secondaryButtonLabel}>+ Add labor</Text>
+            <Pressable style={styles.secondaryButton} onPress={() => openAddLine('labor')}>
+              <MaterialCommunityIcons name="wrench-outline" size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonLabel}>+ Add service</Text>
             </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => draft.setValue((current) => ({ ...current, items: [...current.items, createLine('part')] }))}>
-              <Text style={styles.secondaryButtonLabel}>+ Add part</Text>
+            <Pressable style={styles.secondaryButton} onPress={() => openAddLine('part')}>
+              <MaterialCommunityIcons name="package-variant-closed" size={18} color={colors.primary} />
+              <Text style={styles.secondaryButtonLabel}>+ Add product</Text>
             </Pressable>
           </View>
-          {draft.value.items.map((item) => (
-            <View key={item.id} style={[styles.lineCard, item.itemType === 'labor' ? styles.lineCardLabor : styles.lineCardPart]}>
-              <View style={styles.lineCardTop}>
-                <View style={styles.lineBadge}>
-                  <MaterialCommunityIcons
-                    name={item.itemType === 'labor' ? 'wrench-outline' : 'package-variant-closed'}
-                    size={16}
-                    color={item.itemType === 'labor' ? colors.info : colors.success}
-                  />
-                  <Text style={[styles.lineBadgeLabel, { color: item.itemType === 'labor' ? colors.info : colors.success }]}>
-                    {item.itemType === 'labor' ? 'Labor Job' : 'Part Item'}
-                  </Text>
-                </View>
-                <Pressable onPress={() => removeLine(item.id)}>
-                  <MaterialCommunityIcons name="delete-outline" size={20} color={colors.danger} />
-                </Pressable>
-              </View>
-              {item.itemType === 'part' ? (
-                <>
+          {draft.value.items.length ? (
+            <View style={styles.compactLinesContainer}>
+              {draft.value.items.map((item) => {
+                const isService = item.itemType === 'labor';
+                const name = isService
+                  ? item.description || 'Service Charge'
+                  : item.product?.name || item.description || 'Product Item';
+
+                return (
                   <Pressable
-                    style={styles.selector}
-                    onPress={() => {
-                      setTargetLineId(item.id);
-                      setProductPickerVisible(true);
-                    }}>
-                    <Text style={styles.selectorTitle}>{item.product?.name ?? 'Select part product'}</Text>
-                    <Text style={styles.selectorSubtitle}>
-                      {item.product ? `Stock ${item.product.stockOnHand ?? 0}` : 'Search products from inventory'}
-                    </Text>
+                    key={item.id}
+                    style={styles.compactLineRow}
+                    onPress={() => openEditLine(item)}>
+                    <View
+                      style={[
+                        styles.compactLineIconBox,
+                        { backgroundColor: isService ? colors.accentSoft : colors.successSoft },
+                      ]}>
+                      <MaterialCommunityIcons
+                        name={isService ? 'wrench-outline' : 'package-variant-closed'}
+                        size={18}
+                        color={isService ? colors.accent : colors.success}
+                      />
+                    </View>
+                    <View style={styles.compactLineContent}>
+                      <View style={styles.compactLineMainRow}>
+                        <Text numberOfLines={1} style={styles.compactLineTitle}>
+                          {name}
+                        </Text>
+                        <Text style={styles.compactLineTotal}>
+                          {formatCurrency(computeLineTotal(item))}
+                        </Text>
+                      </View>
+                      <View style={styles.compactLineSubRow}>
+                        <Text style={styles.compactLineMeta}>
+                          {item.quantity} × {formatCurrency(item.unitPrice)}
+                          {item.taxRate > 0 ? ` · ${item.taxRate}% VAT` : ''}
+                        </Text>
+                        <View style={styles.compactLineActions}>
+                          <Pressable
+                            style={styles.compactActionBtn}
+                            onPress={() => openEditLine(item)}>
+                            <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
+                          </Pressable>
+                          <Pressable
+                            style={styles.compactActionBtn}
+                            onPress={() => removeLine(item.id)}>
+                            <MaterialCommunityIcons name="delete-outline" size={16} color={colors.danger} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    </View>
                   </Pressable>
-                  {item.product?.secondaryUnit ? (
-                    <SegmentedTabs
-                      value={item.unitType as 'primary' | 'secondary'}
-                      onChange={(unitType) => updateLine(item.id, { unitType })}
-                      options={[
-                        { label: item.product.primaryUnit, value: 'primary' },
-                        { label: item.product.secondaryUnit, value: 'secondary' },
-                      ]}
-                    />
-                  ) : null}
-                </>
-              ) : null}
-              <FormField
-                label="Description"
-                value={item.description}
-                onChangeText={(description) => updateLine(item.id, { description })}
-              />
-              <FormField
-                label="Quantity"
-                value={String(item.quantity)}
-                onChangeText={(quantity) => updateLine(item.id, { quantity: Number(quantity || 0) })}
-                keyboardType="numeric"
-              />
-              <FormField
-                label="Unit price"
-                value={String(item.unitPrice)}
-                onChangeText={(unitPrice) => updateLine(item.id, { unitPrice: Number(unitPrice || 0) })}
-                keyboardType="numeric"
-              />
-              <FormField
-                label="Tax rate"
-                value={String(item.taxRate)}
-                onChangeText={(taxRate) => updateLine(item.id, { taxRate: Number(taxRate || 0) })}
-                keyboardType="numeric"
-              />
-              <Text style={styles.lineTotal}>Line total {formatCurrency(computeLineTotal(item))}</Text>
+                );
+              })}
             </View>
-          ))}
+          ) : (
+            <View style={styles.emptyLinesBox}>
+              <MaterialCommunityIcons name="clipboard-text-outline" size={36} color={colors.textSoft} />
+              <Text style={styles.emptyLinesTitle}>No services or products added</Text>
+              <Text style={styles.emptyLinesSub}>Tap the buttons above to add services or products to this order.</Text>
+            </View>
+          )}
         </SurfaceCard>
       ) : null}
 
@@ -722,15 +773,46 @@ export default function ServiceCreateScreen() {
             {draft.value.orderNo}  •  {isGym ? 'Expiry' : 'Delivery'} {draft.value.deliveryDate}
           </Text>
           
-          <TotalsCard
-            subTotal={subTotal}
-            taxTotal={taxTotal}
-            discountTotal={draft.value?.discount}
-            grandTotal={grandTotal}
-            amountReceived={draft.value?.receivedTotal}
-          />
+          <View style={styles.totalsOverviewCard}>
+            <View style={styles.overviewRow}>
+              <Text style={styles.overviewLabel}>Services Subtotal</Text>
+              <Text style={styles.overviewValue}>{formatCurrency(laborTotal)}</Text>
+            </View>
+            <View style={styles.overviewRow}>
+              <Text style={styles.overviewLabel}>Products Subtotal</Text>
+              <Text style={styles.overviewValue}>{formatCurrency(partsTotal)}</Text>
+            </View>
+            {taxTotal > 0 && (
+              <View style={styles.overviewRow}>
+                <Text style={styles.overviewLabel}>Tax / VAT</Text>
+                <Text style={styles.overviewValue}>{formatCurrency(taxTotal)}</Text>
+              </View>
+            )}
+            {draft.value.discount > 0 && (
+              <View style={styles.overviewRow}>
+                <Text style={styles.overviewLabel}>Discount</Text>
+                <Text style={[styles.overviewValue, { color: colors.danger }]}>
+                  -{formatCurrency(draft.value.discount)}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.overviewRow, styles.overviewRowGrand]}>
+              <Text style={styles.overviewLabelGrand}>Grand Total</Text>
+              <Text style={styles.overviewValueGrand}>{formatCurrency(grandTotal)}</Text>
+            </View>
+            <View style={styles.overviewRow}>
+              <Text style={styles.overviewLabel}>Advance / Received</Text>
+              <Text style={styles.overviewValue}>{formatCurrency(draft.value.receivedTotal)}</Text>
+            </View>
+            <View style={[styles.overviewRow, styles.overviewRowDue]}>
+              <Text style={styles.overviewLabelDue}>Balance Due</Text>
+              <Text style={styles.overviewValueDue}>
+                {formatCurrency(Math.max(grandTotal - draft.value.receivedTotal, 0))}
+              </Text>
+            </View>
+          </View>
           
-          <Text style={styles.reviewSectionHeading}>Order Details</Text>
+          <Text style={styles.reviewSectionHeading}>Order Items</Text>
           <View style={styles.reviewTableCard}>
             <View style={styles.reviewTableHeader}>
               <Text style={[styles.tableCol, styles.tableColMain, styles.tableHeadText]}>Description</Text>
@@ -743,7 +825,7 @@ export default function ServiceCreateScreen() {
                 <View style={[styles.tableCol, styles.tableColMain]}>
                   <Text style={styles.reviewItemName}>{item.product?.name ?? item.description ?? 'Service item'}</Text>
                   <Text style={styles.reviewItemMeta}>
-                    {item.itemType === 'labor' ? 'Labor Estimate' : 'Part'}  •  {formatCurrency(item.unitPrice)}
+                    {item.itemType === 'labor' ? 'Service' : 'Product'}  •  {formatCurrency(item.unitPrice)}
                   </Text>
                 </View>
                 <Text style={[styles.tableCol, styles.tableColQty, styles.reviewItemQty]}>{item.quantity}</Text>
@@ -763,6 +845,7 @@ export default function ServiceCreateScreen() {
 
   return (
     <Screen
+      scrollable={false}
       footer={
         <StickyActionBar
           secondary={{
@@ -789,6 +872,121 @@ export default function ServiceCreateScreen() {
       }>
       {content}
 
+      <BottomSheet
+        visible={lineModalVisible}
+        title={editingLine?.itemType === 'labor' ? 'Service Line' : 'Product Line'}
+        subtitle={
+          editingLine?.itemType === 'labor'
+            ? 'Add or adjust service charge details'
+            : 'Select product from inventory, quantity, and rate'
+        }
+        onClose={() => {
+          setLineModalVisible(false);
+          setEditingLine(null);
+        }}
+        footer={
+          <View style={styles.modalFooterActions}>
+            <Pressable
+              style={[styles.modalSecondaryBtn, { backgroundColor: colors.backgroundAlt }]}
+              onPress={() => {
+                setLineModalVisible(false);
+                setEditingLine(null);
+              }}>
+              <Text style={[styles.modalSecondaryBtnLabel, { color: colors.text }]}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalPrimaryBtn, { backgroundColor: colors.primary }]}
+              onPress={saveEditingLine}>
+              <Text style={styles.modalPrimaryBtnLabel}>Done</Text>
+            </Pressable>
+          </View>
+        }>
+        {editingLine ? (
+          <View style={styles.lineEditorWrap}>
+            {editingLine.itemType === 'part' ? (
+              <View style={styles.productPickerTriggerWrap}>
+                <Pressable
+                  style={styles.selector}
+                  onPress={() => setProductPickerVisible(true)}>
+                  <Text style={styles.selectorTitle}>
+                    {editingLine.product?.name ?? 'Select product from inventory'}
+                  </Text>
+                  <Text style={styles.selectorSubtitle}>
+                    {editingLine.product
+                      ? `Stock: ${editingLine.product.stockOnHand ?? 0} · Tap to change`
+                      : 'Search products in stock'}
+                  </Text>
+                </Pressable>
+                {editingLine.product?.secondaryUnit ? (
+                  <SegmentedTabs
+                    value={editingLine.unitType as 'primary' | 'secondary'}
+                    onChange={(unitType) =>
+                      setEditingLine((prev) => (prev ? { ...prev, unitType } : null))
+                    }
+                    options={[
+                      { label: editingLine.product.primaryUnit, value: 'primary' },
+                      { label: editingLine.product.secondaryUnit, value: 'secondary' },
+                    ]}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+
+            <FormField
+              label={editingLine.itemType === 'labor' ? 'Service Description' : 'Description'}
+              value={editingLine.description}
+              onChangeText={(description) =>
+                setEditingLine((prev) => (prev ? { ...prev, description } : null))
+              }
+              placeholder={
+                editingLine.itemType === 'labor'
+                  ? 'e.g. Screen Replacement, Repair, Labor charge'
+                  : 'e.g. Spare Screen, Oil, Accessory'
+              }
+            />
+
+            <View style={styles.formRowTwo}>
+              <View style={styles.formCol}>
+                <FormField
+                  label="Quantity"
+                  value={String(editingLine.quantity)}
+                  onChangeText={(val) =>
+                    setEditingLine((prev) => (prev ? { ...prev, quantity: Number(val || 0) } : null))
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.formCol}>
+                <FormField
+                  label="Unit Price"
+                  value={String(editingLine.unitPrice)}
+                  onChangeText={(val) =>
+                    setEditingLine((prev) => (prev ? { ...prev, unitPrice: Number(val || 0) } : null))
+                  }
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            <FormField
+              label="Tax Rate (%)"
+              value={String(editingLine.taxRate)}
+              onChangeText={(val) =>
+                setEditingLine((prev) => (prev ? { ...prev, taxRate: Number(val || 0) } : null))
+              }
+              keyboardType="numeric"
+            />
+
+            <View style={[styles.lineEditorTotalBox, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
+              <Text style={[styles.lineEditorTotalLabel, { color: colors.textMuted }]}>Calculated Total</Text>
+              <Text style={[styles.lineEditorTotalValue, { color: colors.primary }]}>
+                {formatCurrency(computeLineTotal(editingLine))}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </BottomSheet>
+
       <PartyPickerSheet
         visible={partyPickerVisible}
         search={partySearch}
@@ -808,7 +1006,19 @@ export default function ServiceCreateScreen() {
         onSearchChange={setProductSearch}
         products={products ?? []}
         onPick={(product) => {
-          if (targetLineId) {
+          if (editingLine) {
+            setEditingLine((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    product,
+                    description: product.name,
+                    unitPrice: product.salePrice,
+                    taxRate: product.taxRate ?? 13,
+                  }
+                : null,
+            );
+          } else if (targetLineId) {
             updateLine(targetLineId, {
               product,
               description: product.name,
@@ -1322,5 +1532,205 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontSize: typography.caption,
     fontWeight: '600',
     color: colors.text,
+  },
+  deliveryToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  deliveryToggleText: {
+    fontSize: typography.body,
+    fontWeight: '600',
+  },
+  compactLinesContainer: {
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  compactLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  compactLineIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactLineContent: {
+    flex: 1,
+    gap: 2,
+  },
+  compactLineMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  compactLineTitle: {
+    flex: 1,
+    fontSize: typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  compactLineTotal: {
+    fontSize: typography.body,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  compactLineSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  compactLineMeta: {
+    fontSize: typography.caption,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  compactLineActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  compactActionBtn: {
+    padding: 4,
+  },
+  emptyLinesBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.xs,
+  },
+  emptyLinesTitle: {
+    fontSize: typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  emptyLinesSub: {
+    fontSize: typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  lineEditorWrap: {
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  productPickerTriggerWrap: {
+    gap: spacing.xs,
+  },
+  formRowTwo: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  formCol: {
+    flex: 1,
+  },
+  lineEditorTotalBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: spacing.xs,
+  },
+  lineEditorTotalLabel: {
+    fontSize: typography.body,
+    fontWeight: '700',
+  },
+  lineEditorTotalValue: {
+    fontSize: typography.subheading,
+    fontWeight: '800',
+  },
+  modalFooterActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  modalSecondaryBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSecondaryBtnLabel: {
+    fontSize: typography.body,
+    fontWeight: '700',
+  },
+  modalPrimaryBtn: {
+    flex: 2,
+    minHeight: 46,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryBtnLabel: {
+    fontSize: typography.body,
+    fontWeight: '800',
+    color: colors.white,
+  },
+  totalsOverviewCard: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  overviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  overviewLabel: {
+    fontSize: typography.body,
+    color: colors.textMuted,
+  },
+  overviewValue: {
+    fontSize: typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  overviewRowGrand: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  overviewLabelGrand: {
+    fontSize: typography.body,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  overviewValueGrand: {
+    fontSize: typography.heading,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  overviewRowDue: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  overviewLabelDue: {
+    fontSize: typography.body,
+    fontWeight: '800',
+    color: colors.danger,
+  },
+  overviewValueDue: {
+    fontSize: typography.subheading,
+    fontWeight: '800',
+    color: colors.danger,
   },
 });

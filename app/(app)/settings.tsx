@@ -8,9 +8,11 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
+import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
 import { getCapabilitySummary, hasAppCapability, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { radius, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
@@ -18,6 +20,7 @@ import type { AppPalette } from '@/src/theme/app-palette';
 export default function SettingsScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
   const signOut = useAuthStore((state) => state.signOut);
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
@@ -50,9 +53,9 @@ export default function SettingsScreen() {
       };
       await updateSettings(nextSettings);
       await metaApi.updateBusinessSettings(nextSettings);
-      setGeofenceMessage('Geofencing settings updated.');
+      setGeofenceMessage(t('common.success'));
     } catch (error) {
-      setGeofenceMessage(error instanceof Error ? error.message : 'Save geofencing settings failed');
+      setGeofenceMessage(error instanceof Error ? error.message : t('common.error'));
     }
   }
 
@@ -71,20 +74,20 @@ export default function SettingsScreen() {
   const toggles = [
     {
       key: 'counterMode',
-      label: 'Counter mode',
-      helper: 'Keep sale flow optimized for walk-in billing',
+      label: t('settings.counterMode'),
+      helper: t('settings.counterModeHelper'),
       value: Boolean(businessSettings?.counterMode ?? true),
     },
     {
       key: 'taxEnabled',
-      label: 'Tax enabled',
-      helper: 'Apply VAT-ready totals during quick billing',
+      label: t('settings.taxEnabled'),
+      helper: t('settings.taxEnabledHelper'),
       value: Boolean(businessSettings?.taxEnabled ?? true),
     },
     {
       key: 'lowStockAlert',
-      label: 'Low stock alerts',
-      helper: 'Show product alerts inside quick mobile workflows',
+      label: t('settings.lowStockAlert'),
+      helper: t('settings.lowStockAlertHelper'),
       value: Boolean(businessSettings?.lowStockAlert ?? true),
     },
   ] as const;
@@ -102,7 +105,7 @@ export default function SettingsScreen() {
   async function handleProfileSave() {
     setMessage('');
     await updateProfile(profileForm);
-    setMessage('Profile updated.');
+    setMessage(t('common.success'));
   }
 
   async function handleSignOut() {
@@ -118,10 +121,11 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <PageHeading
+        title={t('settings.title')}
         subtitle={
           isPersonal
-            ? 'Theme, profile, and the money tools on this personal account.'
-            : 'Keep mobile focused on quick stats, quick entry, and secure account access.'
+            ? 'Theme, language, profile, and tools on this personal account.'
+            : 'Language, theme, quick mobile settings, and account access.'
         }
       />
 
@@ -132,13 +136,19 @@ export default function SettingsScreen() {
       ) : null}
 
       <SurfaceCard
-        title="Appearance"
-        subtitle="Pick a primary color. Buttons, highlights, and navigation follow this theme on this device.">
+        title={t('settings.language')}
+        subtitle={t('settings.languageSubtitle')}>
+        <LanguageSelector />
+      </SurfaceCard>
+
+      <SurfaceCard
+        title={t('settings.appearance')}
+        subtitle={t('settings.themeSubtitle')}>
         <ThemeSelector />
       </SurfaceCard>
 
       <SurfaceCard
-        title={isPersonal ? 'This space' : 'Business profile'}
+        title={isPersonal ? 'This space' : t('settings.businessProfile')}
         subtitle={isPersonal ? 'Personal finance' : `${businessProfile?.businessType ?? 'Retail'} mobile mode`}>
         <Text style={styles.profileName}>
           {businessProfile?.businessName ?? (isPersonal ? 'Personal books' : 'Business name')}
@@ -151,44 +161,44 @@ export default function SettingsScreen() {
       </SurfaceCard>
 
       <SurfaceCard
-        title="My profile"
-        subtitle={user?.email || 'Update the signed-in account details returned by the backend.'}>
+        title={t('settings.profile')}
+        subtitle={user?.email || t('settings.profileSubtitle')}>
         <FormField
-          label="Name"
+          label={t('common.name')}
           value={profileForm.name}
           onChangeText={(name) => setProfileForm((current) => ({ ...current, name }))}
         />
         <FormField
-          label="Phone"
+          label={t('common.phone')}
           value={profileForm.phone}
           onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))}
           keyboardType="numeric"
         />
         <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleProfileSave()}>
-          <Text style={styles.primaryButtonLabel}>Save profile</Text>
+          <Text style={styles.primaryButtonLabel}>{t('settings.saveProfile')}</Text>
         </Pressable>
       </SurfaceCard>
 
       {canOpenOwnerTools ? (
         <SurfaceCard
-          title="Attendance Geofencing"
-          subtitle="Configure geofencing rules for staff check-in/out. If coordinates are blank, geofencing is disabled.">
+          title={t('settings.geofencingTitle')}
+          subtitle={t('settings.geofencingSubtitle')}>
           <FormField
-            label="Office Latitude"
+            label={t('settings.officeLatitude')}
             value={geofencingForm.officeLatitude}
             onChangeText={(lat) => setGeofencingForm((current) => ({ ...current, officeLatitude: lat }))}
             keyboardType="numeric"
             placeholder="e.g. 27.7172"
           />
           <FormField
-            label="Office Longitude"
+            label={t('settings.officeLongitude')}
             value={geofencingForm.officeLongitude}
             onChangeText={(lon) => setGeofencingForm((current) => ({ ...current, officeLongitude: lon }))}
             keyboardType="numeric"
             placeholder="e.g. 85.3240"
           />
           <FormField
-            label="Office Radius (meters)"
+            label={t('settings.officeRadius')}
             value={geofencingForm.officeRadiusMeters}
             onChangeText={(rad) => setGeofencingForm((current) => ({ ...current, officeRadiusMeters: rad }))}
             keyboardType="numeric"
@@ -200,24 +210,24 @@ export default function SettingsScreen() {
             </Text>
           ) : null}
           <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleGeofencingSave()}>
-            <Text style={styles.primaryButtonLabel}>Save Geofencing Settings</Text>
+            <Text style={styles.primaryButtonLabel}>{t('settings.saveGeofencing')}</Text>
           </Pressable>
         </SurfaceCard>
       ) : null}
 
       {hasAppCapability(accessContext as any, 'tables') ? (
         <SurfaceCard
-          title="Table Seating Setup"
+          title={t('cafe.tables')}
           subtitle="Define and organize tables, guest capacities, and active status for cafe workflows.">
           <Pressable style={styles.secondaryButton} onPress={() => router.push('/tables' as any)}>
-            <Text style={styles.secondaryButtonLabel}>Manage Seating Tables</Text>
+            <Text style={styles.secondaryButtonLabel}>{t('cafe.manageTables')}</Text>
           </Pressable>
         </SurfaceCard>
       ) : null}
 
       <SurfaceCard
-        title="Permissions"
-        subtitle="Mobile access returned for this account on the current business session.">
+        title={t('settings.permissions')}
+        subtitle={t('settings.permissionsSubtitle')}>
         <View style={styles.permissionWrap}>
           {permissionBadges.map((permission) => (
             <View key={permission} style={styles.permissionChip}>
@@ -228,7 +238,7 @@ export default function SettingsScreen() {
       </SurfaceCard>
 
       {!isPersonal ? (
-      <SurfaceCard title="Mobile defaults" subtitle="These switches shape the faster phone-first experience.">
+      <SurfaceCard title={t('settings.mobileDefaults')} subtitle={t('settings.mobileDefaultsSubtitle')}>
         <View style={styles.toggleList}>
           {toggles.map((toggle) => (
             <View key={toggle.key} style={styles.toggleRow}>
@@ -248,15 +258,15 @@ export default function SettingsScreen() {
       </SurfaceCard>
       ) : null}
 
-      <SurfaceCard title="Security" subtitle="Password and session controls for this device.">
+      <SurfaceCard title={t('settings.security')} subtitle={t('settings.securitySubtitle')}>
         <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/change-password')}>
-          <Text style={styles.secondaryButtonLabel}>Change password</Text>
+          <Text style={styles.secondaryButtonLabel}>{t('settings.changePassword')}</Text>
         </Pressable>
         <Text style={styles.helperText}>
-          Signing out clears local drafts, cached quick-entry data, and any pending mobile-only session state.
+          {t('settings.signOutNotice')}
         </Text>
         <Pressable style={styles.signOutButton} onPress={() => void handleSignOut()} disabled={signingOut}>
-          <Text style={styles.signOutLabel}>{signingOut ? 'Signing out...' : 'Log out from this device'}</Text>
+          <Text style={styles.signOutLabel}>{signingOut ? t('auth.signingOut') : t('settings.signOutDevice')}</Text>
         </Pressable>
       </SurfaceCard>
     </Screen>

@@ -143,7 +143,7 @@ export default function PurchaseCreateScreen() {
       const payload = {
         entryType: 'purchase' as const,
         partyId: draft.value.supplier.id,
-        partyName: null,
+        partyName: draft.value.supplier.name,
         invoiceNo: draft.value.invoiceNo,
         purchaseDate: draft.value.purchaseDate,
         status: draft.value.status,
@@ -218,13 +218,19 @@ export default function PurchaseCreateScreen() {
 
   return (
     <Screen
+      scrollable={false}
       footer={
         <StickyActionBar
           secondary={{ label: 'Close', onPress: () => router.back() }}
           primary={{ label: 'Save purchase', onPress: () => void savePurchase() }}
         />
       }>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}>
         <PageHeading subtitle="Pick the supplier, add items, then record what you paid." />
         <SurfaceCard title="Supplier and bill" subtitle="Supplier, date, invoice, and notes stay up top.">
           <Pressable style={styles.selectorRow} onPress={() => setPartyPickerVisible(true)}>

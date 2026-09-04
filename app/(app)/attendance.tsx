@@ -18,6 +18,7 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { useTranslation } from '@/src/i18n';
 import { spacing, radius, typography, shadows } from '@/src/theme';
 import type { Attendance, StaffMember } from '@/src/types/models';
 import { usePalette } from '@/src/stores/theme-store';
@@ -27,6 +28,7 @@ import type { AppPalette } from '@/src/theme/app-palette';
 export default function AttendanceScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
   const { businessUserId: searchUserId } = useLocalSearchParams<{ businessUserId?: string }>();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -115,11 +117,11 @@ export default function AttendanceScreen() {
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
-      setActionSuccessMessage(res.message || 'Punch-in successful');
-      Alert.alert('Success', res.message || 'Check-in registered.');
+      setActionSuccessMessage(res.message || t('staff.checkIn'));
+      Alert.alert(t('common.success'), res.message || t('staff.checkIn'));
     },
     onError: (error: any) => {
-      setErrorMessage(error?.message || 'Check-in failed');
+      setErrorMessage(error?.message || t('common.error'));
     },
   });
 
@@ -128,11 +130,11 @@ export default function AttendanceScreen() {
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
-      setActionSuccessMessage(res.message || 'Punch-out successful');
-      Alert.alert('Success', res.message || 'Check-out registered.');
+      setActionSuccessMessage(res.message || t('staff.checkOut'));
+      Alert.alert(t('common.success'), res.message || t('staff.checkOut'));
     },
     onError: (error: any) => {
-      setErrorMessage(error?.message || 'Check-out failed');
+      setErrorMessage(error?.message || t('common.error'));
     },
   });
 
@@ -157,31 +159,36 @@ export default function AttendanceScreen() {
   const officeConfigured = businessSettings?.officeLatitude !== null && businessSettings?.officeLongitude !== null;
 
   return (
-    <Screen topBarTitle="Attendance Check">
+    <Screen scrollable={false} topBarTitle={t('staff.attendance')}>
       <PageHeading subtitle="Check-in or out of your work shift using geolocation validation." />
 
       {todayLoading ? (
         <View style={styles.loading}>
           <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Fetching shift status...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}>
           {/* Main Action Panel */}
           <SurfaceCard style={styles.mainCard}>
             <View style={styles.statusHeader}>
-              <Text style={styles.statusLabel}>Today's Shift Status</Text>
+              <Text style={styles.statusLabel}>{t('staff.attendance')}</Text>
               {!today ? (
                 <View style={[styles.badge, styles.badgeInactive]}>
-                  <Text style={styles.badgeTextInactive}>Not Checked In</Text>
+                  <Text style={styles.badgeTextInactive}>{t('staff.absent')}</Text>
                 </View>
               ) : today.punchOutTime ? (
                 <View style={[styles.badge, styles.badgeCompleted]}>
-                  <Text style={styles.badgeTextCompleted}>Shift Completed</Text>
+                  <Text style={styles.badgeTextCompleted}>{t('tasks.completed')}</Text>
                 </View>
               ) : (
                 <View style={[styles.badge, styles.badgeActive]}>
-                  <Text style={styles.badgeTextActive}>On Duty</Text>
+                  <Text style={styles.badgeTextActive}>{t('staff.present')}</Text>
                 </View>
               )}
             </View>
@@ -191,14 +198,14 @@ export default function AttendanceScreen() {
               <View style={styles.officeIndicator}>
                 <MaterialCommunityIcons name="office-building" size={20} color={colors.primary} />
                 <Text style={styles.officeText}>
-                  Office Radius Check Enabled ({(businessSettings?.officeRadiusMeters) || 100}m radius)
+                  {t('staff.geofenceActive')} ({(businessSettings?.officeRadiusMeters) || 100}m)
                 </Text>
               </View>
             ) : (
               <View style={[styles.officeIndicator, styles.officeIndicatorWarning]}>
                 <MaterialCommunityIcons name="office-building-marker" size={20} color={colors.warning} />
                 <Text style={[styles.officeText, { color: colors.textMuted }]}>
-                  Office Location NOT configured. Check-ins allowed from anywhere.
+                  {t('staff.geofenceDisabled')}
                 </Text>
               </View>
             )}
@@ -234,17 +241,17 @@ export default function AttendanceScreen() {
               ) : !today ? (
                 <Pressable style={styles.bigCircleCheckIn} onPress={handlePunchIn}>
                   <MaterialCommunityIcons name="fingerprint" size={54} color={colors.white} />
-                  <Text style={styles.bigCircleText}>CHECK IN</Text>
+                  <Text style={styles.bigCircleText}>{t('staff.checkIn').toUpperCase()}</Text>
                 </Pressable>
               ) : today.punchOutTime ? (
                 <View style={styles.bigCircleCompleted}>
                   <MaterialCommunityIcons name="check-all" size={54} color={colors.success} />
-                  <Text style={[styles.bigCircleText, { color: colors.success }]}>COMPLETED</Text>
+                  <Text style={[styles.bigCircleText, { color: colors.success }]}>{t('tasks.completed').toUpperCase()}</Text>
                 </View>
               ) : (
                 <Pressable style={styles.bigCircleCheckOut} onPress={handlePunchOut}>
                   <MaterialCommunityIcons name="logout" size={54} color={colors.white} />
-                  <Text style={styles.bigCircleText}>CHECK OUT</Text>
+                  <Text style={styles.bigCircleText}>{t('staff.checkOut').toUpperCase()}</Text>
                 </Pressable>
               )}
             </View>
@@ -253,14 +260,14 @@ export default function AttendanceScreen() {
             {today ? (
               <View style={styles.timeline}>
                 <View style={styles.timelineRow}>
-                  <Text style={styles.timeLabel}>Check-in Time:</Text>
+                  <Text style={styles.timeLabel}>{t('staff.checkIn')}:</Text>
                   <Text style={styles.timeVal}>
                     {new Date(today.punchInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 </View>
                 {today.punchOutTime ? (
                   <View style={styles.timelineRow}>
-                    <Text style={styles.timeLabel}>Check-out Time:</Text>
+                    <Text style={styles.timeLabel}>{t('staff.checkOut')}:</Text>
                     <Text style={styles.timeVal}>
                       {new Date(today.punchOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
@@ -268,7 +275,7 @@ export default function AttendanceScreen() {
                 ) : null}
               </View>
             ) : (
-              <Text style={styles.hintText}>Tapping Check In will register your location & time.</Text>
+              <Text style={styles.hintText}>{t('staff.verifiedLocation')}</Text>
             )}
           </SurfaceCard>
 

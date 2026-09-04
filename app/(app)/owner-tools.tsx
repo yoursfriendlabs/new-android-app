@@ -233,13 +233,19 @@ export default function OwnerToolsScreen() {
 
   return (
     <Screen
+      scrollable={false}
       footer={
         <StickyActionBar
           secondary={{ label: 'New sale field', onPress: () => openAttributeSheet('sale') }}
           primary={{ label: 'Add staff', onPress: () => openStaffSheet() }}
         />
       }>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}>
         <PageHeading subtitle="Subscription, staff, and dynamic sale/service fields stay out of the counter flow for non-owners." />
 
         {message ? (

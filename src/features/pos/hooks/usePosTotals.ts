@@ -15,30 +15,22 @@ export function usePosTotals(value: PosDraft) {
     [value.items],
   );
 
-  const taxTotal = useMemo(
-    () =>
-      computeTaxTotal(
-        value.items.map((item) => ({
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          taxRate: item.taxRate,
-        })),
-      ),
-    [value.items],
-  );
+  const taxTotal = useMemo(() => {
+    if (value.taxOverride !== undefined && Number.isFinite(value.taxOverride)) {
+      return Math.max(0, value.taxOverride);
+    }
+    return computeTaxTotal(
+      value.items.map((item) => ({
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+      })),
+    );
+  }, [value.items, value.taxOverride]);
 
-  const grandTotal = useMemo(
-    () =>
-      computeGrandTotal(
-        value.items.map((item) => ({
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          taxRate: item.taxRate,
-        })),
-        value.discount,
-      ),
-    [value.discount, value.items],
-  );
+  const grandTotal = useMemo(() => {
+    return Math.max(0, subTotal + taxTotal - Number(value.discount || 0));
+  }, [subTotal, taxTotal, value.discount]);
 
   const cartItemCount = useMemo(
     () => value.items.reduce((sum, item) => sum + item.quantity, 0),

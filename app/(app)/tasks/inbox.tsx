@@ -52,7 +52,7 @@ function BusinessTaskInboxScreen() {
   const canManage = isOwner || tasksPermission === 'manage';
 
   // Filters state
-  const [tab, setTab] = useState<TabType>('assigned-to-me');
+  const [tab, setTab] = useState<TabType>('all');
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<string | null>(null);

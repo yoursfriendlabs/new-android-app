@@ -5,10 +5,10 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import {
+  ALL_INTERVAL_TEMPLATES,
   clampIntervalMinutes,
   CUSTOM_INTERVAL_CHIPS,
   formatInterval,
-  INTERVAL_TEMPLATES,
   makeIntervalHabit,
   nativeRemindersAvailable,
   type IntervalHabit,
@@ -31,11 +31,12 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
   const colors = usePalette();
   const [kind, setKind] = useState<IntervalKind>('water');
   const [title, setTitle] = useState('Drink water');
+  const [message, setMessage] = useState('A glass now. Your body will thank you.');
   const [unit, setUnit] = useState<'min' | 'hours'>('min');
   const [raw, setRaw] = useState('45');
   const [saving, setSaving] = useState(false);
 
-  const selectedTemplate = INTERVAL_TEMPLATES.find((item) => item.kind === kind);
+  const selectedTemplate = ALL_INTERVAL_TEMPLATES.find((item) => item.kind === kind);
   const chips = unit === 'hours' ? [1, 2, 3, 4, 6, 8] : (selectedTemplate?.chips ?? CUSTOM_INTERVAL_CHIPS);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
     if (habit) {
       setKind(habit.kind);
       setTitle(habit.title);
+      setMessage(habit.message || '');
       setUnit(habit.intervalMinutes >= 120 && habit.intervalMinutes % 60 === 0 ? 'hours' : 'min');
       setRaw(
         habit.intervalMinutes >= 120 && habit.intervalMinutes % 60 === 0
@@ -51,9 +53,10 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
       );
       return;
     }
-    const next = template ?? INTERVAL_TEMPLATES[0];
+    const next = template ?? ALL_INTERVAL_TEMPLATES[0];
     setKind(next.kind);
     setTitle(next.title);
+    setMessage(next.message || '');
     setUnit('min');
     setRaw(String(next.defaultMinutes));
   }, [habit, template, visible]);
@@ -67,6 +70,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
   const handleKind = (next: IntervalTemplate) => {
     setKind(next.kind);
     setTitle(next.title);
+    setMessage(next.message);
     setUnit('min');
     setRaw(String(next.defaultMinutes));
   };
@@ -75,11 +79,18 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
     setSaving(true);
     try {
       const payload = habit
-        ? { ...habit, kind, title: title.trim() || selectedTemplate?.title || 'Reminder', intervalMinutes: minutes, enabled: true }
+        ? {
+            ...habit,
+            kind,
+            title: title.trim() || selectedTemplate?.title || 'Reminder',
+            message: (message.trim() || selectedTemplate?.message || 'Time for your check-in.').trim(),
+            intervalMinutes: minutes,
+            enabled: true,
+          }
         : makeIntervalHabit({
             kind,
             title: title.trim() || selectedTemplate?.title || 'Reminder',
-            message: selectedTemplate?.message,
+            message: message.trim() || selectedTemplate?.message,
             intervalMinutes: minutes,
           });
       await useHabitStore.getState().upsertIntervalHabit(payload);
@@ -93,11 +104,11 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
   return (
     <BottomSheet
       visible={visible}
-      title={habit ? 'Edit interval' : 'Interval reminder'}
+      title={habit ? 'Edit interval ping' : 'Interval reminder'}
       subtitle={
         nativeRemindersAvailable()
-          ? 'Pings on a loop. Check in to earn coins.'
-          : 'Works in the app now. Phone pings need a development build, not Expo Go.'
+          ? 'Scheduled notifications repeat on your chosen interval. Tap notification to claim coins.'
+          : 'Works in the app now. Lock-screen notification pings activate in a native build.'
       }
       onClose={onClose}
       fullHeight
@@ -111,7 +122,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
               <ActivityIndicator color={colors.white} />
             ) : (
               <Text style={[styles.saveLabel, { color: colors.white }]}>
-                {habit ? 'Save interval' : `Start · ${plusCoins(COIN_REWARDS.intervalCheckIn)} per check-in`}
+                {habit ? 'Save interval ping' : `Start · ${plusCoins(COIN_REWARDS.intervalCheckIn)} per check-in`}
               </Text>
             )}
           </Pressable>
@@ -127,7 +138,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
         </View>
       }>
       <View style={styles.kinds}>
-        {INTERVAL_TEMPLATES.map((item) => {
+        {ALL_INTERVAL_TEMPLATES.map((item) => {
           const active = kind === item.kind;
           return (
             <Pressable
@@ -144,17 +155,30 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
         })}
       </View>
 
-      <Text style={[styles.label, { color: colors.textMuted }]}>Name</Text>
+      <Text style={[styles.label, { color: colors.textMuted }]}>Ping Title</Text>
       <TextInput
         value={title}
         onChangeText={setTitle}
-        placeholder="What should ping you?"
+        placeholder="e.g. Drink water, Take a stretch"
         placeholderTextColor={colors.textSoft}
         style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
       />
 
+      <Text style={[styles.label, { color: colors.textMuted }]}>Notification Description / Message</Text>
+      <TextInput
+        value={message}
+        onChangeText={setMessage}
+        multiline
+        placeholder="e.g. Drink 500ml water to stay hydrated and focused"
+        placeholderTextColor={colors.textSoft}
+        style={[styles.textArea, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+      />
+      <Text style={[styles.microHint, { color: colors.textSoft }]}>
+        Shown directly on your phone notification. Tapping opens your reminder page.
+      </Text>
+
       <View style={styles.unitRow}>
-        <Text style={[styles.label, { color: colors.textMuted, flex: 1 }]}>Repeat</Text>
+        <Text style={[styles.label, { color: colors.textMuted, flex: 1 }]}>Repeat frequency</Text>
         {(['min', 'hours'] as const).map((item) => {
           const active = unit === item;
           return (
@@ -206,7 +230,16 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
         placeholderTextColor={colors.textSoft}
         style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
       />
-      <Text style={[styles.hint, { color: colors.textMuted }]}>Pings {formatInterval(minutes)}. Use any interval you like.</Text>
+      
+      <View style={[styles.ruleCard, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
+        <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.accent} />
+        <View style={styles.ruleCopy}>
+          <Text style={[styles.ruleTitle, { color: colors.text }]}>On-Time Coin Policy</Text>
+          <Text style={[styles.ruleBody, { color: colors.textMuted }]}>
+            Check in during your active ping window to earn {plusCoins(COIN_REWARDS.intervalCheckIn)}. If you miss a notification window, you cannot claim coins for that cycle and must respond to the next ping.
+          </Text>
+        </View>
+      </View>
     </BottomSheet>
   );
 }
@@ -243,6 +276,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: spacing.md,
     fontSize: typography.body,
+    marginBottom: spacing.md,
+  },
+  textArea: {
+    minHeight: 72,
+    borderRadius: radius.input,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: typography.body,
+    textAlignVertical: 'top',
+    marginBottom: spacing.xs,
+  },
+  microHint: {
+    fontSize: 11,
+    lineHeight: 16,
     marginBottom: spacing.md,
   },
   unitRow: {
@@ -284,6 +332,28 @@ const styles = StyleSheet.create({
     fontSize: typography.caption,
     lineHeight: 18,
     marginBottom: spacing.sm,
+  },
+  ruleCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  ruleCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  ruleTitle: {
+    fontSize: typography.caption,
+    fontWeight: '800',
+  },
+  ruleBody: {
+    fontSize: 11,
+    lineHeight: 16,
   },
   save: {
     minHeight: 52,

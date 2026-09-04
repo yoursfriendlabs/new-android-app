@@ -55,10 +55,12 @@ export function Screen({
       ) : null}
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={scrollable ? undefined : Platform.OS === 'ios' ? 'padding' : undefined}>
         {scrollable ? (
           <ScrollView
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={true}
+            keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}>
             {content}

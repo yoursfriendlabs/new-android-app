@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import type { ReceiptInput } from '@/src/shared/lib/receipt';
 
 interface ReceiptState {
   title: string;
   subtitle: string;
   html: string;
-  setReceipt: (input: { title: string; subtitle: string; html: string }) => void;
+  data?: ReceiptInput;
+  setReceipt: (input: { title: string; subtitle: string; html: string; data?: ReceiptInput }) => void;
   clearReceipt: () => void;
 }
 
@@ -12,6 +14,7 @@ export const useReceiptStore = create<ReceiptState>((set) => ({
   title: '',
   subtitle: '',
   html: '',
-  setReceipt: ({ html, subtitle, title }) => set({ html, subtitle, title }),
-  clearReceipt: () => set({ html: '', subtitle: '', title: '' }),
+  data: undefined,
+  setReceipt: ({ data, html, subtitle, title }) => set({ data, html, subtitle, title }),
+  clearReceipt: () => set({ data: undefined, html: '', subtitle: '', title: '' }),
 }));

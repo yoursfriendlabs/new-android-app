@@ -1,3 +1,4 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -187,9 +188,14 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
         </View>
       }>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
-      {personal && !isEditing ? (
-        <Pressable style={[styles.importBtn, { borderColor: colors.border, backgroundColor: colors.backgroundAlt }]} onPress={() => void importFromPhone()}>
-          <Text style={[styles.importLabel, { color: colors.text }]}>Add from phone contacts</Text>
+      {!isEditing ? (
+        <Pressable
+          style={[styles.importBtn, { borderColor: colors.border, backgroundColor: colors.backgroundAlt }]}
+          onPress={() => void importFromPhone()}>
+          <MaterialCommunityIcons name="contacts-outline" size={20} color={colors.primary} />
+          <Text style={[styles.importLabel, { color: colors.text }]}>
+            {personal ? 'Add from phone contacts' : 'Choose from phone contacts'}
+          </Text>
         </Pressable>
       ) : null}
       <FormField
@@ -276,9 +282,12 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: radius.md,
     borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
+    marginBottom: spacing.xs,
   },
   importLabel: {
     fontSize: typography.body,

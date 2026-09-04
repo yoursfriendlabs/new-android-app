@@ -180,6 +180,7 @@ export default function StaffSalaryBookScreen() {
 
   return (
     <Screen
+      scrollable={false}
       topBarTitle="Salary & Advance Book"
       footer={
         isOwnerOrAdmin ? (
@@ -202,7 +203,12 @@ export default function StaffSalaryBookScreen() {
           <Text style={styles.loadingText}>Fetching salary records...</Text>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}>
           {/* Summary tiles */}
           <View style={styles.statsRow}>
             <SurfaceCard style={styles.statsCard}>

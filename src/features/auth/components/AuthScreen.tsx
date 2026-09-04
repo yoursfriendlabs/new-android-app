@@ -46,6 +46,8 @@ export function AuthScreen({
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scroll, centered && styles.scrollCentered]}>
           <View style={[styles.frame, { width: contentWidth }]}>

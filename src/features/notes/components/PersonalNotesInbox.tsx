@@ -27,8 +27,9 @@ import { useTasks } from '@/src/features/notes/hooks/useTaskQueries';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import {
-  canCheckIn,
+  ALL_INTERVAL_TEMPLATES,
   formatInterval,
+  getIntervalClaimStatus,
   INTERVAL_TEMPLATES,
   intervalCheckInBucket,
   type IntervalHabit,
@@ -111,13 +112,25 @@ export function PersonalNotesInbox() {
   };
 
   const checkIn = async (habit: IntervalHabit) => {
-    if (!canCheckIn(habit)) {
-      Alert.alert('Too soon', `Wait for the ${formatInterval(habit.intervalMinutes)} window, then check in again.`);
+    const statusInfo = getIntervalClaimStatus(habit);
+    if (statusInfo.status === 'waiting') {
+      Alert.alert('Ping not due yet', statusInfo.message);
       return;
     }
+
     setBusyId(habit.id);
     try {
       await useHabitStore.getState().checkInInterval(habit.id);
+
+      if (statusInfo.status === 'missed') {
+        Alert.alert(
+          'Interval Timer Reset',
+          'You missed the previous interval notification window, so coins could not be claimed for that interval. Your interval timer has been reset — check in when your next ping arrives to claim your coins!',
+          [{ text: 'Got it' }],
+        );
+        return;
+      }
+
       const coinsAwarded = await useHabitStore.getState().awardCoins(COIN_REWARDS.intervalCheckIn, {
         claimId: intervalCheckInBucket(habit),
         reason: 'checkin',
@@ -126,9 +139,9 @@ export function PersonalNotesInbox() {
       showWin(
         buildCoinWin({
           title: habit.title,
-          message: coinsAwarded ? `Checked in. ${plusCoins(coinsAwarded)}.` : 'Already counted this interval.',
+          message: coinsAwarded ? `Checked in on time! ${plusCoins(coinsAwarded)}.` : 'Already counted this interval.',
           coins: coinsAwarded,
-          icon: INTERVAL_TEMPLATES.find((item) => item.kind === habit.kind)?.icon ?? 'timer-outline',
+          icon: ALL_INTERVAL_TEMPLATES.find((item) => item.kind === habit.kind)?.icon ?? 'timer-outline',
         }),
       );
     } finally {
@@ -217,6 +230,10 @@ export function PersonalNotesInbox() {
               {INTERVAL_TEMPLATES.map((template) => {
                 const existing = intervalHabits.find((item) => item.kind === template.kind);
                 const live = existing?.enabled ? existing : undefined;
+                const statusInfo = live ? getIntervalClaimStatus(live) : null;
+                const isReady = statusInfo?.status === 'ready';
+                const isMissed = statusInfo?.status === 'missed';
+
                 return (
                   <Pressable
                     key={template.kind}
@@ -225,17 +242,64 @@ export function PersonalNotesInbox() {
                     style={[
                       styles.habitCard,
                       {
-                        backgroundColor: live ? colors.accentSoft : colors.surface,
-                        borderColor: live ? colors.accent : colors.border,
+                        backgroundColor: isReady
+                          ? colors.accentSoft
+                          : isMissed
+                            ? colors.warningSoft
+                            : live
+                              ? colors.surface
+                              : colors.surface,
+                        borderColor: isReady
+                          ? colors.accent
+                          : isMissed
+                            ? colors.warning
+                            : live
+                              ? colors.primary
+                              : colors.border,
                       },
                     ]}>
-                    <MaterialCommunityIcons color={live ? colors.accent : colors.textSoft} name={template.icon} size={22} />
+                    <View style={styles.habitTop}>
+                      <MaterialCommunityIcons
+                        color={isReady ? colors.accent : isMissed ? colors.warning : live ? colors.primary : colors.textSoft}
+                        name={template.icon}
+                        size={22}
+                      />
+                      {isReady ? (
+                        <View style={[styles.statusPill, { backgroundColor: colors.accent }]}>
+                          <Text style={styles.statusPillText}>READY</Text>
+                        </View>
+                      ) : isMissed ? (
+                        <View style={[styles.statusPill, { backgroundColor: colors.warning }]}>
+                          <Text style={styles.statusPillText}>MISSED</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
                     <Text style={[styles.habitTitle, { color: colors.text }]}>{template.title}</Text>
                     <Text style={[styles.habitMeta, { color: colors.textMuted }]}>
                       {live ? formatInterval(live.intervalMinutes) : 'Set interval'}
                     </Text>
-                    <Text style={[styles.habitAction, { color: live ? colors.accent : colors.textSoft }]}>
-                      {live ? 'Check in' : 'Start'}
+
+                    <Text
+                      style={[
+                        styles.habitAction,
+                        {
+                          color: isReady
+                            ? colors.accent
+                            : isMissed
+                              ? colors.warning
+                              : live
+                                ? colors.primary
+                                : colors.textSoft,
+                        },
+                      ]}>
+                      {isReady
+                        ? `Claim · ${plusCoins(COIN_REWARDS.intervalCheckIn)}`
+                        : isMissed
+                          ? 'Reset timer'
+                          : live
+                            ? `In ${statusInfo?.waitMinutesLeft ?? 1}m`
+                            : 'Start'}
                     </Text>
                   </Pressable>
                 );
@@ -249,17 +313,76 @@ export function PersonalNotesInbox() {
                 );
                 return !featured;
               })
-              .map((habit) => (
-                <Pressable
-                  key={habit.id}
-                  onPress={() => void checkIn(habit)}
-                  onLongPress={() => openInterval(undefined, habit)}
-                  style={[styles.customHabit, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <MaterialCommunityIcons color={colors.accent} name="timer-outline" size={18} />
-                  <Text style={[styles.customTitle, { color: colors.text }]}>{habit.title}</Text>
-                  <Text style={[styles.habitMeta, { color: colors.textMuted }]}>{formatInterval(habit.intervalMinutes)}</Text>
-                </Pressable>
-              ))}
+              .map((habit) => {
+                const statusInfo = getIntervalClaimStatus(habit);
+                const isReady = statusInfo.status === 'ready';
+                const isMissed = statusInfo.status === 'missed';
+
+                return (
+                  <Pressable
+                    key={habit.id}
+                    onPress={() => void checkIn(habit)}
+                    onLongPress={() => openInterval(undefined, habit)}
+                    style={[
+                      styles.customHabitCard,
+                      {
+                        backgroundColor: isReady
+                          ? colors.accentSoft
+                          : isMissed
+                            ? colors.warningSoft
+                            : colors.surface,
+                        borderColor: isReady
+                          ? colors.accent
+                          : isMissed
+                            ? colors.warning
+                            : colors.border,
+                      },
+                    ]}>
+                    <View style={styles.customHabitIcon}>
+                      <MaterialCommunityIcons
+                        color={isReady ? colors.accent : isMissed ? colors.warning : colors.primary}
+                        name="bell-ring-outline"
+                        size={20}
+                      />
+                    </View>
+                    <View style={styles.customHabitInfo}>
+                      <View style={styles.customHabitHeader}>
+                        <Text style={[styles.customTitle, { color: colors.text }]}>{habit.title}</Text>
+                        <Text style={[styles.habitMeta, { color: colors.textMuted }]}>
+                          {formatInterval(habit.intervalMinutes)}
+                        </Text>
+                      </View>
+                      {habit.message ? (
+                        <Text numberOfLines={1} style={[styles.customMessage, { color: colors.textMuted }]}>
+                          {habit.message}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Pressable
+                      style={[
+                        styles.customCheckBtn,
+                        {
+                          backgroundColor: isReady
+                            ? colors.accent
+                            : isMissed
+                              ? colors.warning
+                              : colors.backgroundAlt,
+                        },
+                      ]}
+                      onPress={() => void checkIn(habit)}>
+                      <Text
+                        style={[
+                          styles.customCheckBtnText,
+                          {
+                            color: isReady || isMissed ? colors.white : colors.textMuted,
+                          },
+                        ]}>
+                        {isReady ? `+${COIN_REWARDS.intervalCheckIn} 🪙` : isMissed ? 'Reset' : 'Waiting'}
+                      </Text>
+                    </Pressable>
+                  </Pressable>
+                );
+              })}
 
             <SegmentedTabs
               value={tab}
@@ -365,6 +488,23 @@ const createStyles = (_colors: AppPalette) =>
       minHeight: 118,
       ...shadows.card,
     },
+    habitTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
+    statusPill: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.pill,
+    },
+    statusPillText: {
+      color: '#FFFFFF',
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 0.4,
+    },
     habitTitle: {
       fontSize: typography.caption,
       fontWeight: '800',
@@ -377,19 +517,51 @@ const createStyles = (_colors: AppPalette) =>
       fontSize: 11,
       fontWeight: '800',
     },
-    customHabit: {
-      minHeight: 48,
+    customHabitCard: {
       borderRadius: radius.md,
       borderWidth: 1,
-      paddingHorizontal: spacing.md,
+      padding: spacing.md,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
+      gap: spacing.md,
+      ...shadows.card,
+    },
+    customHabitIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    customHabitInfo: {
+      flex: 1,
+      gap: 2,
+    },
+    customHabitHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.xs,
     },
     customTitle: {
-      flex: 1,
       fontSize: typography.body,
-      fontWeight: '700',
+      fontWeight: '800',
+      flex: 1,
+    },
+    customMessage: {
+      fontSize: typography.caption,
+      lineHeight: 16,
+    },
+    customCheckBtn: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    customCheckBtnText: {
+      fontSize: 11,
+      fontWeight: '800',
     },
     card: {
       borderRadius: radius.lg,

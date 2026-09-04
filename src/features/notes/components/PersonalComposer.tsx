@@ -56,7 +56,7 @@ export function PersonalComposer() {
   const [dueAt, setDueAt] = useState(() => roundToNextHour());
   const [duePreset, setDuePreset] = useState('1h');
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [win, setWin] = useState<HabitWin | null>(null);
   const [intervalOpen, setIntervalOpen] = useState(params.kind === 'interval' && !params.id);
@@ -71,11 +71,11 @@ export function PersonalComposer() {
   }, [params.kind]);
 
   useEffect(() => {
-    if (isEdit && task && !initialized) {
+    if (isEdit && task && task.id && loadedTaskId !== task.id) {
       const decoded = decodeNoteBody(task.description);
       setKind(decoded.kind);
-      setTitle(task.title);
-      setBody(decoded.body);
+      setTitle(task.title || '');
+      setBody(decoded.body || '');
       if (decoded.dueAt) {
         const parsed = new Date(decoded.dueAt);
         if (!Number.isNaN(parsed.getTime())) {
@@ -83,9 +83,9 @@ export function PersonalComposer() {
           setDuePreset('custom');
         }
       }
-      setInitialized(true);
+      setLoadedTaskId(task.id);
     }
-  }, [initialized, isEdit, task]);
+  }, [isEdit, loadedTaskId, task]);
 
   const handleSave = async () => {
     if (kind === 'interval') {

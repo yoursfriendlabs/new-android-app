@@ -312,8 +312,13 @@ export default function CashierScreen() {
   };
 
   return (
-    <Screen topBarTitle="Cashier Billing" topBarLeading="back">
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <Screen scrollable={false} topBarTitle="Cashier Billing" topBarLeading="back">
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}>
         <PageHeading subtitle="Quick cashier checkout and payment collection on occupied tables." />
 
         {/* Counter Summary Cards */}

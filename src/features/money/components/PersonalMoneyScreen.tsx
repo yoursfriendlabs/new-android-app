@@ -258,6 +258,7 @@ export function PersonalMoneyScreen() {
       <MoneyEntrySheet
         visible={Boolean(entryKind)}
         kind={entryKind ?? 'expense'}
+        compact
         activityDates={activityDates}
         snapshot={{ ...allTimeCounts, savedThisMonth: monthTotals.saved }}
         onClose={() => {

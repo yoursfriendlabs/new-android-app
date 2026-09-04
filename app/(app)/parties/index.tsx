@@ -131,11 +131,7 @@ export default function PartiesScreen() {
       }
       footer={
         <StickyActionBar
-          secondary={
-            personal
-              ? { label: 'From phone', onPress: () => void importFromPhone() }
-              : undefined
-          }
+          secondary={{ label: 'From phone', onPress: () => void importFromPhone() }}
           primary={{
             label: personal ? 'New contact' : 'New party',
             onPress: () => {

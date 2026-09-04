@@ -1,5 +1,6 @@
-import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
+
+import { readLocalJson, writeLocalJson } from '@/src/shared/lib/local-json-store';
 
 import { COIN_MERCH, newCoinEvent, serverReason, type CoinEvent, type CoinMerch, type CoinReason, type CoinRedemption } from '@/src/features/habits/lib/coins';
 import {
@@ -11,20 +12,34 @@ import {
   pushCoinAward,
   pushCoinRedeem,
 } from '@/src/features/habits/lib/coin-sync';
+import {
+  DAILY_MONEY_REMINDER_COPY,
+  DAILY_MONEY_REMINDER_ID,
+  DEFAULT_DAILY_MONEY_REMINDER,
+  normalizeDailyMoneyReminder,
+  type DailyMoneyReminderSettings,
+} from '@/src/features/habits/lib/daily-money-reminder';
 import { DEFAULT_SAVE_GOAL, uniqueLogDays } from '@/src/features/habits/lib/habits';
 import { nativeRemindersAvailable, type IntervalHabit } from '@/src/features/habits/lib/interval-habits';
 import { generateId } from '@/src/shared/lib/id';
+import { todayIso } from '@/src/shared/lib/format';
 
 const STORAGE_KEY = 'pasalmanager.habits';
 const REWARDS_KEY = 'pasalmanager.rewards';
 const COINBOOK_KEY = 'pasalmanager.coinbook';
 const OWNER_KEY = 'pasalmanager.coin-owner';
 
+const HABITS_DRAFT_KEY = 'persist.habits';
+const REWARDS_DRAFT_KEY = 'persist.rewards';
+const COINBOOK_DRAFT_KEY = 'persist.coinbook';
+const OWNER_DRAFT_KEY = 'persist.coin-owner';
+
 interface PersistedHabits {
   saveGoal: number;
   bestStreak: number;
   logDates: string[];
   unlockedBadgeIds: string[];
+  dailyMoneyReminder: DailyMoneyReminderSettings;
 }
 
 interface PersistedRewards {
@@ -72,6 +87,9 @@ interface HabitState extends PersistedHabits, PersistedRewards, PersistedCoinboo
   schedulePing: (ping: Omit<ScheduledPing, 'fired'>) => Promise<void>;
   cancelPing: (id: string) => Promise<void>;
   markPingFired: (id: string) => Promise<void>;
+  setDailyMoneyReminder: (patch: Partial<DailyMoneyReminderSettings>) => Promise<void>;
+  applyDailyMoneyReminder: (personal: boolean) => Promise<void>;
+  markDailyReminderFired: (day?: string) => Promise<void>;
 }
 
 function rewardsSnapshot(state: PersistedRewards): PersistedRewards {
@@ -91,39 +109,31 @@ function coinbookSnapshot(state: PersistedCoinbook): PersistedCoinbook {
 }
 
 async function persistHabits(state: PersistedHabits) {
-  await SecureStore.setItemAsync(
-    STORAGE_KEY,
-    JSON.stringify({
-      saveGoal: state.saveGoal,
-      bestStreak: state.bestStreak,
-      logDates: uniqueLogDays(state.logDates).slice(-90),
-      unlockedBadgeIds: state.unlockedBadgeIds,
-    }),
-  );
+  await writeLocalJson(HABITS_DRAFT_KEY, {
+    saveGoal: state.saveGoal,
+    bestStreak: state.bestStreak,
+    logDates: uniqueLogDays(state.logDates).slice(-90),
+    unlockedBadgeIds: state.unlockedBadgeIds,
+    dailyMoneyReminder: normalizeDailyMoneyReminder(state.dailyMoneyReminder),
+  });
 }
 
 async function persistRewards(state: PersistedRewards) {
-  await SecureStore.setItemAsync(REWARDS_KEY, JSON.stringify(rewardsSnapshot(state)));
+  await writeLocalJson(REWARDS_DRAFT_KEY, rewardsSnapshot(state));
 }
 
 async function persistCoinbook(state: PersistedCoinbook) {
-  await SecureStore.setItemAsync(COINBOOK_KEY, JSON.stringify(coinbookSnapshot(state)));
+  await writeLocalJson(COINBOOK_DRAFT_KEY, coinbookSnapshot(state));
 }
 
 async function loadCoinOwner(): Promise<CoinOwner | null> {
-  try {
-    const raw = await SecureStore.getItemAsync(OWNER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<CoinOwner>;
-    if (!parsed.userId || !parsed.businessId) return null;
-    return { userId: String(parsed.userId), businessId: String(parsed.businessId) };
-  } catch {
-    return null;
-  }
+  const parsed = await readLocalJson<CoinOwner>(OWNER_DRAFT_KEY, OWNER_KEY);
+  if (!parsed?.userId || !parsed?.businessId) return null;
+  return { userId: String(parsed.userId), businessId: String(parsed.businessId) };
 }
 
 async function persistCoinOwner(owner: CoinOwner) {
-  await SecureStore.setItemAsync(OWNER_KEY, JSON.stringify(owner));
+  await writeLocalJson(OWNER_DRAFT_KEY, owner);
 }
 
 async function persistRemoteWallet(state: {
@@ -144,6 +154,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   bestStreak: 0,
   logDates: [],
   unlockedBadgeIds: [],
+  dailyMoneyReminder: DEFAULT_DAILY_MONEY_REMINDER,
   coins: 0,
   claimedRewardIds: [],
   intervalHabits: [],
@@ -154,26 +165,27 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   remoteReady: false,
   hydrate: async () => {
     try {
-      const [habitsRaw, rewardsRaw, bookRaw] = await Promise.all([
-        SecureStore.getItemAsync(STORAGE_KEY),
-        SecureStore.getItemAsync(REWARDS_KEY),
-        SecureStore.getItemAsync(COINBOOK_KEY),
+      const [habits, rewards, book] = await Promise.all([
+        readLocalJson<Partial<PersistedHabits>>(HABITS_DRAFT_KEY, STORAGE_KEY),
+        readLocalJson<Partial<PersistedRewards>>(REWARDS_DRAFT_KEY, REWARDS_KEY),
+        readLocalJson<Partial<PersistedCoinbook>>(COINBOOK_DRAFT_KEY, COINBOOK_KEY),
       ]);
-      const habits = habitsRaw ? (JSON.parse(habitsRaw) as Partial<PersistedHabits>) : {};
-      const rewards = rewardsRaw ? (JSON.parse(rewardsRaw) as Partial<PersistedRewards>) : {};
-      const book = bookRaw ? (JSON.parse(bookRaw) as Partial<PersistedCoinbook>) : {};
+      const habitState = habits ?? {};
+      const rewardState = rewards ?? {};
+      const bookState = book ?? {};
       set({
         status: 'ready',
-        saveGoal: Number(habits.saveGoal) > 0 ? Number(habits.saveGoal) : DEFAULT_SAVE_GOAL,
-        bestStreak: Number(habits.bestStreak) || 0,
-        logDates: uniqueLogDays(habits.logDates ?? []),
-        unlockedBadgeIds: Array.isArray(habits.unlockedBadgeIds) ? habits.unlockedBadgeIds.map(String) : [],
-        coins: Number(rewards.coins) > 0 ? Math.round(Number(rewards.coins)) : 0,
-        claimedRewardIds: Array.isArray(rewards.claimedRewardIds) ? rewards.claimedRewardIds.map(String).slice(-48) : [],
-        intervalHabits: Array.isArray(rewards.intervalHabits) ? rewards.intervalHabits : [],
-        history: Array.isArray(book.history) ? book.history : [],
-        redemptions: Array.isArray(book.redemptions) ? book.redemptions : [],
-        scheduledPings: Array.isArray(book.scheduledPings) ? book.scheduledPings : [],
+        saveGoal: Number(habitState.saveGoal) > 0 ? Number(habitState.saveGoal) : DEFAULT_SAVE_GOAL,
+        bestStreak: Number(habitState.bestStreak) || 0,
+        logDates: uniqueLogDays(habitState.logDates ?? []),
+        unlockedBadgeIds: Array.isArray(habitState.unlockedBadgeIds) ? habitState.unlockedBadgeIds.map(String) : [],
+        dailyMoneyReminder: normalizeDailyMoneyReminder(habitState.dailyMoneyReminder),
+        coins: Number(rewardState.coins) > 0 ? Math.round(Number(rewardState.coins)) : 0,
+        claimedRewardIds: Array.isArray(rewardState.claimedRewardIds) ? rewardState.claimedRewardIds.map(String).slice(-48) : [],
+        intervalHabits: Array.isArray(rewardState.intervalHabits) ? rewardState.intervalHabits : [],
+        history: Array.isArray(bookState.history) ? bookState.history : [],
+        redemptions: Array.isArray(bookState.redemptions) ? bookState.redemptions : [],
+        scheduledPings: Array.isArray(bookState.scheduledPings) ? bookState.scheduledPings : [],
       });
     } catch {
       set({ status: 'ready' });
@@ -197,6 +209,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     }
   },
   syncRemote: async ({ userId, businessId, personal }) => {
+    await get().applyDailyMoneyReminder(personal);
+
     if (!personal || !userId || !businessId) {
       set({ remoteReady: false });
       return;
@@ -410,5 +424,58 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     const scheduledPings = get().scheduledPings.map((item) => (item.id === id ? { ...item, fired: true } : item));
     await persistCoinbook({ ...get(), scheduledPings });
     set({ scheduledPings });
+  },
+  setDailyMoneyReminder: async (patch) => {
+    const current = get().dailyMoneyReminder;
+    const dailyMoneyReminder = normalizeDailyMoneyReminder({ ...current, ...patch });
+    if (dailyMoneyReminder.enabled && dailyMoneyReminder.lastFiredDate == null) {
+      const now = new Date();
+      const minutesNow = now.getHours() * 60 + now.getMinutes();
+      const minutesDue = dailyMoneyReminder.hour * 60 + dailyMoneyReminder.minute;
+      if (minutesNow >= minutesDue) {
+        dailyMoneyReminder.lastFiredDate = todayIso();
+      }
+    }
+    await persistHabits({ ...get(), dailyMoneyReminder });
+    set({ dailyMoneyReminder });
+  },
+  applyDailyMoneyReminder: async (personal) => {
+    if (!nativeRemindersAvailable()) return;
+
+    const { cancelReminderNotification, scheduleDailyReminder } = await import(
+      '@/src/features/habits/lib/interval-reminders'
+    );
+    const reminder = get().dailyMoneyReminder;
+
+    if (!personal || !reminder.enabled) {
+      await cancelReminderNotification(DAILY_MONEY_REMINDER_ID);
+      return;
+    }
+
+    await scheduleDailyReminder({
+      id: DAILY_MONEY_REMINDER_ID,
+      title: DAILY_MONEY_REMINDER_COPY.title,
+      body: DAILY_MONEY_REMINDER_COPY.body,
+      hour: reminder.hour,
+      minute: reminder.minute,
+    });
+  },
+  markDailyReminderFired: async (day) => {
+    const dailyMoneyReminder = normalizeDailyMoneyReminder({
+      ...get().dailyMoneyReminder,
+      lastFiredDate: day || todayIso(),
+    });
+    await persistHabits({ ...get(), dailyMoneyReminder });
+    set({ dailyMoneyReminder });
+    if (nativeRemindersAvailable() && dailyMoneyReminder.enabled) {
+      const { scheduleDailyReminder } = await import('@/src/features/habits/lib/interval-reminders');
+      await scheduleDailyReminder({
+        id: DAILY_MONEY_REMINDER_ID,
+        title: DAILY_MONEY_REMINDER_COPY.title,
+        body: DAILY_MONEY_REMINDER_COPY.body,
+        hour: dailyMoneyReminder.hour,
+        minute: dailyMoneyReminder.minute,
+      });
+    }
   },
 }));

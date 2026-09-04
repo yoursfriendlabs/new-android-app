@@ -37,14 +37,20 @@ export function partyTypeLabel(type?: string | null, personal = false) {
 
 export function getSignedPartyAmount(party?: Party | null) {
   if (!party) return 0;
-  if (party.currentAmount != null && Number.isFinite(Number(party.currentAmount))) {
-    return Number(party.currentAmount);
-  }
   const receive = toAmount(party.receiveBalance);
   const give = toAmount(party.giveBalance);
   if (receive > 0) return -receive;
   if (give > 0) return give;
-  return toAmount(party.balance);
+  if (party.currentAmount != null && Number.isFinite(Number(party.currentAmount)) && Number(party.currentAmount) !== 0) {
+    return Number(party.currentAmount);
+  }
+  if (party.balance != null && Number.isFinite(Number(party.balance)) && Number(party.balance) !== 0) {
+    const bal = Number(party.balance);
+    if (party.balanceType === 'give') return Math.abs(bal);
+    if (party.balanceType === 'receive') return -Math.abs(bal);
+    return bal;
+  }
+  return 0;
 }
 
 export function getPartyBalanceMeta(party?: Party | null, signedAmount?: number, personal = false): PartyBalanceMeta {

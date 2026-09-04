@@ -56,6 +56,7 @@ export default function AppLayout() {
       <Stack.Screen name="tasks/notifications" />
       <Stack.Screen name="coins" />
       <Stack.Screen name="purchases" />
+      <Stack.Screen name="sales" />
       <Stack.Screen name="parties" />
       <Stack.Screen name="banks" />
       <Stack.Screen name="ledger" />

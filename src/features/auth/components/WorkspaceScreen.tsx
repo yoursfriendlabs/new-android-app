@@ -126,12 +126,17 @@ export function WorkspaceScreen() {
     }
   }
 
+  const ownedBusinesses = useMemo(() => {
+    return items.filter((item) => !item.isPersonal && (item.isOwner || item.role === 'owner'));
+  }, [items]);
+  const hasOwnedBusiness = ownedBusinesses.length >= 1;
+  const allowBusinessCreation = canCreateBusiness && !hasOwnedBusiness;
   const busy = Boolean(busyId) || creating;
 
   return (
     <Screen topBarTitle="Workspaces">
       <View style={styles.stack}>
-      <PageHeading subtitle="Switch shops or add another business. Each extra shop starts its own trial." />
+      <PageHeading subtitle="Switch between your personal workspace, owned shop, and invited staff workspaces." />
 
       {error ? (
         <View style={[styles.message, { backgroundColor: colors.dangerSoft }]}>
@@ -165,8 +170,7 @@ export function WorkspaceScreen() {
                 <Text style={[styles.rowLabel, { color: colors.text }]}>{item.name}</Text>
                 <Text numberOfLines={1} style={[styles.rowSubtitle, { color: colors.textMuted }]}>
                   {item.label}
-                  {item.isPersonal ? ' · Personal' : ''}
-                  {item.isOwner ? ' · Owner' : ''}
+                  {item.isPersonal ? ' · Personal' : item.isOwner || item.role === 'owner' ? ' · Owner' : ` · Staff (${item.role || 'Member'})`}
                 </Text>
               </View>
               {pending ? (
@@ -181,7 +185,7 @@ export function WorkspaceScreen() {
         })}
       </SurfaceCard>
 
-      {canCreateBusiness ? (
+      {allowBusinessCreation ? (
         <SurfaceCard title="Add a business" subtitle="Standard or Cafe only. Personal stays unique to this account.">
           <View style={styles.create}>
             <FormField
@@ -207,9 +211,25 @@ export function WorkspaceScreen() {
             </Pressable>
           </View>
         </SurfaceCard>
+      ) : hasOwnedBusiness ? (
+        <SurfaceCard title="Business workspace (1/1)" subtitle="Limit of 1 owned business per account">
+          <View style={styles.limitBox}>
+            <View style={[styles.limitIcon, { backgroundColor: colors.accentSoft }]}>
+              <MaterialCommunityIcons name="store-check" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.limitCopy}>
+              <Text style={[styles.limitTitle, { color: colors.text }]}>
+                {ownedBusinesses[0].name}
+              </Text>
+              <Text style={[styles.limitText, { color: colors.textMuted }]}>
+                Each account can create 1 personal workspace and 1 business workspace. You can join additional businesses when invited as a staff member.
+              </Text>
+            </View>
+          </View>
+        </SurfaceCard>
       ) : (
         <Text style={[styles.hint, { color: colors.textMuted }]}>
-          Only owners can add another shop. Staff stay on the workspace they were invited to.
+          Staff members can switch between their invited workspaces and personal accounts. To create a business, use your personal workspace account.
         </Text>
       )}
       </View>
@@ -268,6 +288,31 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '800',
     },
     hint: {
+      fontSize: typography.caption,
+      lineHeight: 18,
+    },
+    limitBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    limitIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    limitCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    limitTitle: {
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
+    limitText: {
       fontSize: typography.caption,
       lineHeight: 18,
     },

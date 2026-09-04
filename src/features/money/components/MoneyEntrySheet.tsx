@@ -13,7 +13,6 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
-import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { pickNativeDeviceContact, type DeviceContactDraft } from '@/src/features/parties/lib/device-contacts';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
@@ -52,12 +51,18 @@ type PaidMode = 'full' | 'due';
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Family', 'Gift', 'Refund', 'Other'];
 const PERSONAL_EXPENSE_CATEGORIES = ['Food', 'Rent', 'Transport', 'Shopping', 'Bills', 'Health', 'Other'];
 
+const MONEY_KIND_OPTIONS = [
+  { value: 'income' as const, label: 'Receive', icon: 'arrow-down-bold-circle-outline' as const },
+  { value: 'expense' as const, label: 'Given', icon: 'arrow-up-bold-circle-outline' as const },
+];
+
 interface MoneyEntrySheetProps {
   visible: boolean;
   kind: MoneyEntryKind;
   onClose: () => void;
   activityDates?: string[];
   snapshot?: Omit<HabitSnapshot, 'dates'>;
+  compact?: boolean;
 }
 
 function emptyForm(kind: MoneyEntryKind) {
@@ -75,7 +80,14 @@ function emptyForm(kind: MoneyEntryKind) {
   };
 }
 
-export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, visible }: MoneyEntrySheetProps) {
+export function MoneyEntrySheet({
+  activityDates = [],
+  compact = false,
+  kind,
+  onClose,
+  snapshot,
+  visible,
+}: MoneyEntrySheetProps) {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
@@ -87,6 +99,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
   const [contactSeed, setContactSeed] = useState<DeviceContactDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [win, setWin] = useState<HabitWin | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(!compact);
   const debouncedPartySearch = useDebouncedValue(partySearch);
   const { data: categories } = useQuickExpenses();
   const { data: parties } = useParties(debouncedPartySearch, 'both');
@@ -103,12 +116,13 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
       setForm(emptyForm(kind));
       setPartySearch('');
       setSaving(false);
+      setDetailsOpen(!compact);
       return;
     }
     setPartyPickerVisible(false);
     setCreateContactVisible(false);
     setPhoneSheetVisible(false);
-  }, [kind, visible]);
+  }, [compact, kind, visible]);
 
   const amount = Number(form.amount || 0);
   const amountPaid = form.paidMode === 'full' ? amount : Number(form.amountPaid || 0);
@@ -289,11 +303,13 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
     <>
       <BottomSheet
         visible={visible && !win}
-        title={isIncome ? 'Money in' : 'Money out'}
+        title={compact ? 'Log money' : isIncome ? 'Money in' : 'Money out'}
         subtitle={
-          isIncome
-            ? 'Category is what the money is for. Contact is optional.'
-            : 'Save who you paid, or keep it as walk-in.'
+          compact
+            ? 'Amount, receive or given, and a person if you want.'
+            : isIncome
+              ? 'Category is what the money is for. Contact is optional.'
+              : 'Save who you paid, or keep it as walk-in.'
         }
         onClose={closeAll}
         fullHeight
@@ -302,18 +318,42 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
             {saving ? (
               <ActivityIndicator color={colors.white} />
             ) : (
-              <Text style={styles.saveLabel}>{isIncome ? 'Save income' : 'Save expense'}</Text>
+              <Text style={styles.saveLabel}>{isIncome ? 'Save receive' : 'Save given'}</Text>
             )}
           </Pressable>
         }>
-        <SegmentedTabs
-          value={form.kind}
-          onChange={(nextKind) => setForm((current) => ({ ...emptyForm(nextKind), amount: current.amount, date: current.date }))}
-          options={[
-            { label: 'Income', value: 'income' },
-            { label: 'Expense', value: 'expense' },
-          ]}
-        />
+        <View style={styles.kindRow}>
+          {MONEY_KIND_OPTIONS.map((option) => {
+            const active = form.kind === option.value;
+            const tone = option.value === 'income' ? 'success' : 'danger';
+            const backgroundColor = active
+              ? tone === 'success'
+                ? colors.successSoft
+                : colors.dangerSoft
+              : colors.surface;
+            const borderColor = active
+              ? tone === 'success'
+                ? colors.success
+                : colors.danger
+              : colors.border;
+            const contentColor = active
+              ? tone === 'success'
+                ? colors.success
+                : colors.danger
+              : colors.textMuted;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() =>
+                  setForm((current) => ({ ...emptyForm(option.value), amount: current.amount, date: current.date }))
+                }
+                style={[styles.kindChip, { backgroundColor, borderColor }]}>
+                <MaterialCommunityIcons color={contentColor} name={option.icon} size={22} />
+                <Text style={[styles.kindLabel, { color: active ? colors.text : colors.textMuted }]}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         <View style={styles.amountCard}>
           <Text style={styles.amountKicker}>Amount</Text>
@@ -326,28 +366,9 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
               placeholder="0"
               placeholderTextColor={colors.textSoft}
               style={styles.amountInput}
+              autoFocus={compact}
             />
           </View>
-        </View>
-
-        <Text style={styles.sectionLabel}>{isIncome ? 'Source' : 'Category'}</Text>
-        <View style={styles.chipWrap}>
-          {categoryOptions.map((name) => {
-            const active = form.category === name;
-            return (
-              <Pressable
-                key={name}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setForm((current) => ({ ...current, category: name }))}>
-                <MaterialCommunityIcons
-                  name={isIncome ? 'cash-plus' : expenseCategoryIcon(name)}
-                  size={16}
-                  color={active ? colors.white : colors.primary}
-                />
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
-              </Pressable>
-            );
-          })}
         </View>
 
         <Pressable style={styles.selector} onPress={() => setPartyPickerVisible(true)}>
@@ -364,7 +385,7 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
             </Text>
             <Text style={styles.selectorSubtitle}>
               {form.party?.phone
-                ?? (isIncome ? 'From a contact, or walk-in if nobody is attached' : 'Paid to a contact, or walk-in')}
+                ?? (isIncome ? 'From a contact, or skip' : 'Paid to a contact, or skip')}
             </Text>
           </View>
           {form.party ? (
@@ -376,38 +397,66 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
           )}
         </Pressable>
 
-        <PaymentMethodSelector
-          value={form.paymentMethod}
-          onChange={(paymentMethod) => setForm((current) => ({ ...current, paymentMethod }))}
-        />
-        {form.paymentMethod === 'bank' ? (
-          <View style={styles.bankWrap}>
-            {activeBanks.length ? (
-              activeBanks.map((bank) => {
-                const active = form.bankId === bank.id;
+        {compact && !detailsOpen ? (
+          <Pressable onPress={() => setDetailsOpen(true)}>
+            <Text style={styles.detailsLink}>Add category, account, or note</Text>
+          </Pressable>
+        ) : (
+          <>
+            <Text style={styles.sectionLabel}>{isIncome ? 'Source' : 'Category'}</Text>
+            <View style={styles.chipWrap}>
+              {categoryOptions.map((name) => {
+                const active = form.category === name;
                 return (
                   <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, active && styles.bankChipActive]}
-                    onPress={() => setForm((current) => ({ ...current, bankId: bank.id }))}>
-                    <Text style={[styles.bankChipLabel, active && styles.bankChipLabelActive]}>{bank.name}</Text>
+                    key={name}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => setForm((current) => ({ ...current, category: name }))}>
+                    <MaterialCommunityIcons
+                      name={isIncome ? 'cash-plus' : expenseCategoryIcon(name)}
+                      size={16}
+                      color={active ? colors.white : colors.primary}
+                    />
+                    <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
                   </Pressable>
                 );
-              })
-            ) : (
-              <Text style={styles.helper}>No bank accounts yet. Add one under More → Banks.</Text>
-            )}
-          </View>
-        ) : null}
+              })}
+            </View>
 
-        <FormField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
-        <FormField
-          label="Note"
-          value={form.notes}
-          onChangeText={(notes) => setForm((current) => ({ ...current, notes }))}
-          placeholder="Optional"
-          multiline
-        />
+            <PaymentMethodSelector
+              value={form.paymentMethod}
+              onChange={(paymentMethod) => setForm((current) => ({ ...current, paymentMethod }))}
+            />
+            {form.paymentMethod === 'bank' ? (
+              <View style={styles.bankWrap}>
+                {activeBanks.length ? (
+                  activeBanks.map((bank) => {
+                    const active = form.bankId === bank.id;
+                    return (
+                      <Pressable
+                        key={bank.id}
+                        style={[styles.bankChip, active && styles.bankChipActive]}
+                        onPress={() => setForm((current) => ({ ...current, bankId: bank.id }))}>
+                        <Text style={[styles.bankChipLabel, active && styles.bankChipLabelActive]}>{bank.name}</Text>
+                      </Pressable>
+                    );
+                  })
+                ) : (
+                  <Text style={styles.helper}>No bank accounts yet. Add one under More → Banks.</Text>
+                )}
+              </View>
+            ) : null}
+
+            <FormField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
+            <FormField
+              label="Note"
+              value={form.notes}
+              onChangeText={(notes) => setForm((current) => ({ ...current, notes }))}
+              placeholder="Optional"
+              multiline
+            />
+          </>
+        )}
       </BottomSheet>
 
       <PartyPickerSheet
@@ -474,6 +523,25 @@ export function MoneyEntrySheet({ activityDates = [], kind, onClose, snapshot, v
 
 const createStyles = (colors: AppPalette) =>
   StyleSheet.create({
+    kindRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    kindChip: {
+      flex: 1,
+      minHeight: 56,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.sm,
+    },
+    kindLabel: {
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
     amountCard: {
       borderRadius: radius.lg,
       borderWidth: 1,
@@ -615,5 +683,12 @@ const createStyles = (colors: AppPalette) =>
       color: colors.white,
       fontWeight: '800',
       fontSize: typography.body,
+    },
+    detailsLink: {
+      fontSize: typography.label,
+      fontWeight: '700',
+      color: colors.primary,
+      textAlign: 'center',
+      paddingVertical: spacing.sm,
     },
   });

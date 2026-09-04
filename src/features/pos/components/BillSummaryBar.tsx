@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatCurrency, pluralize } from '@/src/shared/lib/format';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 
 interface BillSummaryBarProps {
@@ -12,13 +13,18 @@ interface BillSummaryBarProps {
 
 export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProps) {
   const colors = usePalette();
+  const { t, isNepali } = useTranslation();
   const hasItems = itemCount > 0;
+
+  const itemText = isNepali
+    ? `${itemCount} ${t('pos.itemCount')}`
+    : `${itemCount} ${pluralize('item', itemCount)}`;
 
   return (
     <View style={[styles.wrap, { backgroundColor: colors.primary }]}>
       <View style={styles.meta}>
         <Text style={[styles.kicker, { color: colors.onPrimary }]}>
-          {hasItems ? `${itemCount} ${pluralize('item', itemCount)}` : 'Cart is empty'}
+          {hasItems ? itemText : t('pos.cartEmpty')}
         </Text>
         <Text style={[styles.total, { color: colors.onPrimary }]}>{formatCurrency(total)}</Text>
       </View>
@@ -27,7 +33,7 @@ export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProp
         onPress={onPress}
         disabled={!hasItems}>
         <Text style={[styles.buttonLabel, { color: hasItems ? colors.text : colors.textSoft }]}>
-          {hasItems ? 'Charge' : 'Add items'}
+          {hasItems ? t('pos.payNow') : t('pos.cartEmpty')}
         </Text>
       </Pressable>
     </View>

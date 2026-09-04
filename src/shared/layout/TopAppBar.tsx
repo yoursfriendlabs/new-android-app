@@ -5,29 +5,30 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BrandMark } from '@/src/shared/ui/BrandMark';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { spacing, typography } from '@/src/theme';
 
-const titleMap: Record<string, string> = {
-  home: 'Dashboard',
-  pos: 'Sale',
-  'quick-entry': 'Quick Entry',
-  services: 'Services',
-  more: 'Profile',
-  expenses: 'Expenses',
-  purchases: 'Purchases',
-  parties: 'Parties',
-  banks: 'Banks',
-  ledger: 'Ledger',
-  inventory: 'Inventory',
-  settings: 'Settings',
-  workspaces: 'Workspaces',
-  'change-password': 'Change Password',
-  'owner-tools': 'Owner Tools',
-  'service-create': 'New Service',
-  'purchase-create': 'New Purchase',
-  'expense-categories': 'Categories',
-  invoice: 'Invoice',
-  'print-preview': 'Print Preview',
+const segmentTitleKeyMap: Record<string, string> = {
+  home: 'nav.home',
+  pos: 'nav.pos',
+  'quick-entry': 'quickEntry.title',
+  services: 'inventory.services',
+  more: 'nav.more',
+  expenses: 'money.expenses',
+  purchases: 'nav.purchases',
+  parties: 'parties.title',
+  banks: 'money.bankAccounts',
+  ledger: 'money.ledger',
+  inventory: 'inventory.title',
+  settings: 'settings.title',
+  workspaces: 'auth.workspaceSelect',
+  'change-password': 'settings.changePassword',
+  'owner-tools': 'nav.ownerTools',
+  'service-create': 'inventory.services',
+  'purchase-create': 'nav.purchases',
+  'expense-categories': 'money.categories',
+  invoice: 'pos.shareInvoice',
+  'print-preview': 'pos.printReceipt',
 };
 
 interface TopAppBarProps {
@@ -46,9 +47,14 @@ export function TopAppBar({
   titleOverride,
 }: TopAppBarProps) {
   const colors = usePalette();
+  const { t } = useTranslation();
   const title =
     titleOverride ??
-    (currentSegment ? titleMap[currentSegment] ?? currentSegment : 'PasalManager');
+    (currentSegment && segmentTitleKeyMap[currentSegment]
+      ? t(segmentTitleKeyMap[currentSegment])
+      : currentSegment
+        ? currentSegment
+        : 'PasalManager');
   const resolvedLeadingMode =
     leadingMode === 'auto' ? (showBack ? 'back' : 'brand') : leadingMode;
 

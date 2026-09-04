@@ -59,20 +59,20 @@ function BusinessTaskFormScreen() {
   const [status, setStatus] = useState('open');
   const [dueDate, setDueDate] = useState(todayIso());
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null);
 
   // Load task details for Edit mode
   useEffect(() => {
-    if (isEdit && task && !isInitialized) {
-      setTitle(task.title);
+    if (isEdit && task && task.id && loadedTaskId !== task.id) {
+      setTitle(task.title || '');
       setDescription(task.description || '');
-      setPriority(task.priority);
-      setStatus(task.status);
+      setPriority(task.priority || 'medium');
+      setStatus(task.status || 'open');
       setDueDate(task.dueDate || todayIso());
       setAssignedUserIds((task.assignments || []).map((a) => a.assignee.id));
-      setIsInitialized(true);
+      setLoadedTaskId(task.id);
     }
-  }, [isEdit, task, isInitialized]);
+  }, [isEdit, task, loadedTaskId]);
 
   const toggleAssignee = (userId: string) => {
     setAssignedUserIds((current) =>

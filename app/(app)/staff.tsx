@@ -313,6 +313,7 @@ export default function StaffDirectoryScreen() {
 
   return (
     <Screen
+      scrollable={false}
       topBarTitle="Staff Directory"
       footer={
         isOwnerOrAdmin ? (
@@ -331,7 +332,12 @@ export default function StaffDirectoryScreen() {
           <Text style={styles.loadingText}>Loading staff details...</Text>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}>
           {/* Capacity Banner */}
           <SurfaceCard style={styles.bannerCard}>
             <View style={styles.bannerHeader}>
@@ -494,7 +500,7 @@ export default function StaffDirectoryScreen() {
           </Pressable>
         }>
         
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formScroll}>
+        <View style={styles.formScroll}>
           <FormField label="Staff Name *" value={name} onChangeText={setName} />
           
           <View style={styles.formRow}>
@@ -623,7 +629,7 @@ export default function StaffDirectoryScreen() {
               })}
             </View>
           ) : null}
-        </ScrollView>
+        </View>
       </BottomSheet>
     </Screen>
   );

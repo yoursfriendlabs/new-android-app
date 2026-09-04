@@ -29,7 +29,11 @@ export function BottomSheet({
   const colors = usePalette();
   const { height: windowHeight } = useWindowDimensions();
   const tall = !compact;
-  const sheetHeight = compact ? undefined : fullHeight ? windowHeight : Math.round(windowHeight * 0.96);
+  const sheetHeight = compact
+    ? undefined
+    : fullHeight
+      ? windowHeight
+      : Math.round(windowHeight * 0.92);
 
   return (
     <Modal
@@ -65,7 +69,9 @@ export function BottomSheet({
             <ScrollView
               bounces={false}
               keyboardShouldPersistTaps="handled"
-              style={tall || Boolean(footer) ? styles.contentFill : undefined}
+              automaticallyAdjustKeyboardInsets={true}
+              keyboardDismissMode="interactive"
+              style={tall ? styles.contentFill : undefined}
               contentContainerStyle={styles.contentGrow}>
               <View style={styles.contentInner}>{children}</View>
             </ScrollView>
@@ -95,7 +101,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sheetCompact: {
-    height: undefined,
     maxHeight: '78%',
   },
   sheetFull: {

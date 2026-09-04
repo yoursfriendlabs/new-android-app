@@ -7,9 +7,11 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
+import { CompactLanguageToggle } from '@/src/shared/ui/LanguageSelector';
 import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -114,6 +116,15 @@ const MENU_GROUPS: MenuGroup[] = [
     id: 'money',
     title: 'Money',
     items: [
+      {
+        id: 'sales',
+        segment: 'sales',
+        label: 'Sales & Invoices',
+        subtitle: 'Past sales, bills, and tax invoices',
+        icon: 'receipt-text-outline',
+        tone: 'info',
+        route: '/(app)/sales' as any,
+      },
       {
         id: 'purchases',
         segment: 'purchases',
@@ -226,6 +237,7 @@ function initials(name?: string | null) {
 export default function MoreScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
   const signOut = useAuthStore((state) => state.signOut);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const user = useAuthStore((state) => state.user);
@@ -259,33 +271,60 @@ export default function MoreScreen() {
       businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
     };
     const personal = isPersonalWorkspace(context);
+
+    const groupTitleMap: Record<string, string> = {
+      daily: personal ? 'Everyday' : t('more.businessSection'),
+      money: personal ? 'Books' : t('more.accountingSection'),
+      shop: t('cafe.tables'),
+      team: t('more.staffSection'),
+    };
+
+    const itemLabelMap: Record<string, { label: string; subtitle: string }> = {
+      'quick-entry': { label: t('quickEntry.title'), subtitle: t('quickEntry.subtitle') },
+      expenses: {
+        label: personal ? t('money.title') : t('money.expenses'),
+        subtitle: personal ? 'Income, expenses, and what you saved' : 'Spending, categories, and cash out',
+      },
+      tasks: {
+        label: personal ? 'Notes & reminders' : t('tasks.title'),
+        subtitle: personal ? 'Water, focus, notes — earn coins' : 'To-dos, reminders, and notes',
+      },
+      coins: { label: t('habits.coins'), subtitle: 'History and merch you can redeem' },
+      services: { label: t('inventory.services'), subtitle: 'Jobs, orders, and deliveries' },
+      inventory: { label: t('inventory.title'), subtitle: 'Stock, products, and low alerts' },
+      purchases: { label: t('nav.purchases'), subtitle: 'Supplier bills and stock buying' },
+      ledger: {
+        label: personal ? 'History' : t('money.ledger'),
+        subtitle: personal ? 'Every payment in and out' : 'Balances, dues, and history',
+      },
+      banks: { label: t('money.bankAccounts'), subtitle: 'Accounts and transfers' },
+      'expense-categories': {
+        label: personal ? 'Categories' : t('money.categories'),
+        subtitle: 'Labels used when adding an expense',
+      },
+      orders: { label: t('cafe.activeOrders'), subtitle: 'Tables and cafe orders' },
+      tables: { label: t('cafe.manageTables'), subtitle: 'Layout and seating setup' },
+      cashier: { label: 'Cashier', subtitle: 'Close dining bills' },
+      staff: { label: t('staff.title'), subtitle: 'Team, payroll, and access' },
+      attendance: { label: t('staff.attendance'), subtitle: 'Check-in and check-out' },
+    };
+
     return MENU_GROUPS.map((group) => ({
       ...group,
-      title: personal
-        ? group.id === 'daily'
-          ? 'Everyday'
-          : group.id === 'money'
-            ? 'Books'
-            : group.title
-        : group.title,
+      title: groupTitleMap[group.id] || group.title,
       items: group.items
         .filter((item) => {
           if (item.id === 'coins') return personal;
           return canAccessSegment(context, item.segment);
         })
         .map((item) => {
-          if (!personal) return item;
-          if (item.id === 'expenses') {
-            return { ...item, label: 'Money', subtitle: 'Income, expenses, and what you saved' };
-          }
-          if (item.id === 'tasks') {
-            return { ...item, label: 'Notes & reminders', subtitle: 'Water, focus, notes — earn coins' };
-          }
-          if (item.id === 'expense-categories') {
-            return { ...item, label: 'Categories', subtitle: 'Labels for spending' };
-          }
-          if (item.id === 'ledger') {
-            return { ...item, label: 'History', subtitle: 'Every payment in and out' };
+          const localized = itemLabelMap[item.id];
+          if (localized) {
+            return {
+              ...item,
+              label: localized.label,
+              subtitle: localized.subtitle,
+            };
           }
           return item;
         }),
@@ -298,6 +337,7 @@ export default function MoreScreen() {
     session?.role,
     user?.permissions,
     user?.role,
+    t,
   ]);
 
   const showWorkspaces = useMemo(() => {
@@ -319,10 +359,10 @@ export default function MoreScreen() {
       setSaving(true);
       setMessage('');
       await updateProfile(profileForm);
-      setMessage('Profile updated.');
+      setMessage(t('common.success'));
     } catch (error) {
       if (isInvalidSessionError(error)) return;
-      setMessage(error instanceof Error ? error.message : 'Unable to update profile.');
+      setMessage(error instanceof Error ? error.message : t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -357,7 +397,7 @@ export default function MoreScreen() {
 
       {showWorkspaces ? (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>Workspaces</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('more.switchWorkspace')}</Text>
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Pressable
               onPress={() => router.push('/(app)/workspaces' as never)}
@@ -384,12 +424,12 @@ export default function MoreScreen() {
           style={[
             styles.message,
             {
-              backgroundColor: message.toLowerCase().includes('updated') ? colors.successSoft : colors.dangerSoft,
+              backgroundColor: message.toLowerCase().includes('updated') || message === t('common.success') ? colors.successSoft : colors.dangerSoft,
             },
           ]}>
           <Text
             style={{
-              color: message.toLowerCase().includes('updated') ? colors.success : colors.danger,
+              color: message.toLowerCase().includes('updated') || message === t('common.success') ? colors.success : colors.danger,
               fontWeight: '700',
             }}>
             {message}
@@ -430,31 +470,41 @@ export default function MoreScreen() {
       ))}
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>Appearance</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.language')}</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.sm }]}>
+          <Text style={[styles.hint, { color: colors.textMuted }]}>
+            {t('settings.languageSubtitle')}
+          </Text>
+          <CompactLanguageToggle />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.appearance')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.md }]}>
           <Text style={[styles.hint, { color: colors.textMuted }]}>
-            Color theme for this device. Buttons and screens follow your pick.
+            {t('settings.themeSubtitle')}
           </Text>
           <CompactThemeRow />
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: colors.backgroundAlt }]}
             onPress={() => router.push('/(app)/settings')}>
             <MaterialCommunityIcons color={colors.text} name="palette-outline" size={18} />
-            <Text style={[styles.secondaryLabel, { color: colors.text }]}>Customize theme</Text>
+            <Text style={[styles.secondaryLabel, { color: colors.text }]}>{t('settings.title')}</Text>
           </Pressable>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>Profile</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.profile')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.md }]}>
           <FormField
-            label="Name"
+            label={t('common.name')}
             value={profileForm.name}
             onChangeText={(name) => setProfileForm((current) => ({ ...current, name }))}
           />
           <FormField
-            label="Phone"
+            label={t('common.phone')}
             value={profileForm.phone}
             onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))}
             keyboardType="phone-pad"
@@ -466,20 +516,20 @@ export default function MoreScreen() {
             {saving ? (
               <ActivityIndicator color={colors.onPrimary} />
             ) : (
-              <Text style={[styles.primaryLabel, { color: colors.onPrimary }]}>Save profile</Text>
+              <Text style={[styles.primaryLabel, { color: colors.onPrimary }]}>{t('settings.saveProfile')}</Text>
             )}
           </Pressable>
         </View>
       </View>
 
       <View style={[styles.section, styles.lastSection]}>
-        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>Security</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.security')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.sm }]}>
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: colors.backgroundAlt }]}
             onPress={() => router.push('/(app)/change-password')}>
             <MaterialCommunityIcons color={colors.text} name="lock-reset" size={18} />
-            <Text style={[styles.secondaryLabel, { color: colors.text }]}>Change password</Text>
+            <Text style={[styles.secondaryLabel, { color: colors.text }]}>{t('settings.changePassword')}</Text>
           </Pressable>
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]}
@@ -490,7 +540,7 @@ export default function MoreScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons color={colors.danger} name="logout" size={18} />
-                <Text style={[styles.secondaryLabel, { color: colors.danger }]}>Logout</Text>
+                <Text style={[styles.secondaryLabel, { color: colors.danger }]}>{t('auth.signOut')}</Text>
               </>
             )}
           </Pressable>

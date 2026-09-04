@@ -115,7 +115,11 @@ function parseWorkspaceList(
   return items.length ? items : fallback;
 }
 
-function parseCanCreateBusiness(source: AuthResponseShape, fallback = false) {
+function parseCanCreateBusiness(source: AuthResponseShape, fallback = false, businesses?: WorkspaceMembership[]) {
+  if (businesses && businesses.length) {
+    const ownedBusinesses = businesses.filter((item) => !item.isPersonal && (item.isOwner || item.role === 'owner'));
+    if (ownedBusinesses.length >= 1) return false;
+  }
   if (typeof source.canCreateBusiness === 'boolean') return source.canCreateBusiness;
   return fallback;
 }
@@ -200,7 +204,8 @@ function parseAuthResponse(
   const businesses = parseWorkspaceList(source, parseWorkspaceList(responseRecord, fallbackSession?.businesses ?? []));
   const canCreateBusiness = parseCanCreateBusiness(
     source,
-    parseCanCreateBusiness(responseRecord, fallbackSession?.canCreateBusiness ?? false),
+    parseCanCreateBusiness(responseRecord, fallbackSession?.canCreateBusiness ?? false, businesses),
+    businesses,
   );
 
   if (!token || !businessId) {

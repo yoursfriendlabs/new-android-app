@@ -178,8 +178,13 @@ export default function TableManagementScreen() {
   );
 
   return (
-    <Screen topBarTitle="Table Seating Setup" topBarLeading="back" topBarRight={topBarRight}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+    <Screen scrollable={false} topBarTitle="Table Seating Setup" topBarLeading="back" topBarRight={topBarRight}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
+        keyboardDismissMode="interactive"
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}>
         <PageHeading subtitle="Manage tables, seating capacity, and occupancy status for dining order workflows." />
 
         <SearchField
@@ -319,7 +324,7 @@ export default function TableManagementScreen() {
           </Pressable>
         }
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.formScroll}>
+        <View style={styles.formScroll}>
           <FormField
             label="Table Name *"
             value={name}
@@ -395,7 +400,7 @@ export default function TableManagementScreen() {
               thumbColor={colors.white}
             />
           </View>
-        </ScrollView>
+        </View>
       </BottomSheet>
     </Screen>
   );
