@@ -26,6 +26,7 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
+import { buildServiceReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { useBanks, useParties, useServiceById, useServicesList } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
@@ -125,10 +126,15 @@ function getServiceDeviceOrProblem(service: Service): string {
   }
 
   if (service.items?.length) {
-    return service.items.map((i) => i.description || i.productId || i.itemType).slice(0, 2).join(', ');
+    const customItems = service.items
+      .map((i) => i.description || i.productId || i.itemType)
+      .filter((desc) => desc && desc !== 'labor' && desc !== 'part');
+    if (customItems.length) {
+      return customItems.slice(0, 2).join(', ');
+    }
   }
 
-  return 'General Service Job';
+  return '';
 }
 
 function matchesFilter(service: Service, filter: ServiceFilter) {
@@ -227,6 +233,18 @@ export default function ServicesScreen() {
     setReceivedDraft(String(selected?.receivedTotal ?? 0));
     setPaymentMethod((selected?.paymentMethod as 'cash' | 'bank') ?? 'cash');
     setBankId(selected?.bankId ?? '');
+  }
+
+  function handlePrintService(service: Service) {
+    const customer = resolveServiceCustomer(service, partyMap);
+    const selectedBank = banks?.find((b) => b.id === service.bankId);
+    const receipt = buildServiceReceipt(
+      service,
+      businessProfile,
+      customer.party || { name: customer.name, phone: customer.phone, address: customer.address },
+      selectedBank?.name
+    );
+    openReceiptPreview(receipt);
   }
 
   async function handleQuickStatus(service: Service, nextStatus: ServiceStatus) {
@@ -461,12 +479,14 @@ export default function ServicesScreen() {
                 </View>
 
                 {/* Specs / Device / Problem description */}
-                <View style={[styles.specsBox, { backgroundColor: colors.backgroundAlt }]}>
-                  <MaterialCommunityIcons name="wrench-outline" size={16} color={colors.accent} />
-                  <Text style={[styles.specsText, { color: colors.text }]} numberOfLines={2}>
-                    {specs}
-                  </Text>
-                </View>
+                {specs ? (
+                  <View style={[styles.specsBox, { backgroundColor: colors.backgroundAlt }]}>
+                    <MaterialCommunityIcons name="wrench-outline" size={16} color={colors.accent} />
+                    <Text style={[styles.specsText, { color: colors.text }]} numberOfLines={2}>
+                      {specs}
+                    </Text>
+                  </View>
+                ) : null}
 
                 {/* Timeline and Line Items Meta */}
                 <View style={styles.metaRow}>
@@ -505,6 +525,16 @@ export default function ServicesScreen() {
 
                   {/* Quick Action Pills */}
                   <View style={styles.quickActions}>
+                    <Pressable
+                      style={[styles.callBtn, { backgroundColor: colors.backgroundAlt }]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handlePrintService(service);
+                      }}
+                      accessibilityLabel="Print Bill">
+                      <MaterialCommunityIcons name="printer-outline" size={16} color={colors.primary} />
+                    </Pressable>
+
                     {!isFinished ? (
                       <Pressable
                         style={[styles.quickActionBtn, { backgroundColor: colors.accentSoft }]}
@@ -571,7 +601,20 @@ export default function ServicesScreen() {
           </View>
         ) : (
           <View style={styles.sheetContent}>
-            
+            {/* Quick Bill Action Banner */}
+            <Pressable
+              style={[styles.printBannerBtn, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
+              onPress={() => handlePrintService(serviceDetail)}>
+              <MaterialCommunityIcons name="file-document-outline" size={20} color={colors.accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.printBannerTitle, { color: colors.accent }]}>View & Print Service Bill</Text>
+                <Text style={[styles.printBannerSub, { color: colors.textMuted }]}>
+                  Includes business header, tax/PAN, parts, labor & payment status
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.accent} />
+            </Pressable>
+
             {/* Customer Contact Card */}
             <SurfaceCard title="Customer Information">
               <View style={styles.customerDetailRow}>
@@ -627,29 +670,12 @@ export default function ServicesScreen() {
                 onChangeText={setReceivedDraft}
                 keyboardType="numeric"
               />
-              <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
-
-              {paymentMethod === 'bank' ? (
-                <View style={styles.bankWrap}>
-                  {activeBanks.length > 0 ? (
-                    activeBanks.map((bank) => (
-                      <Pressable
-                        key={bank.id}
-                        style={[styles.bankChip, bankId === bank.id && styles.bankChipActive]}
-                        onPress={() => setBankId(bank.id)}>
-                        <Text style={[styles.bankChipLabel, bankId === bank.id && styles.bankChipLabelActive]}>
-                          {bank.name}
-                        </Text>
-                      </Pressable>
-                    ))
-                  ) : (
-                    <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                      <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                      <Text style={styles.emptyBankText}>No active bank found. Tap to add a bank account.</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : null}
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                bankId={bankId}
+                onBankChange={setBankId}
+              />
             </SurfaceCard>
 
             {/* Itemized Parts and Labor */}
@@ -969,6 +995,22 @@ const createStyles = (colors: AppPalette) =>
     sheetContent: {
       gap: spacing.md,
       paddingBottom: spacing.xxl,
+    },
+    printBannerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+    },
+    printBannerTitle: {
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
+    printBannerSub: {
+      fontSize: typography.caption,
+      marginTop: 2,
     },
     customerDetailRow: {
       flexDirection: 'row',

@@ -582,29 +582,12 @@ export default function DetailedSalesScreen() {
                 onChangeText={setAmountReceivedDraft}
                 keyboardType="numeric"
               />
-              <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
-
-              {paymentMethod === 'bank' ? (
-                <View style={styles.bankWrap}>
-                  {activeBanks.length > 0 ? (
-                    activeBanks.map((bank) => (
-                      <Pressable
-                        key={bank.id}
-                        style={[styles.bankChip, bankId === bank.id && styles.bankChipActive]}
-                        onPress={() => setBankId(bank.id)}>
-                        <Text style={[styles.bankChipLabel, bankId === bank.id && styles.bankChipLabelActive]}>
-                          {bank.name}
-                        </Text>
-                      </Pressable>
-                    ))
-                  ) : (
-                    <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                      <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                      <Text style={styles.emptyBankText}>No active bank found. Tap to add a bank account.</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : null}
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                bankId={bankId}
+                onBankChange={setBankId}
+              />
             </SurfaceCard>
 
             {/* Itemized Lines */}

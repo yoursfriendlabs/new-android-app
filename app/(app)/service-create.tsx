@@ -20,7 +20,7 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { TotalsCard } from '@/src/shared/ui/TotalsCard';
-import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { buildReceiptHtml, buildServiceReceipt } from '@/src/shared/lib/receipt';
 import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
@@ -313,27 +313,49 @@ export default function ServiceCreateScreen() {
         body: payload,
       });
 
+      const selectedBank = banks?.find((b) => b.id === draft.value.bankId);
+      const receiptInput = buildServiceReceipt(
+        {
+          id: '',
+          orderNo: draft.value.orderNo,
+          partyId: draft.value.customer.id,
+          partyName: draft.value.customer.name,
+          customerName: draft.value.customer.name,
+          status: draft.value.status,
+          notes: draft.value.notes,
+          deliveryDate: draft.value.deliveryDate,
+          paymentMethod: draft.value.paymentMethod,
+          bankId: draft.value.bankId,
+          paymentNote: draft.value.paymentNote,
+          attributes: draft.value.attributes,
+          laborTotal,
+          partsTotal,
+          subTotal,
+          taxTotal,
+          discount: draft.value.discount,
+          grandTotal,
+          receivedTotal: draft.value.receivedTotal,
+          items: draft.value.items.map((item) => ({
+            itemType: item.itemType,
+            description: item.description || item.product?.name || '',
+            productId: item.product?.id ?? '',
+            quantity: item.quantity,
+            unitType: item.unitType,
+            unitPrice: item.unitPrice,
+            taxRate: item.taxRate,
+            lineTotal: computeLineTotal(item),
+          })),
+        } as any,
+        businessProfile,
+        draft.value.customer,
+        selectedBank?.name
+      );
+
       setReceipt({
         title: draft.value.orderNo,
         subtitle: draft.value.customer.name,
-        html: buildReceiptHtml({
-          heading: 'Service Order',
-          reference: draft.value.orderNo,
-          date: draft.value.deliveryDate,
-          dateLabel: isGym ? 'Expiry Date' : 'Delivery Date',
-          subtitle: draft.value.customer.name,
-          lines: draft.value.items.map((item) => ({
-            name: item.product?.name ?? (item.description || item.itemType),
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: computeLineTotal(item),
-          })),
-          subTotal,
-          taxTotal,
-          discountTotal: draft.value?.discount,
-          grandTotal,
-          amountReceived: draft.value?.receivedTotal,
-        }),
+        html: receiptInput.html,
+        data: receiptInput.input,
       });
 
       if (result.data) {
@@ -513,28 +535,26 @@ export default function ServiceCreateScreen() {
                 value={draft.value.deliveryDate}
                 onChangeText={(deliveryDate) => draft.setValue((current) => ({ ...current, deliveryDate }))}
               />
-              {isGym && (
-                <View style={styles.presetRow}>
-                  {[
-                    { label: '+1 Month', days: 30 },
-                    { label: '+3 Months', days: 90 },
-                    { label: '+6 Months', days: 180 },
-                    { label: '+1 Year', days: 365 },
-                  ].map((preset) => (
-                    <Pressable
-                      key={preset.label}
-                      style={styles.presetButton}
-                      onPress={() => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + preset.days);
-                        const val = d.toISOString().split('T')[0];
-                        draft.setValue((current) => ({ ...current, deliveryDate: val }));
-                      }}>
-                      <Text style={styles.presetButtonText}>{preset.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+              <View style={styles.presetRow}>
+                {[
+                  isGym ? { label: '+1 Month', days: 30 } : { label: '+1 Day', days: 1 },
+                  isGym ? { label: '+3 Months', days: 90 } : { label: '+3 Days', days: 3 },
+                  isGym ? { label: '+6 Months', days: 180 } : { label: '+1 Week', days: 7 },
+                  isGym ? { label: '+1 Year', days: 365 } : { label: '+1 Month', days: 30 },
+                ].map((preset) => (
+                  <Pressable
+                    key={preset.label}
+                    style={styles.presetButton}
+                    onPress={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + preset.days);
+                      const val = d.toISOString().split('T')[0];
+                      draft.setValue((current) => ({ ...current, deliveryDate: val }));
+                    }}>
+                    <Text style={styles.presetButtonText}>{preset.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </>
           ) : null}
           <FormField
@@ -716,9 +736,82 @@ export default function ServiceCreateScreen() {
       ) : null}
 
       {stepIndex === 3 ? (
-        <SurfaceCard title="Payment" subtitle="Keep the payment step short and default it to cash unless the user changes it.">
+        <SurfaceCard title="Payment & Advance" subtitle="Record advance received or mark for payment on delivery.">
+          {/* Live Remaining Due Preview */}
+          <View style={[styles.duePreviewBox, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.duePreviewLabel, { color: colors.textMuted }]}>Order Grand Total</Text>
+              <Text style={[styles.duePreviewGrand, { color: colors.text }]}>{formatCurrency(grandTotal)}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.duePreviewLabel, { color: colors.textMuted }]}>Remaining Balance Due</Text>
+              <Text
+                style={[
+                  styles.duePreviewValue,
+                  { color: Math.max(grandTotal - (draft.value.receivedTotal || 0), 0) > 0 ? colors.danger : colors.success },
+                ]}>
+                {formatCurrency(Math.max(grandTotal - (draft.value.receivedTotal || 0), 0))}
+              </Text>
+            </View>
+          </View>
+
+          {/* Quick Shortcuts */}
+          <View style={styles.advanceShortcutRow}>
+            <Pressable
+              style={[
+                styles.advanceShortcutBtn,
+                { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
+                draft.value.receivedTotal === grandTotal && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={() => draft.setValue((current) => ({ ...current, receivedTotal: grandTotal }))}>
+              <Text
+                style={[
+                  styles.advanceShortcutText,
+                  { color: colors.text },
+                  draft.value.receivedTotal === grandTotal && { color: colors.white },
+                ]}>
+                Full ({formatCurrency(grandTotal)})
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.advanceShortcutBtn,
+                { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
+                draft.value.receivedTotal === Math.round(grandTotal / 2) && {
+                  backgroundColor: colors.primary,
+                  borderColor: colors.primary,
+                },
+              ]}
+              onPress={() => draft.setValue((current) => ({ ...current, receivedTotal: Math.round(grandTotal / 2) }))}>
+              <Text
+                style={[
+                  styles.advanceShortcutText,
+                  { color: colors.text },
+                  draft.value.receivedTotal === Math.round(grandTotal / 2) && { color: colors.white },
+                ]}>
+                50% Advance
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.advanceShortcutBtn,
+                { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
+                draft.value.receivedTotal === 0 && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={() => draft.setValue((current) => ({ ...current, receivedTotal: 0 }))}>
+              <Text
+                style={[
+                  styles.advanceShortcutText,
+                  { color: colors.text },
+                  draft.value.receivedTotal === 0 && { color: colors.white },
+                ]}>
+                Pay Later (0)
+              </Text>
+            </Pressable>
+          </View>
+
           <FormField
-            label="Amount received"
+            label="Amount received (रू)"
             value={String(draft?.value?.receivedTotal)}
             onChangeText={(receivedTotal) => draft.setValue((current) => ({ ...current, receivedTotal: Number(receivedTotal || 0) }))}
             keyboardType="numeric"
@@ -726,39 +819,16 @@ export default function ServiceCreateScreen() {
           <PaymentMethodSelector
             value={draft.value.paymentMethod}
             onChange={(paymentMethod) => draft.setValue((current) => ({ ...current, paymentMethod }))}
+            bankId={draft.value.bankId}
+            onBankChange={(bankId) => draft.setValue((current) => ({ ...current, bankId }))}
           />
-          {draft.value.paymentMethod === 'bank' ? (
-            <View style={styles.bankWrap}>
-              {activeBanks.length > 0 ? (
-                activeBanks.map((bank) => (
-                  <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, draft.value.bankId === bank.id && styles.bankChipActive]}
-                    onPress={() => draft.setValue((current) => ({ ...current, bankId: bank.id }))}>
-                    <Text
-                      style={[
-                        styles.bankChipLabel,
-                        draft.value.bankId === bank.id && styles.bankChipLabelActive,
-                      ]}>
-                      {bank.name}
-                    </Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                  <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
           <FormField
             label="Payment note"
             value={draft.value.paymentNote}
             onChangeText={(paymentNote) => draft.setValue((current) => ({ ...current, paymentNote }))}
           />
           <FormField
-            label="Discount"
+            label="Discount (रू)"
             value={String(draft.value.discount)}
             onChangeText={(discount) => draft.setValue((current) => ({ ...current, discount: Number(discount || 0) }))}
             keyboardType="numeric"
@@ -1732,5 +1802,47 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontSize: typography.subheading,
     fontWeight: '800',
     color: colors.danger,
+  },
+  duePreviewBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: spacing.xs,
+  },
+  duePreviewLabel: {
+    fontSize: typography.caption,
+    fontWeight: '600',
+  },
+  duePreviewGrand: {
+    fontSize: typography.subheading,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  duePreviewValue: {
+    fontSize: typography.subheading,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  advanceShortcutRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  advanceShortcutBtn: {
+    flex: 1,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  advanceShortcutText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

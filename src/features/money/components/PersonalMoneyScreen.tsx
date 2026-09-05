@@ -18,16 +18,21 @@ import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { useAuthStore } from '@/src/stores/auth-store';
+import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
+import { buildExpenseReceipt, buildPartyTransactionReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
+import type { PartyTransaction, Purchase } from '@/src/types/models';
+import { Pressable } from 'react-native';
 
 type MoneyFilter = 'all' | 'in' | 'out';
 
 export function PersonalMoneyScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ entry?: string | string[] }>();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const expensesQuery = usePurchases('expense');
@@ -47,6 +52,8 @@ export function PersonalMoneyScreen() {
     }
   }, [routeEntry]);
 
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+
   const partyById = useMemo(() => {
     return new Map((partiesQuery.data ?? []).map((party) => [party.id, party]));
   }, [partiesQuery.data]);
@@ -62,6 +69,8 @@ export function PersonalMoneyScreen() {
         date: item.purchaseDate,
         amount: Number(item.grandTotal || 0),
         due: expenseDue(item),
+        rawExpense: item,
+        rawPayment: undefined as PartyTransaction | undefined,
       }));
     const payments = (moneyTxQuery.data ?? [])
       .filter((item) => (period === 'all' ? true : isInCurrentMonth(item.txDate)))
@@ -71,15 +80,32 @@ export function PersonalMoneyScreen() {
         return {
           id: `${inbound ? 'in' : 'paid'}-${item.id}`,
           kind: inbound ? ('in' as const) : ('out' as const),
-          title: moneyCategoryFromNote(item.note) || (inbound ? 'Income' : 'Paid'),
+          title: moneyCategoryFromNote(item.note) || (inbound ? t('home.income') : t('common.paid')),
           person: moneyPersonLabel(party),
           date: item.txDate,
           amount: Number(item.amount || 0),
           due: 0,
+          rawExpense: undefined as Purchase | undefined,
+          rawPayment: item,
         };
       });
     return [...payments, ...expenses].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [expensesQuery.data, moneyTxQuery.data, partyById, period]);
+  }, [expensesQuery.data, moneyTxQuery.data, partyById, period, t]);
+
+  const handleOpenReceipt = (row: (typeof rows)[number]) => {
+    if (row.rawExpense) {
+      const { input, html } = buildExpenseReceipt(row.rawExpense, businessProfile);
+      openReceiptPreview(router, input, html);
+    } else if (row.rawPayment) {
+      const party = partyById.get(row.rawPayment.partyId);
+      const { input, html } = buildPartyTransactionReceipt(
+        row.rawPayment,
+        party || { id: row.rawPayment.partyId, name: row.person || 'Contact', type: 'customer', createdAt: row.rawPayment.txDate, updatedAt: row.rawPayment.txDate },
+        businessProfile,
+      );
+      openReceiptPreview(router, input, html);
+    }
+  };
 
   const visibleRows = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -158,11 +184,11 @@ export function PersonalMoneyScreen() {
     <Screen
       scrollable={false}
       padded={false}
-      topBarTitle="Money"
+      topBarTitle={t('nav.money')}
       footer={
         <StickyActionBar
-          secondary={{ label: 'Income', onPress: () => setEntryKind('income') }}
-          primary={{ label: 'Expense', onPress: () => setEntryKind('expense') }}
+          secondary={{ label: t('home.income'), onPress: () => setEntryKind('income') }}
+          primary={{ label: t('home.expense'), onPress: () => setEntryKind('expense') }}
         />
       }>
       <ScrollView
@@ -185,11 +211,11 @@ export function PersonalMoneyScreen() {
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.success }]}>In</Text>
+            <Text style={[styles.summaryLabel, { color: colors.success }]}>{t('money.in')}</Text>
             <Text style={[styles.summaryValue, { color: colors.success }]}>{formatCurrency(totals.income, currency)}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.danger }]}>Out</Text>
+            <Text style={[styles.summaryLabel, { color: colors.danger }]}>{t('money.out')}</Text>
             <Text style={[styles.summaryValue, { color: colors.danger }]}>{formatCurrency(totals.expense, currency)}</Text>
           </View>
         </View>
@@ -198,33 +224,40 @@ export function PersonalMoneyScreen() {
           value={period}
           onChange={setPeriod}
           options={[
-            { label: 'This month', value: 'month' },
-            { label: 'All time', value: 'all' },
+            { label: t('common.thisMonth'), value: 'month' },
+            { label: t('common.all'), value: 'all' },
           ]}
         />
 
-        <SearchField placeholder="Search income or expenses" value={search} onChangeText={setSearch} />
+        <SearchField placeholder={t('common.search')} value={search} onChangeText={setSearch} />
         <SegmentedTabs
           value={filter}
           onChange={setFilter}
           options={[
-            { label: 'All', value: 'all' },
-            { label: 'Income', value: 'in' },
-            { label: 'Expenses', value: 'out' },
+            { label: t('common.all'), value: 'all' },
+            { label: t('home.income'), value: 'in' },
+            { label: t('home.expense'), value: 'out' },
           ]}
         />
 
         {!visibleRows.length ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nothing recorded yet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('money.nothingRecordedYet')}</Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              Add income when money comes in, and expenses when it goes out.
+              {t('money.addMoneyHint')}
             </Text>
           </View>
         ) : (
           <View style={styles.list}>
             {visibleRows.map((row) => (
-              <View key={row.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Pressable
+                key={row.id}
+                onPress={() => handleOpenReceipt(row)}
+                style={({ pressed }) => [
+                  styles.row,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  pressed && { opacity: 0.8 },
+                ]}>
                 <View style={[styles.avatar, { backgroundColor: row.kind === 'in' ? colors.success : colors.danger }]}>
                   <MaterialCommunityIcons
                     name={row.kind === 'in' ? 'arrow-down' : 'arrow-up'}
@@ -248,8 +281,12 @@ export function PersonalMoneyScreen() {
                   {row.due > 0 ? (
                     <Text style={[styles.rowDue, { color: colors.danger }]}>Due {formatCurrency(row.due, currency)}</Text>
                   ) : null}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 }}>
+                    <MaterialCommunityIcons name="receipt" size={13} color={colors.primary} />
+                    <Text style={{ fontSize: 11, color: colors.primary, fontWeight: '700' }}>Bill</Text>
+                  </View>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         )}

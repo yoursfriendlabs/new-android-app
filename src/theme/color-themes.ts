@@ -1,8 +1,8 @@
 export const COLOR_THEME_STORAGE_KEY = 'pasalmanager.color_theme';
 export const CUSTOM_PRIMARY_STORAGE_KEY = 'pasalmanager.custom_primary';
-export const THEME_BRAND_MIGRATION_KEY = 'pasalmanager.theme_brand_signal';
-export const DEFAULT_COLOR_THEME_ID = 'signal';
-export const LEGACY_DEFAULT_COLOR_THEME_ID = 'teak';
+export const THEME_BRAND_MIGRATION_KEY = 'pasalmanager.theme_brand_forest_0a2e20';
+export const DEFAULT_COLOR_THEME_ID = 'forest';
+export const LEGACY_DEFAULT_COLOR_THEME_ID = 'signal';
 export const CUSTOM_COLOR_THEME_ID = 'custom';
 
 export const BRAND_COLORS = {
@@ -63,10 +63,48 @@ export const NEUTRAL_COLORS = {
 
 export const COLOR_THEMES: ColorThemeDefinition[] = [
   {
+    id: 'forest',
+    swatch: BRAND_COLORS.forest,
+    label: 'Forest Green',
+    hint: 'The PM brand color. Deep pine green for actions and contrast.',
+    colors: {
+      primary: {
+        DEFAULT: BRAND_COLORS.forest,
+        50: BRAND_COLORS.paper,
+        100: '#e4efe7',
+        200: '#c3dfcc',
+        300: '#97c7a5',
+        400: '#5ea976',
+        500: BRAND_COLORS.forest,
+        600: '#08261b',
+        700: '#061e15',
+        800: '#04150f',
+        900: '#020b08',
+      },
+      secondary: {
+        DEFAULT: '#3f7a63',
+        50: '#f3f8f5',
+        100: '#e6f1eb',
+        200: '#c9e0d3',
+        300: '#9fc4b0',
+        400: '#6fa08a',
+        500: '#3f7a63',
+        600: '#356a55',
+        700: '#2b5646',
+        800: '#224438',
+        900: '#1a342b',
+      },
+      ink: '#111827',
+      inkLight: '#3f5e4e',
+      mist: BRAND_COLORS.paper,
+      surface: BRAND_COLORS.white,
+    },
+  },
+  {
     id: 'signal',
     swatch: BRAND_COLORS.signalLime,
     label: 'Signal Lime',
-    hint: 'The PasalManager brand. Lime for actions, forest for type.',
+    hint: 'Lime for vibrant highlights and actions.',
     colors: {
       primary: {
         DEFAULT: BRAND_COLORS.signalLime,
@@ -211,44 +249,6 @@ export const COLOR_THEMES: ColorThemeDefinition[] = [
       ink: '#0f172a',
       inkLight: '#334155',
       mist: '#eef2ff',
-      surface: '#ffffff',
-    },
-  },
-  {
-    id: 'forest',
-    swatch: '#047857',
-    label: 'Forest',
-    hint: 'Deep emerald. A quieter green if lime feels too bright.',
-    colors: {
-      primary: {
-        DEFAULT: '#047857',
-        50: '#ecfdf5',
-        100: '#d1fae5',
-        200: '#a7f3d0',
-        300: '#6ee7b7',
-        400: '#34d399',
-        500: '#047857',
-        600: '#05664b',
-        700: '#064e3b',
-        800: '#064030',
-        900: '#022c22',
-      },
-      secondary: {
-        DEFAULT: '#3f7a63',
-        50: '#f3f8f5',
-        100: '#e6f1eb',
-        200: '#c9e0d3',
-        300: '#9fc4b0',
-        400: '#6fa08a',
-        500: '#3f7a63',
-        600: '#356a55',
-        700: '#2b5646',
-        800: '#224438',
-        900: '#1a342b',
-      },
-      ink: '#14241c',
-      inkLight: '#365347',
-      mist: '#f0fdf4',
       surface: '#ffffff',
     },
   },

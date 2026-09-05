@@ -70,7 +70,7 @@ export function ThemeSelector() {
       <View style={[styles.customBox, { borderColor: colors.border, backgroundColor: colors.surface }]}>
         <Text style={[styles.customLabel, { color: colors.textSoft }]}>Your color</Text>
         <Text style={[styles.customHint, { color: colors.textMuted }]}>
-          Paste a hex code if you want a different accent. Signal Lime is the default.
+          Paste a hex code if you want a different accent. Forest Green is the default.
         </Text>
         <View style={styles.customRow}>
           <View

@@ -23,6 +23,7 @@ import {
 } from '@/src/features/parties/lib/party';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { buildPartyBalancesHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
+import { useTranslation } from '@/src/i18n';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
@@ -33,8 +34,9 @@ type BalanceFilter = 'all' | 'receive' | 'give';
 
 export default function PartiesScreen() {
   const colors = usePalette();
+  const { t } = useTranslation();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PasalManager';
+  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const personal = isPersonalWorkspace({
     businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
@@ -96,7 +98,7 @@ export default function PartiesScreen() {
             };
           }),
         }),
-        'Share party balances',
+        t('parties.shareBalances'),
       );
     } catch (error) {
       Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
@@ -119,7 +121,7 @@ export default function PartiesScreen() {
     <Screen
       scrollable={false}
       padded={false}
-      topBarTitle={personal ? 'Contacts' : 'Parties'}
+      topBarTitle={personal ? t('parties.contactsTitle') : t('parties.title')}
       topBarRight={
         <Pressable onPress={() => void handleShareBalances()} hitSlop={8} disabled={exporting}>
           {exporting ? (
@@ -131,9 +133,9 @@ export default function PartiesScreen() {
       }
       footer={
         <StickyActionBar
-          secondary={{ label: 'From phone', onPress: () => void importFromPhone() }}
+          secondary={{ label: t('parties.addFromPhone'), onPress: () => void importFromPhone() }}
           primary={{
-            label: personal ? 'New contact' : 'New party',
+            label: personal ? t('parties.newContact') : t('parties.newParty'),
             onPress: () => {
               setContactSeed(null);
               setCreateVisible(true);
@@ -150,35 +152,35 @@ export default function PartiesScreen() {
         <View style={styles.hero}>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
             {personal
-              ? 'People you pay, get paid by, or just want on record. Add one quickly or pick from your phone.'
-              : 'Customers and suppliers, with live dues and a full statement on each profile.'}
+              ? t('parties.noContactsCopy')
+              : t('parties.noPartiesCopy')}
           </Text>
         </View>
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>
-              {personal ? 'They owe me' : 'To receive'}
+              {t('parties.toReceive')}
             </Text>
             <Text style={[styles.summaryValue, { color: colors.danger }]}>{formatCurrency(totals.receive, currency)}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: colors.infoSoft, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.info }]}>
-              {personal ? 'I owe them' : 'To give'}
+              {t('parties.toPay')}
             </Text>
             <Text style={[styles.summaryValue, { color: colors.info }]}>{formatCurrency(totals.give, currency)}</Text>
           </View>
         </View>
 
-        <SearchField placeholder="Search name or phone" value={search} onChangeText={setSearch} />
+        <SearchField placeholder={t('common.search')} value={search} onChangeText={setSearch} />
         {personal ? (
           <SegmentedTabs
             value={balanceFilter}
             onChange={setBalanceFilter}
             options={[
-              { label: 'All', value: 'all' },
-              { label: 'Owed to me', value: 'receive' },
-              { label: 'I owe', value: 'give' },
+              { label: t('common.all'), value: 'all' },
+              { label: t('parties.toReceive'), value: 'receive' },
+              { label: t('parties.toPay'), value: 'give' },
             ]}
           />
         ) : (
@@ -186,9 +188,9 @@ export default function PartiesScreen() {
             value={type}
             onChange={setType}
             options={[
-              { label: 'All', value: 'both' },
-              { label: 'Customers', value: 'customer' },
-              { label: 'Suppliers', value: 'supplier' },
+              { label: t('common.all'), value: 'both' },
+              { label: t('parties.customers'), value: 'customer' },
+              { label: t('parties.suppliers'), value: 'supplier' },
             ]}
           />
         )}
@@ -205,12 +207,12 @@ export default function PartiesScreen() {
               <MaterialCommunityIcons name="account-plus-outline" size={28} color={colors.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {personal ? 'No contacts yet' : 'No parties yet'}
+              {personal ? t('parties.noContactsYet') : t('parties.noPartiesYet')}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
               {personal
-                ? 'Add someone you pay or get paid by, or import them from your phone contacts.'
-                : 'Add a customer or supplier to track sales, purchases, and outstanding dues.'}
+                ? t('parties.noContactsCopy')
+                : t('parties.noPartiesCopy')}
             </Text>
           </View>
         ) : null}

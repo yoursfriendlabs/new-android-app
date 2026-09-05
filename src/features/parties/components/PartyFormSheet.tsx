@@ -243,8 +243,8 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
         value={form.balanceType as 'receive' | 'give'}
         onChange={(balanceType) => setForm((current) => ({ ...current, balanceType }))}
         options={[
-          { label: 'They owe me', value: 'receive' },
-          { label: 'I owe them', value: 'give' },
+          { label: 'To Receive', value: 'receive' },
+          { label: 'To Pay', value: 'give' },
         ]}
       />
     </BottomSheet>

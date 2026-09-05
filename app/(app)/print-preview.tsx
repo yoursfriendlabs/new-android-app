@@ -69,13 +69,21 @@ export default function PrintPreviewScreen() {
               <MaterialCommunityIcons name="storefront" size={24} color={colors.primary} />
             </View>
             <Text style={styles.storeName}>
-              {String(businessProfile?.businessName || businessProfile?.name || 'PasalManager')}
+              {String(businessProfile?.businessName || businessProfile?.name || 'PM')}
             </Text>
             {businessProfile?.address ? (
               <Text style={styles.storeMeta}>{String(businessProfile.address)}</Text>
             ) : null}
             {businessProfile?.phone ? (
               <Text style={styles.storeMeta}>Phone: {String(businessProfile.phone)}</Text>
+            ) : null}
+            {(businessProfile?.panNumber || businessProfile?.pan || businessProfile?.vatNumber || businessProfile?.vat || businessProfile?.taxNumber) ? (
+              <Text style={[styles.storeMeta, { fontWeight: '700', color: colors.primary }]}>
+                PAN / VAT No: {String(businessProfile.panNumber || businessProfile.pan || businessProfile.vatNumber || businessProfile.vat || businessProfile.taxNumber)}
+              </Text>
+            ) : null}
+            {businessProfile?.email ? (
+              <Text style={styles.storeMeta}>Email: {String(businessProfile.email)}</Text>
             ) : null}
           </View>
 

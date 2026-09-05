@@ -1,4 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -11,6 +12,7 @@ import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useLedger, useParties } from '@/src/shared/hooks/useAppQueries';
 import { buildLedgerReportHtml, printHtmlDocument, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
+import { openReceiptPreview, type ReceiptInput } from '@/src/shared/lib/receipt';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Party } from '@/src/types/models';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
@@ -26,7 +28,7 @@ export default function LedgerScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PasalManager';
+  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const personal = isPersonalWorkspace({
     businessType: String(businessProfile?.businessType ?? ''),
@@ -91,24 +93,60 @@ export default function LedgerScreen() {
     }
   }
 
+  function handleBillPreview() {
+    const lines = entries.map((entry) => {
+      const amount = Number(entry.credit || entry.debit || 0);
+      const direction = Number(entry.credit || 0) > 0 ? 'Credit' : 'Debit';
+      const desc = `${prettyDate(entry.entryDate)} · ${entry.refNo || entry.description || 'Entry'} (${direction})`;
+      return {
+        name: desc,
+        quantity: 1,
+        unitPrice: amount,
+        lineTotal: amount,
+      };
+    });
+    const html = reportHtml();
+    const input: ReceiptInput = {
+      heading: selectedParty?.name ? `LEDGER - ${selectedParty.name}` : 'ACCOUNT LEDGER STATEMENT',
+      reference: `LDG-${Date.now().toString().slice(-6)}`,
+      date: new Date().toISOString(),
+      dateLabel: 'Ledger Date',
+      partyName: selectedParty?.name,
+      partyPhone: selectedParty?.phone ? String(selectedParty.phone) : undefined,
+      notes: `Total Debit: ${formatCurrency(totals.debit, currency)} · Total Credit: ${formatCurrency(totals.credit, currency)} · Net: ${formatCurrency(net, currency)}`,
+      lines,
+      subTotal: totals.debit + totals.credit,
+      taxTotal: 0,
+      discountTotal: 0,
+      grandTotal: totals.debit + totals.credit,
+      amountReceived: totals.credit,
+    };
+    openReceiptPreview(router, input, html);
+  }
+
   return (
     <Screen
       scrollable={false}
       padded={false}
       topBarTitle={personal ? 'History' : 'Ledger'}
       topBarRight={
-        <Pressable onPress={() => void handleShare()} hitSlop={8} style={styles.headerIcon} disabled={exporting}>
-          {exporting ? (
-            <ActivityIndicator color={colors.primary} size="small" />
-          ) : (
-            <MaterialCommunityIcons color={colors.text} name="share-variant-outline" size={22} />
-          )}
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Pressable onPress={handleBillPreview} hitSlop={8} style={styles.headerIcon}>
+            <MaterialCommunityIcons color={colors.text} name="printer-outline" size={22} />
+          </Pressable>
+          <Pressable onPress={() => void handleShare()} hitSlop={8} style={styles.headerIcon} disabled={exporting}>
+            {exporting ? (
+              <ActivityIndicator color={colors.primary} size="small" />
+            ) : (
+              <MaterialCommunityIcons color={colors.text} name="share-variant-outline" size={22} />
+            )}
+          </Pressable>
+        </View>
       }
       footer={
         <StickyActionBar
           secondary={{ label: 'Share PDF', onPress: () => void handleShare() }}
-          primary={{ label: 'Print PDF', onPress: () => void handlePrint() }}
+          primary={{ label: 'Bill / Print', onPress: handleBillPreview }}
         />
       }>
       <ScrollView

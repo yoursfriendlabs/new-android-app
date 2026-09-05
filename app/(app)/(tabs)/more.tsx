@@ -153,6 +153,15 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/banks',
       },
       {
+        id: 'shares',
+        segment: 'shares',
+        label: 'NEPSE & Stocks',
+        subtitle: 'Live share market & portfolio tracker',
+        icon: 'chart-areaspline',
+        tone: 'success',
+        route: '/(app)/shares',
+      },
+      {
         id: 'expense-categories',
         segment: 'expenses',
         label: 'Expense categories',
@@ -387,7 +396,7 @@ export default function MoreScreen() {
         <View style={styles.headerCopy}>
           <Text style={[styles.name, { color: colors.text }]}>{user?.name || 'Your profile'}</Text>
           <Text style={[styles.meta, { color: colors.textMuted }]}>
-            {user?.email || user?.phone || businessProfile?.businessName || 'PasalManager'}
+            {user?.email || user?.phone || businessProfile?.businessName || 'PM'}
           </Text>
           {businessProfile?.businessName ? (
             <Text style={[styles.businessName, { color: colors.primary }]}>{businessProfile.businessName}</Text>

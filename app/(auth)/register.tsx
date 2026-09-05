@@ -121,7 +121,7 @@ export default function RegisterScreen() {
     <AuthScreen
       backLabel={step === 2 ? 'Account details' : 'Back to sign in'}
       onBack={step === 2 ? () => setStep(1) : () => router.replace('/(auth)/login')}
-      title={step === 1 ? 'Create your account' : 'How will you use PasalManager?'}
+      title={step === 1 ? 'Create your account' : 'How will you use PM?'}
       subtitle={
         step === 1
           ? 'Personal books for home, or a full workspace for your shop.'

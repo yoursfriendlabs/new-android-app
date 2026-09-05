@@ -197,33 +197,12 @@ export function PosCheckoutSheet({
           )}
 
           {tendered > 0 || value.fullyPaid ? (
-            <>
-              <PaymentMethodSelector
-                value={value.paymentMethod}
-                onChange={(paymentMethod) => setValue((current) => ({ ...current, paymentMethod }))}
-              />
-              {value.paymentMethod === 'bank' ? (
-                <View style={styles.bankWrap}>
-                  {banks.length ? (
-                    banks.map((bank) => {
-                      const active = value.bankId === bank.id;
-                      return (
-                        <Pressable
-                          key={bank.id}
-                          onPress={() => setValue((current) => ({ ...current, bankId: bank.id }))}
-                          style={[styles.bankChip, active && styles.bankChipActive]}>
-                          <Text style={[styles.bankChipLabel, active && styles.bankChipLabelActive]}>{bank.name}</Text>
-                        </Pressable>
-                      );
-                    })
-                  ) : (
-                    <Pressable style={styles.emptyBank} onPress={() => router.push('/(app)/banks')}>
-                      <Text style={styles.emptyBankText}>No banks yet. Tap to add one.</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : null}
-            </>
+            <PaymentMethodSelector
+              value={value.paymentMethod}
+              onChange={(paymentMethod) => setValue((current) => ({ ...current, paymentMethod }))}
+              bankId={value.bankId}
+              onBankChange={(bankId) => setValue((current) => ({ ...current, bankId }))}
+            />
           ) : null}
         </View>
 

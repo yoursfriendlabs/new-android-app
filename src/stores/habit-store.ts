@@ -438,6 +438,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     }
     await persistHabits({ ...get(), dailyMoneyReminder });
     set({ dailyMoneyReminder });
+    await get().applyDailyMoneyReminder(true);
   },
   applyDailyMoneyReminder: async (personal) => {
     if (!nativeRemindersAvailable()) return;

@@ -54,7 +54,7 @@ export function TopAppBar({
       ? t(segmentTitleKeyMap[currentSegment])
       : currentSegment
         ? currentSegment
-        : 'PasalManager');
+        : 'PM');
   const resolvedLeadingMode =
     leadingMode === 'auto' ? (showBack ? 'back' : 'brand') : leadingMode;
 

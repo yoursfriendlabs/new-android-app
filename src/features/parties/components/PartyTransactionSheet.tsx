@@ -149,37 +149,15 @@ export function PartyTransactionSheet({
       />
       <PaymentMethodSelector
         value={form.paymentMethod}
-        onChange={(paymentMethod) =>
+        bankId={form.bankId}
+        onChange={(paymentMethod, bankId) =>
           setForm((current) => ({
             ...current,
             paymentMethod,
-            bankId: paymentMethod === 'bank' ? current.bankId : '',
+            bankId: bankId ?? current.bankId,
           }))
         }
       />
-      {form.paymentMethod === 'bank' ? (
-        <View style={styles.bankWrap}>
-          {activeBanks.length ? (
-            activeBanks.map((bank) => {
-              const active = form.bankId === bank.id;
-              return (
-                <Pressable
-                  key={bank.id}
-                  style={[
-                    styles.bankChip,
-                    { backgroundColor: colors.backgroundAlt },
-                    active && { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => setForm((current) => ({ ...current, bankId: bank.id }))}>
-                  <Text style={[styles.bankChipLabel, { color: active ? colors.white : colors.text }]}>{bank.name}</Text>
-                </Pressable>
-              );
-            })
-          ) : (
-            <Text style={[styles.helper, { color: colors.textMuted }]}>No active banks yet. Add one from Banks.</Text>
-          )}
-        </View>
-      ) : null}
       <FormField
         label="Date"
         value={form.txDate}

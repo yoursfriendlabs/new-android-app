@@ -4,13 +4,13 @@ import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIco
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 export const COIN_REWARDS = {
-  moneyLog: 6,
-  money: 6,
-  note: 10,
-  reminder: 12,
-  complete: 18,
-  intervalCheckIn: 8,
-  checkin: 8,
+  moneyLog: 1,
+  money: 1,
+  note: 1,
+  reminder: 2,
+  complete: 3,
+  intervalCheckIn: 2,
+  checkin: 2,
 } as const;
 
 export function coinLabel(amount: number) {
@@ -62,12 +62,12 @@ export interface CoinMerch {
 }
 
 export const COIN_MERCH: CoinMerch[] = [
-  { id: 'sticker', title: 'Sticker pack', hint: 'Laptop and bottle stickers', cost: 80, icon: 'sticker-emoji' },
-  { id: 'pen', title: 'Pen', hint: 'A clean everyday pen', cost: 120, icon: 'pen' },
-  { id: 'notebook', title: 'Notebook', hint: 'Pocket notebook for lists', cost: 160, icon: 'notebook-outline' },
-  { id: 'cup', title: 'Cup', hint: 'Ceramic mug for slow mornings', cost: 280, icon: 'cup' },
-  { id: 'tote', title: 'Tote bag', hint: 'Canvas bag for errands', cost: 360, icon: 'bag-personal-outline' },
-  { id: 'tshirt', title: 'T-shirt', hint: 'Soft cotton merch tee', cost: 520, icon: 'tshirt-crew' },
+  { id: 'sticker', title: 'Sticker pack', hint: 'Laptop and bottle stickers', cost: 15, icon: 'sticker-emoji' },
+  { id: 'pen', title: 'Pen', hint: 'A clean everyday pen', cost: 25, icon: 'pen' },
+  { id: 'notebook', title: 'Notebook', hint: 'Pocket notebook for lists', cost: 40, icon: 'notebook-outline' },
+  { id: 'cup', title: 'Cup', hint: 'Ceramic mug for slow mornings', cost: 60, icon: 'cup' },
+  { id: 'tote', title: 'Tote bag', hint: 'Canvas bag for errands', cost: 80, icon: 'bag-personal-outline' },
+  { id: 'tshirt', title: 'T-shirt', hint: 'Soft cotton merch tee', cost: 100, icon: 'tshirt-crew' },
 ];
 
 export function coinReasonLabel(reason: CoinReason) {

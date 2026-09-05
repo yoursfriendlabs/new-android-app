@@ -666,36 +666,12 @@ export default function QuickEntryScreen() {
           onChange={(paymentMethod) =>
             expenseDraft.setValue((current) => ({ ...current, paymentMethod }))
           }
+          bankId={expenseDraft.value.bankId}
+          onBankChange={(bankId) =>
+            expenseDraft.setValue((current) => ({ ...current, bankId }))
+          }
           activeBackgroundColor={colors.primary}
         />
-        {expenseDraft.value.paymentMethod === 'bank' ? (
-          <View style={styles.bankWrap}>
-            {activeBanks.length > 0 ? (
-              activeBanks.map((bank) => (
-                <Pressable
-                  key={bank.id}
-                  style={[
-                    styles.bankChip,
-                    expenseDraft.value.bankId === bank.id && styles.bankChipActive,
-                  ]}
-                  onPress={() =>
-                    expenseDraft.setValue((current) => ({ ...current, bankId: bank.id }))
-                  }>
-                  <Text
-                    style={[
-                      styles.bankChipLabel,
-                      expenseDraft.value.bankId === bank.id &&
-                        styles.bankChipLabelActive,
-                    ]}>
-                    {bank.name}
-                  </Text>
-                </Pressable>
-              ))
-            ) : (
-              <Text style={styles.emptyBankText}>No active banks found yet.</Text>
-            )}
-          </View>
-        ) : null}
         <FormField
           label="Payment note"
           value={expenseDraft.value.paymentNote}
@@ -748,36 +724,12 @@ export default function QuickEntryScreen() {
           onChange={(paymentMethod) =>
             purchaseDraft.setValue((current) => ({ ...current, paymentMethod }))
           }
+          bankId={purchaseDraft.value.bankId}
+          onBankChange={(bankId) =>
+            purchaseDraft.setValue((current) => ({ ...current, bankId }))
+          }
           activeBackgroundColor={colors.primary}
         />
-        {purchaseDraft.value.paymentMethod === 'bank' ? (
-          <View style={styles.bankWrap}>
-            {activeBanks.length > 0 ? (
-              activeBanks.map((bank) => (
-                <Pressable
-                  key={bank.id}
-                  style={[
-                    styles.bankChip,
-                    purchaseDraft.value.bankId === bank.id && styles.bankChipActive,
-                  ]}
-                  onPress={() =>
-                    purchaseDraft.setValue((current) => ({ ...current, bankId: bank.id }))
-                  }>
-                  <Text
-                    style={[
-                      styles.bankChipLabel,
-                      purchaseDraft.value.bankId === bank.id &&
-                        styles.bankChipLabelActive,
-                    ]}>
-                    {bank.name}
-                  </Text>
-                </Pressable>
-              ))
-            ) : (
-              <Text style={styles.emptyBankText}>No active banks found yet.</Text>
-            )}
-          </View>
-        ) : null}
         <FormField
           label="Payment note"
           value={purchaseDraft.value.paymentNote}

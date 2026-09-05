@@ -53,7 +53,7 @@ export function getSignedPartyAmount(party?: Party | null) {
   return 0;
 }
 
-export function getPartyBalanceMeta(party?: Party | null, signedAmount?: number, personal = false): PartyBalanceMeta {
+export function getPartyBalanceMeta(party?: Party | null, signedAmount?: number, _personal = false): PartyBalanceMeta {
   const amount = signedAmount ?? getSignedPartyAmount(party);
 
   if (amount < 0) {
@@ -61,7 +61,7 @@ export function getPartyBalanceMeta(party?: Party | null, signedAmount?: number,
       amount,
       absoluteAmount: Math.abs(amount),
       tone: 'receive',
-      label: personal ? 'They owe me' : 'To receive',
+      label: 'To Receive',
     };
   }
 
@@ -70,7 +70,7 @@ export function getPartyBalanceMeta(party?: Party | null, signedAmount?: number,
       amount,
       absoluteAmount: amount,
       tone: 'pay',
-      label: personal ? 'I owe them' : 'To give',
+      label: 'To Pay',
     };
   }
 

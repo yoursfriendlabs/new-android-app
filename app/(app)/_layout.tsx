@@ -67,7 +67,7 @@ export default function AppLayout() {
       <Stack.Screen name="staff" />
       <Stack.Screen name="staff-salary" />
       <Stack.Screen name="attendance" />
-
+      <Stack.Screen name="shares" />
     </Stack>
   );
 }

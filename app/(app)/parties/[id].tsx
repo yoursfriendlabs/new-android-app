@@ -22,6 +22,13 @@ import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { isCafeWorkspace, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { buildPartyStatementHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import {
+  buildExpenseReceipt,
+  buildPartyStatementReceipt,
+  buildPartyTransactionReceipt,
+  buildSaleReceipt,
+  openReceiptPreview,
+} from '@/src/shared/lib/receipt';
+import {
   getBalanceColor,
   getBalanceSoftColor,
   getPartyBalanceMeta,
@@ -38,7 +45,7 @@ import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { radius, shadows, spacing, typography } from '@/src/theme';
-import type { Party, PartyStatementRow, PartyTransaction } from '@/src/types/models';
+import type { Party, PartyStatementRow, PartyTransaction, Purchase, Sale } from '@/src/types/models';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 
 function statementBadge(type: string, colors: AppPalette) {
@@ -77,7 +84,7 @@ export default function PartyDetailScreen() {
   const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PasalManager';
+  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const cafeWorkspace = isCafeWorkspace({
     businessType: String(businessProfile?.businessType ?? ''),
@@ -187,6 +194,88 @@ export default function PartyDetailScreen() {
     );
   }
 
+  const handlePrintRow = (row: PartyStatementRow) => {
+    if (!party) return;
+
+    if (row.type === 'payment_in' || row.type === 'payment_out') {
+      const tx: PartyTransaction = {
+        id: String(row.id),
+        businessId: businessProfile?.id ? String(businessProfile.id) : '',
+        partyId: party.id,
+        direction: row.type === 'payment_in' ? 'receive' : 'give',
+        amount: getStatementAmount(row),
+        paymentMethod: (row.paymentMethod as any) || 'cash',
+        bankId: row.bankId ? String(row.bankId) : undefined,
+        txDate: row.date ? String(row.date) : new Date().toISOString(),
+        note: row.description ? String(row.description) : '',
+        createdAt: row.date ? String(row.date) : new Date().toISOString(),
+        updatedAt: row.date ? String(row.date) : new Date().toISOString(),
+      };
+      const { input, html } = buildPartyTransactionReceipt(tx, party, businessProfile);
+      openReceiptPreview(router, input, html);
+    } else if (row.type === 'sale') {
+      const sale: Sale = {
+        id: String(row.id),
+        businessId: businessProfile?.id ? String(businessProfile.id) : '',
+        invoiceNo: row.referenceNo ? String(row.referenceNo) : `INV-${row.id}`,
+        partyId: party.id,
+        partyName: party.name,
+        saleDate: row.date ? String(row.date) : new Date().toISOString(),
+        status: 'completed',
+        paymentStatus: toAmount(row.dueAmount) <= 0 ? 'paid' : 'partial',
+        paymentMethod: (row.paymentMethod as any) || 'cash',
+        bankId: row.bankId ? String(row.bankId) : undefined,
+        subTotal: getStatementAmount(row),
+        taxTotal: 0,
+        discountTotal: 0,
+        grandTotal: getStatementAmount(row),
+        amountReceived: getStatementAmount(row) - toAmount(row.dueAmount),
+        items: [],
+        createdAt: row.date ? String(row.date) : new Date().toISOString(),
+        updatedAt: row.date ? String(row.date) : new Date().toISOString(),
+      };
+      const { input, html } = buildSaleReceipt(sale, businessProfile);
+      openReceiptPreview(router, input, html);
+    } else {
+      const purchase: Purchase = {
+        id: String(row.id),
+        businessId: businessProfile?.id ? String(businessProfile.id) : '',
+        invoiceNo: row.referenceNo ? String(row.referenceNo) : `EXP-${row.id}`,
+        entryType: row.type === 'purchase' ? 'purchase' : 'expense',
+        partyId: party.id,
+        partyName: party.name,
+        purchaseDate: row.date ? String(row.date) : new Date().toISOString(),
+        status: 'completed',
+        paymentStatus: toAmount(row.dueAmount) <= 0 ? 'paid' : 'partial',
+        paymentMethod: (row.paymentMethod as any) || 'cash',
+        bankId: row.bankId ? String(row.bankId) : undefined,
+        subTotal: getStatementAmount(row),
+        taxTotal: 0,
+        discountTotal: 0,
+        grandTotal: getStatementAmount(row),
+        amountReceived: getStatementAmount(row) - toAmount(row.dueAmount),
+        notes: row.description ? String(row.description) : '',
+        items: [],
+        createdAt: row.date ? String(row.date) : new Date().toISOString(),
+        updatedAt: row.date ? String(row.date) : new Date().toISOString(),
+      };
+      const { input, html } = buildExpenseReceipt(purchase, businessProfile);
+      openReceiptPreview(router, input, html);
+    }
+  };
+
+  const handlePreviewAllTransactions = () => {
+    if (!party) return;
+    const { input, html } = buildPartyStatementReceipt(
+      party,
+      rows,
+      summary,
+      businessProfile,
+      personal,
+    );
+    openReceiptPreview(router, input, html);
+  };
+
   return (
     <Screen
       scrollable={false}
@@ -195,6 +284,12 @@ export default function PartyDetailScreen() {
       topBarLeading="back"
       topBarRight={
         <View style={styles.headerActions}>
+          <Pressable
+            onPress={handlePreviewAllTransactions}
+            style={[styles.headerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            accessibilityLabel="Bill Preview">
+            <MaterialCommunityIcons name="printer-outline" size={20} color={colors.text} />
+          </Pressable>
           <Pressable
             onPress={() => void handleShareStatement()}
             disabled={exporting}
@@ -214,7 +309,7 @@ export default function PartyDetailScreen() {
       }
       footer={
         <StickyActionBar
-          secondary={{ label: 'Share PDF', onPress: () => void handleShareStatement() }}
+          secondary={{ label: 'Bill / Print', onPress: handlePreviewAllTransactions }}
           primary={{ label: personal ? 'Record money' : 'Record payment', onPress: () => openPayment() }}
         />
       }>
@@ -297,13 +392,19 @@ export default function PartyDetailScreen() {
         </View>
 
         <View style={styles.sectionHead}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Transactions</Text>
             <Text style={[styles.sectionMeta, { color: colors.textMuted }]}>
               {summary?.totalRows ?? rows.length} entries
               {personal ? ' · money in and out' : ' · payments, sales, and bills'}
             </Text>
           </View>
+          <Pressable
+            onPress={handlePreviewAllTransactions}
+            style={[styles.statementBillBtn, { backgroundColor: colors.accentSoft, borderColor: colors.primary }]}>
+            <MaterialCommunityIcons name="receipt-text-outline" size={16} color={colors.primary} />
+            <Text style={[styles.statementBillBtnText, { color: colors.primary }]}>Bill Preview</Text>
+          </Pressable>
         </View>
 
         {!rows.length ? (
@@ -344,9 +445,21 @@ export default function PartyDetailScreen() {
                         .filter(Boolean)
                         .join('  ·  ')}
                     </Text>
-                    {canEdit ? (
-                      <Text style={[styles.txEdit, { color: colors.primary }]}>Edit</Text>
-                    ) : null}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Pressable
+                        hitSlop={6}
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handlePrintRow(row);
+                        }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        <MaterialCommunityIcons name="printer-outline" size={14} color={colors.primary} />
+                        <Text style={[styles.txEdit, { color: colors.primary }]}>Bill / Print</Text>
+                      </Pressable>
+                      {canEdit ? (
+                        <Text style={[styles.txEdit, { color: colors.primary }]}>Edit</Text>
+                      ) : null}
+                    </View>
                   </View>
                   {toAmount(row.dueAmount) > 0 && row.type !== 'payment_in' && row.type !== 'payment_out' ? (
                     <Text style={[styles.txDue, { color: colors.danger }]}>
@@ -551,6 +664,23 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   },
   sectionHead: {
     paddingTop: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  statementBillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  statementBillBtnText: {
+    fontSize: typography.caption,
+    fontWeight: '700',
   },
   sectionTitle: {
     fontSize: typography.subheading,

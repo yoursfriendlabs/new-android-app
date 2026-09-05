@@ -3,8 +3,8 @@ import { todayIso } from '@/src/shared/lib/format';
 export const DAILY_MONEY_REMINDER_ID = 'personal-daily-money';
 
 export const DAILY_MONEY_REMINDER_COPY = {
-  title: "Log today's money",
-  body: 'Tea, a lend, salary in — about 5 seconds.',
+  title: 'Daily Reminder: Record Transactions',
+  body: 'Please record your transactions, expenses, and other details for future reference.',
 };
 
 export interface DailyMoneyReminderSettings {

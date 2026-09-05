@@ -589,32 +589,12 @@ export default function CashierScreen() {
                 onChangeText={setAmountReceived}
               />
 
-              <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
-
-              {paymentMethod === 'bank' ? (
-                <View style={styles.bankSelectWrap}>
-                  <Text style={styles.formFieldLabel}>Select Bank Account</Text>
-                  <View style={styles.banksGrid}>
-                    {activeBanks.map((bank) => {
-                      const active = bankId === bank.id;
-                      return (
-                        <Pressable
-                          key={bank.id}
-                          style={[styles.bankChipBtn, active && styles.bankChipBtnActive]}
-                          onPress={() => setBankId(bank.id)}
-                        >
-                          <Text style={[styles.bankChipBtnLabel, active && styles.bankChipBtnLabelActive]}>
-                            {bank.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                    {activeBanks.length === 0 ? (
-                      <Text style={styles.emptyBanksHelp}>No active bank accounts found.</Text>
-                    ) : null}
-                  </View>
-                </View>
-              ) : null}
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                bankId={bankId}
+                onBankChange={setBankId}
+              />
 
               <FormField
                 label="Payment Notes"

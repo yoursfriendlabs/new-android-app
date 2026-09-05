@@ -52,6 +52,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
+  const [customCategory, setCustomCategory] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [partyPickerVisible, setPartyPickerVisible] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
@@ -64,9 +65,18 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
+  const categoryNames = useMemo(() => {
+    const names = (categories ?? []).map((c) => c.name);
+    if (!names.includes('Other')) {
+      names.push('Other');
+    }
+    return names;
+  }, [categories]);
+
   useEffect(() => {
     if (visible) {
       setForm(emptyForm());
+      setCustomCategory('');
       setAddingCategory(false);
       setNewCategoryName('');
       setPartySearch('');
@@ -102,7 +112,12 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   }
 
   async function handleSave() {
-    if (!form.category.trim()) {
+    const effectiveCategory =
+      form.category === 'Other' && customCategory.trim()
+        ? customCategory.trim()
+        : form.category.trim() || 'Other';
+
+    if (!effectiveCategory) {
       Alert.alert('Category required', 'Pick or add a category first.');
       return;
     }
@@ -123,7 +138,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
     const payload = {
       entryType: 'expense' as const,
       partyId: form.party?.id || null,
-      partyName: form.party?.name || form.category,
+      partyName: form.party?.name || effectiveCategory,
       invoiceNo: `EXP-${Date.now().toString().slice(-6)}`,
       purchaseDate: form.date,
       status: amountPaid >= amount ? 'received' : 'pending',
@@ -137,7 +152,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       grandTotal: amount,
       items: [
         {
-          description: form.category,
+          description: effectiveCategory,
           quantity: 1,
           unitType: 'primary',
           unitPrice: amount,
@@ -162,9 +177,10 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       setSuccess({
         visible: true,
         queued: result.queued,
-        message: `${formatCurrency(amount)} saved under ${form.category}.`,
+        message: `${formatCurrency(amount)} saved under ${effectiveCategory}.`,
       });
       setForm(emptyForm());
+      setCustomCategory('');
     } catch (error) {
       if (isInvalidSessionError(error)) return;
       Alert.alert('Unable to save expense', workspaceAccessMessage(error, 'Please try again.'));
@@ -213,19 +229,19 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
 
         <Text style={styles.sectionLabel}>Category</Text>
         <View style={styles.chipWrap}>
-          {(categories ?? []).map((category) => {
-            const active = form.category === category.name;
+          {categoryNames.map((name) => {
+            const active = form.category === name;
             return (
               <Pressable
-                key={category.id}
+                key={name}
                 style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setForm((current) => ({ ...current, category: category.name }))}>
+                onPress={() => setForm((current) => ({ ...current, category: name }))}>
                 <MaterialCommunityIcons
-                  name={expenseCategoryIcon(category.name)}
+                  name={expenseCategoryIcon(name)}
                   size={16}
                   color={active ? colors.white : colors.primary}
                 />
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{category.name}</Text>
+                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
               </Pressable>
             );
           })}
@@ -234,6 +250,14 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
             <Text style={styles.chipAddLabel}>New</Text>
           </Pressable>
         </View>
+        {form.category === 'Other' ? (
+          <FormField
+            label="Custom category (optional)"
+            value={customCategory}
+            placeholder="e.g. Repairs, Books, Subscriptions"
+            onChangeText={setCustomCategory}
+          />
+        ) : null}
         {addingCategory ? (
           <View style={styles.addCategoryRow}>
             <View style={{ flex: 1 }}>
@@ -303,26 +327,9 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         <PaymentMethodSelector
           value={form.paymentMethod}
           onChange={(paymentMethod) => setForm((current) => ({ ...current, paymentMethod }))}
+          bankId={form.bankId}
+          onBankChange={(bankId) => setForm((current) => ({ ...current, bankId }))}
         />
-        {form.paymentMethod === 'bank' ? (
-          <View style={styles.bankWrap}>
-            {activeBanks.length ? (
-              activeBanks.map((bank) => {
-                const active = form.bankId === bank.id;
-                return (
-                  <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, active && styles.bankChipActive]}
-                    onPress={() => setForm((current) => ({ ...current, bankId: bank.id }))}>
-                    <Text style={[styles.bankChipLabel, active && styles.bankChipLabelActive]}>{bank.name}</Text>
-                  </Pressable>
-                );
-              })
-            ) : (
-              <Text style={styles.helper}>No active banks yet. Add one under More → Banks.</Text>
-            )}
-          </View>
-        ) : null}
 
         <FormField
           label="Date"

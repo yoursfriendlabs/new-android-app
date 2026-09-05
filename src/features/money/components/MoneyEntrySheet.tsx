@@ -92,6 +92,7 @@ export function MoneyEntrySheet({
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm(kind));
+  const [customCategory, setCustomCategory] = useState('');
   const [partySearch, setPartySearch] = useState('');
   const [partyPickerVisible, setPartyPickerVisible] = useState(false);
   const [createContactVisible, setCreateContactVisible] = useState(false);
@@ -114,6 +115,7 @@ export function MoneyEntrySheet({
   useEffect(() => {
     if (visible) {
       setForm(emptyForm(kind));
+      setCustomCategory('');
       setPartySearch('');
       setSaving(false);
       setDetailsOpen(!compact);
@@ -162,7 +164,12 @@ export function MoneyEntrySheet({
   }
 
   async function handleSave() {
-    if (!form.category.trim()) {
+    const effectiveCategory =
+      form.category === 'Other' && customCategory.trim()
+        ? customCategory.trim()
+        : form.category.trim() || 'Other';
+
+    if (!effectiveCategory) {
       Alert.alert('Category required', 'Pick what this money is for.');
       return;
     }
@@ -181,7 +188,7 @@ export function MoneyEntrySheet({
 
     setSaving(true);
     try {
-      const note = moneyNote(form.category, form.notes);
+      const note = moneyNote(effectiveCategory, form.notes);
       let moneySourceId = '';
       if (isIncome) {
         const contact = form.party ?? (await ensureWalkInParty());
@@ -222,7 +229,7 @@ export function MoneyEntrySheet({
           grandTotal: amount,
           items: [
             {
-              description: form.category,
+              description: effectiveCategory,
               quantity: 1,
               unitType: 'primary',
               unitPrice: amount,
@@ -344,9 +351,10 @@ export function MoneyEntrySheet({
             return (
               <Pressable
                 key={option.value}
-                onPress={() =>
-                  setForm((current) => ({ ...emptyForm(option.value), amount: current.amount, date: current.date }))
-                }
+                onPress={() => {
+                  setForm((current) => ({ ...emptyForm(option.value), amount: current.amount, date: current.date }));
+                  setCustomCategory('');
+                }}
                 style={[styles.kindChip, { backgroundColor, borderColor }]}>
                 <MaterialCommunityIcons color={contentColor} name={option.icon} size={22} />
                 <Text style={[styles.kindLabel, { color: active ? colors.text : colors.textMuted }]}>{option.label}</Text>
@@ -423,29 +431,26 @@ export function MoneyEntrySheet({
               })}
             </View>
 
+            {form.category === 'Other' ? (
+              <FormField
+                label={isIncome ? 'Custom source (optional)' : 'Custom category (optional)'}
+                value={customCategory}
+                onChangeText={setCustomCategory}
+                placeholder={isIncome ? 'e.g. Dividend, Bonus, Side project' : 'e.g. Repairs, Books, Subscriptions'}
+              />
+            ) : null}
+
             <PaymentMethodSelector
               value={form.paymentMethod}
-              onChange={(paymentMethod) => setForm((current) => ({ ...current, paymentMethod }))}
+              bankId={form.bankId}
+              onChange={(paymentMethod, bankId) =>
+                setForm((current) => ({
+                  ...current,
+                  paymentMethod,
+                  bankId: bankId ?? current.bankId,
+                }))
+              }
             />
-            {form.paymentMethod === 'bank' ? (
-              <View style={styles.bankWrap}>
-                {activeBanks.length ? (
-                  activeBanks.map((bank) => {
-                    const active = form.bankId === bank.id;
-                    return (
-                      <Pressable
-                        key={bank.id}
-                        style={[styles.bankChip, active && styles.bankChipActive]}
-                        onPress={() => setForm((current) => ({ ...current, bankId: bank.id }))}>
-                        <Text style={[styles.bankChipLabel, active && styles.bankChipLabelActive]}>{bank.name}</Text>
-                      </Pressable>
-                    );
-                  })
-                ) : (
-                  <Text style={styles.helper}>No bank accounts yet. Add one under More → Banks.</Text>
-                )}
-              </View>
-            ) : null}
 
             <FormField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
             <FormField

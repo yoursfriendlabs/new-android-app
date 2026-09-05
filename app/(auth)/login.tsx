@@ -43,7 +43,7 @@ export default function LoginScreen() {
       subtitle={t('auth.enterCredentials')}
       footer={
         <AuthFooterLink
-          prompt="New to PasalManager?"
+          prompt="New to PM?"
           action={t('auth.register')}
           onPress={() => router.push('/(auth)/register')}
         />

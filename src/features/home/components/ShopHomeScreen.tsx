@@ -98,7 +98,7 @@ export function ShopHomeScreen() {
     0,
   );
   const currency = businessProfile?.currencyCode || 'NPR';
-  const workspaceName = businessProfile?.businessName || 'PasalManager';
+  const workspaceName = businessProfile?.businessName || 'PM';
   const greetingName = user?.name?.split(' ')[0] || 'there';
 
   const shortcuts = SHORTCUTS.filter((item) => canAccessSegment(accessContext, item.segment));

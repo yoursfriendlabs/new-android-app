@@ -48,7 +48,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const customHex = parseHexColor(storedHex || '');
       if (!brandMigrated) {
         await SecureStore.setItemAsync(THEME_BRAND_MIGRATION_KEY, '1');
-        if (!storedId || themeId === LEGACY_DEFAULT_COLOR_THEME_ID) {
+        if (!storedId || themeId === 'signal' || themeId === 'teak' || themeId === LEGACY_DEFAULT_COLOR_THEME_ID) {
           themeId = DEFAULT_COLOR_THEME_ID;
           await persistTheme(themeId, customHex);
         }

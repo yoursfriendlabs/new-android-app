@@ -62,7 +62,7 @@ export function AuthScreen({
             ) : (
               <View style={styles.brandRow}>
                 <BrandMark size={56} />
-                <Text style={[styles.brand, { color: colors.text }]}>PasalManager</Text>
+                <Text style={[styles.brand, { color: colors.text }]}>PM</Text>
               </View>
             )}
 

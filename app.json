@@ -1,15 +1,15 @@
 {
   "expo": {
     "name": "PM",
-    "slug": "counterflow-mobile",
+    "slug": "pasalmanager",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "counterflow",
+    "scheme": "pasalmanager",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/logo-mark.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A2E20"
     },
@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.yoursfriend.pasalmanager",
       "buildNumber": "1",
       "infoPlist": {
-        "NSContactsUsageDescription": "PasalManager uses your contacts so you can add people you pay or get paid by."
+        "NSContactsUsageDescription": "PM uses your contacts so you can add people you pay or get paid by."
       }
     },
     "android": {
@@ -46,14 +46,14 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0A2E20",
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo-mark.png",
           "imageWidth": 200
         }
       ],
       [
         "expo-contacts",
         {
-          "contactsPermission": "PasalManager uses your contacts so you can add people you pay or get paid by."
+          "contactsPermission": "PM uses your contacts so you can add people you pay or get paid by."
         }
       ],
       [

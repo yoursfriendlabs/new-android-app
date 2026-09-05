@@ -7,6 +7,7 @@ import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-hab
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
+import { useLanguageStore } from '@/src/stores/language-store';
 
 export function ReminderWatch() {
   const pings = useHabitStore((state) => state.scheduledPings);
@@ -37,7 +38,7 @@ export function ReminderWatch() {
   }, [pings]);
 
   useEffect(() => {
-    if (!personal || !dailyReminder.enabled || nativeRemindersAvailable()) return;
+    if (!personal || !dailyReminder.enabled) return;
 
     const tick = () => {
       if (!dailyReminderDueNow(useHabitStore.getState().dailyMoneyReminder)) return;
@@ -47,7 +48,10 @@ export function ReminderWatch() {
       } catch {
         // Optional.
       }
-      Alert.alert(DAILY_MONEY_REMINDER_COPY.title, DAILY_MONEY_REMINDER_COPY.body);
+      const isNe = useLanguageStore.getState().language === 'ne';
+      const title = isNe ? 'दैनिक हिसाब सम्झाउनी' : DAILY_MONEY_REMINDER_COPY.title;
+      const body = isNe ? 'कृपया भविष्यको विवरणका लागि आफ्ना आम्दानी, खर्च र कारोबारहरू दर्ता गर्नुहोस्।' : DAILY_MONEY_REMINDER_COPY.body;
+      Alert.alert(title, body);
     };
 
     tick();

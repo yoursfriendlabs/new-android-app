@@ -10,6 +10,7 @@ import { formatClockTime } from '@/src/features/habits/lib/daily-money-reminder'
 import { uniqueLogDays } from '@/src/features/habits/lib/habits';
 import { MoneyCharts } from '@/src/features/home/components/MoneyCharts';
 import { PersonalPulseStrip } from '@/src/features/home/components/PersonalPulseStrip';
+import { PersonalShareWidget } from '@/src/features/shares/components/PersonalShareWidget';
 import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
 import { buildPersonalPulse } from '@/src/features/home/lib/personal-pulse';
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
@@ -22,6 +23,7 @@ import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hoo
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
+import { useTranslation } from '@/src/i18n';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
@@ -54,6 +56,7 @@ function money(value: number, visible: boolean, currency?: string) {
 export function PersonalHomeScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
@@ -83,7 +86,7 @@ export function PersonalHomeScreen() {
   const partiesQuery = useParties('', 'both');
 
   const currency = businessProfile?.currencyCode || 'NPR';
-  const workspaceName = businessProfile?.businessName || 'PasalManager';
+  const workspaceName = businessProfile?.businessName || 'PM';
   const greetingName = user?.name?.split(' ')[0] || 'there';
   const partyById = useMemo(
     () => new Map((partiesQuery.data ?? []).map((party) => [party.id, party])),
@@ -148,7 +151,7 @@ export function PersonalHomeScreen() {
     const list = [
       ...(expensesQuery.data ?? []).map((item) => ({
         id: `expense-${item.id}`,
-        kind: 'Expense',
+        kind: t('home.expense'),
         icon: 'wallet-outline' as Shortcut['icon'],
         title: expenseCategory(item),
         subtitle: `${prettyDate(item.purchaseDate)}  ·  ${moneyPersonLabel(null, item.partyName)}`,
@@ -159,9 +162,9 @@ export function PersonalHomeScreen() {
       })),
       ...(partyTxQuery.data ?? []).map((item) => ({
         id: `tx-${item.id}`,
-        kind: item.direction === 'receive' ? 'Income' : 'Paid',
+        kind: item.direction === 'receive' ? t('home.income') : t('common.paid'),
         icon: (item.direction === 'receive' ? 'arrow-down-bold-circle-outline' : 'arrow-up-bold-circle-outline') as Shortcut['icon'],
-        title: moneyCategoryFromNote(item.note) || (item.direction === 'receive' ? 'Income' : 'Paid'),
+        title: moneyCategoryFromNote(item.note) || (item.direction === 'receive' ? t('home.income') : t('common.paid')),
         subtitle: `${prettyDate(item.txDate)}  ·  ${moneyPersonLabel(partyById.get(item.partyId) ?? null)}`,
         amount: Number(item.amount ?? 0),
         positive: item.direction === 'receive',
@@ -170,13 +173,13 @@ export function PersonalHomeScreen() {
       })),
     ];
     return list.sort((a, b) => b.sort.localeCompare(a.sort)).slice(0, 6);
-  }, [expensesQuery.data, partyById, partyTxQuery.data]);
+  }, [expensesQuery.data, partyById, partyTxQuery.data, t]);
 
   const shortcuts = (
     [
       {
         key: 'income',
-        label: 'Income',
+        label: t('home.income'),
         icon: 'arrow-down-bold-circle-outline',
         segment: 'expenses',
         onPress: () => {
@@ -186,7 +189,7 @@ export function PersonalHomeScreen() {
       },
       {
         key: 'expense',
-        label: 'Expense',
+        label: t('home.expense'),
         icon: 'wallet-outline',
         segment: 'expenses',
         onPress: () => {
@@ -196,17 +199,24 @@ export function PersonalHomeScreen() {
       },
       {
         key: 'contact',
-        label: 'Contact',
+        label: t('home.contact'),
         icon: 'account-plus-outline',
         segment: 'parties',
         onPress: () => router.push('/(app)/(tabs)/parties'),
       },
       {
         key: 'note',
-        label: 'Notes',
+        label: t('home.notes'),
         icon: 'notebook-outline',
         segment: 'tasks',
         onPress: () => router.push('/(app)/tasks/inbox'),
+      },
+      {
+        key: 'shares',
+        label: t('home.stocks'),
+        icon: 'chart-areaspline',
+        segment: 'shares',
+        onPress: () => router.push('/(app)/shares'),
       },
     ] satisfies Shortcut[]
   ).filter((item) => canAccessSegment(accessContext, item.segment));
@@ -237,7 +247,7 @@ export function PersonalHomeScreen() {
               <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{initials(user?.name)}</Text>
             </View>
             <View style={styles.profileCopy}>
-              <Text style={[styles.hello, { color: colors.text }]}>Hi, {greetingName}</Text>
+              <Text style={[styles.hello, { color: colors.text }]}>{t('home.hiGreeting', { name: greetingName })}</Text>
               <Text numberOfLines={1} style={[styles.workspace, { color: colors.textMuted }]}>
                 {workspaceName}
               </Text>
@@ -274,11 +284,13 @@ export function PersonalHomeScreen() {
           onPressOwed={() => router.push('/(app)/(tabs)/parties')}
         />
 
+        <PersonalShareWidget hideAmounts={!balanceVisible} />
+
         <Pressable style={styles.logButton} onPress={() => openLog('expense')}>
           <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
-          <Text style={styles.logLabel}>Log money</Text>
+          <Text style={styles.logLabel}>{t('home.logMoney')}</Text>
         </Pressable>
-        <Text style={[styles.logHint, { color: colors.textMuted }]}>Amount, in or out, optional person.</Text>
+        <Text style={[styles.logHint, { color: colors.textMuted }]}>{t('home.logMoneyHint')}</Text>
 
         <Pressable
           style={[styles.reminderRow, { borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -287,11 +299,11 @@ export function PersonalHomeScreen() {
             <MaterialCommunityIcons name="bell-outline" size={18} color={colors.primary} />
           </View>
           <View style={styles.reminderCopy}>
-            <Text style={[styles.reminderTitle, { color: colors.text }]}>Daily reminder</Text>
+            <Text style={[styles.reminderTitle, { color: colors.text }]}>{t('home.dailyReminder')}</Text>
             <Text style={[styles.reminderHint, { color: colors.textMuted }]}>
               {dailyReminder.enabled
-                ? `Once a day at ${formatClockTime(dailyReminder.hour, dailyReminder.minute)}`
-                : 'Off — pick a time so this stays a habit'}
+                ? t('home.dailyReminderOn', { time: formatClockTime(dailyReminder.hour, dailyReminder.minute) })
+                : t('home.dailyReminderOff')}
             </Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textSoft} />
@@ -308,9 +320,9 @@ export function PersonalHomeScreen() {
         {shortcuts.length ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Shortcuts</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.shortcuts')}</Text>
               <Pressable onPress={() => router.push('/(app)/(tabs)/more')}>
-                <Text style={[styles.sectionLink, { color: colors.primary }]}>All tools</Text>
+                <Text style={[styles.sectionLink, { color: colors.primary }]}>{t('home.allTools')}</Text>
               </Pressable>
             </View>
             <View style={styles.shortcutRow}>
@@ -330,9 +342,9 @@ export function PersonalHomeScreen() {
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent activity</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.recentActivity')}</Text>
             <Pressable onPress={() => router.push('/(app)/(tabs)/expenses')}>
-              <Text style={[styles.sectionLink, { color: colors.primary }]}>Money</Text>
+              <Text style={[styles.sectionLink, { color: colors.primary }]}>{t('nav.money')}</Text>
             </Pressable>
           </View>
           <View style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -361,9 +373,9 @@ export function PersonalHomeScreen() {
               ))
             ) : (
               <View style={styles.empty}>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No activity yet</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('home.noActivityYet')}</Text>
                 <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-                  Income, expenses, and payments to contacts will show up here.
+                  {t('home.noActivityHint')}
                 </Text>
               </View>
             )}

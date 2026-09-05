@@ -2,6 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatCurrency } from '@/src/shared/lib/format';
+import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -34,31 +35,34 @@ export function PersonalPulseStrip({
 }: PersonalPulseStripProps) {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
+  const { t } = useTranslation();
+
   const monthHint = saveGoal
     ? hideAmounts
-      ? 'vs goal'
+      ? t('home.vsGoal')
       : `${amountLabel(Math.max(0, pulse.monthSaved), true, currency)} / ${formatCurrency(saveGoal, currency)}`
     : pulse.monthSaved >= 0
-      ? 'Saved this month'
-      : 'Overspent this month';
+      ? t('home.savedThisMonth')
+      : t('home.overspentThisMonth');
+
   const owedHint = pulse.topOwedBy
     ? pulse.oweCount > 1
       ? `${pulse.topOwedBy} +${pulse.oweCount - 1}`
       : pulse.topOwedBy
-    : 'Contacts';
+    : t('home.contacts');
 
   const cards = [
     {
       key: 'today',
-      label: 'Today spent',
+      label: t('home.todaySpent'),
       value: amountLabel(pulse.todaySpent, !hideAmounts, currency),
-      hint: 'Tap to log',
+      hint: t('home.tapToLog'),
       tone: 'danger' as const,
       onPress: onPressToday,
     },
     {
       key: 'month',
-      label: pulse.monthSaved >= 0 ? 'This month' : 'This month',
+      label: t('home.thisMonth'),
       value: amountLabel(Math.abs(pulse.monthSaved), !hideAmounts, currency),
       hint: monthHint,
       tone: pulse.monthSaved >= 0 ? ('success' as const) : ('danger' as const),
@@ -66,7 +70,7 @@ export function PersonalPulseStrip({
     },
     {
       key: 'owed',
-      label: 'They owe you',
+      label: t('home.theyOweYou'),
       value: amountLabel(pulse.theyOweYou, !hideAmounts, currency),
       hint: owedHint,
       tone: 'neutral' as const,

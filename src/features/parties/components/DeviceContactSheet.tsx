@@ -51,7 +51,7 @@ export function DeviceContactSheet({ onClose, onPick, visible }: DeviceContactSh
     <BottomSheet
       visible={visible}
       title="Phone contacts"
-      subtitle="Pick someone to save in your PasalManager contacts."
+      subtitle="Pick someone to save in your PM contacts."
       onClose={onClose}
       fullHeight>
       <SearchField placeholder="Search name or number" value={search} onChangeText={setSearch} />

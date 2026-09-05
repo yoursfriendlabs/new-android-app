@@ -101,7 +101,7 @@ export default function PurchasesScreen() {
   const params = useLocalSearchParams<{ filter?: string | string[]; openId?: string | string[] }>();
   const queryClient = useQueryClient();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PasalManager';
+  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
 
   const [dueFilter, setDueFilter] = useState<DueFilter>('all');
   const [search, setSearch] = useState('');
@@ -613,29 +613,12 @@ export default function PurchasesScreen() {
                 onChangeText={setAmountPaidDraft}
                 keyboardType="numeric"
               />
-              <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
-
-              {paymentMethod === 'bank' ? (
-                <View style={styles.bankWrap}>
-                  {activeBanks.length > 0 ? (
-                    activeBanks.map((bank) => (
-                      <Pressable
-                        key={bank.id}
-                        style={[styles.bankChip, bankId === bank.id && styles.bankChipActive]}
-                        onPress={() => setBankId(bank.id)}>
-                        <Text style={[styles.bankChipLabel, bankId === bank.id && styles.bankChipLabelActive]}>
-                          {bank.name}
-                        </Text>
-                      </Pressable>
-                    ))
-                  ) : (
-                    <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                      <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                      <Text style={styles.emptyBankText}>No active bank found. Tap to add a bank account.</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ) : null}
+              <PaymentMethodSelector
+                value={paymentMethod}
+                onChange={setPaymentMethod}
+                bankId={bankId}
+                onBankChange={setBankId}
+              />
             </SurfaceCard>
 
             {/* Itemized Lines */}

@@ -26,6 +26,7 @@ import {
 } from '@/src/features/money/lib/expense';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { partyInitials } from '@/src/features/parties/lib/party';
+import { buildExpenseReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { buildExpenseReportHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import { useBanks, usePurchaseById, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
@@ -57,8 +58,9 @@ function ShopExpensesScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
-  const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PasalManager';
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const currency = businessProfile?.currencyCode || 'NPR';
+  const businessName = businessProfile?.businessName || 'PM';
   const expensesQuery = usePurchases('expense');
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
@@ -411,11 +413,21 @@ function ShopExpensesScreen() {
         fullHeight
         footer={
           <View style={styles.footerActions}>
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: colors.primary, flexDirection: 'row', alignItems: 'center', gap: 4 }]}
+              onPress={() => {
+                if (!expenseDetail) return;
+                const { input, html } = buildExpenseReceipt(expenseDetail, businessProfile);
+                openReceiptPreview(router, input, html);
+              }}>
+              <MaterialCommunityIcons name="printer-outline" size={18} color={colors.primary} />
+              <Text style={[styles.secondaryLabel, { color: colors.primary }]}>Bill / Print</Text>
+            </Pressable>
             <Pressable style={styles.secondaryButton} onPress={confirmRemoveExpense}>
               <Text style={styles.secondaryLabel}>Delete</Text>
             </Pressable>
             <Pressable style={styles.primaryButton} onPress={() => void saveExpenseUpdate()}>
-              <Text style={styles.primaryLabel}>Save update</Text>
+              <Text style={styles.primaryLabel}>Save</Text>
             </Pressable>
           </View>
         }>
@@ -449,28 +461,12 @@ function ShopExpensesScreen() {
             </View>
           </SurfaceCard>
           <FormField label="Amount paid" value={amountPaidDraft} onChangeText={setAmountPaidDraft} keyboardType="numeric" />
-          <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
-          {paymentMethod === 'bank' ? (
-            <View style={styles.bankWrap}>
-              {activeBanks.length > 0 ? (
-                activeBanks.map((bank) => (
-                  <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, bankId === bank.id && styles.bankChipActive]}
-                    onPress={() => setBankId(bank.id)}>
-                    <Text style={[styles.bankChipLabel, bankId === bank.id && styles.bankChipLabelActive]}>
-                      {bank.name}
-                    </Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                  <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
+          <PaymentMethodSelector
+            value={paymentMethod}
+            onChange={setPaymentMethod}
+            bankId={bankId}
+            onBankChange={setBankId}
+          />
         </ScrollView>
       </BottomSheet>
     </Screen>

@@ -296,32 +296,12 @@ export default function PurchaseCreateScreen() {
 
         <SurfaceCard title="Payment" subtitle="Quick payment rules stay consistent with POS and services.">
           <FormField label="Amount paid" value={String(draft.value.amountPaid)} onChangeText={(amountPaid) => draft.setValue((current) => ({ ...current, amountPaid: Number(amountPaid || 0) }))} keyboardType="numeric" />
-          <PaymentMethodSelector value={draft.value.paymentMethod} onChange={(paymentMethod) => draft.setValue((current) => ({ ...current, paymentMethod }))} />
-          {draft.value.paymentMethod === 'bank' ? (
-            <View style={styles.bankWrap}>
-              {activeBanks.length > 0 ? (
-                activeBanks.map((bank) => (
-                  <Pressable
-                    key={bank.id}
-                    style={[styles.bankChip, draft.value.bankId === bank.id && styles.bankChipActive]}
-                    onPress={() => draft.setValue((current) => ({ ...current, bankId: bank.id }))}>
-                    <Text
-                      style={[
-                        styles.bankChipLabel,
-                        draft.value.bankId === bank.id && styles.bankChipLabelActive,
-                      ]}>
-                      {bank.name}
-                    </Text>
-                  </Pressable>
-                ))
-              ) : (
-                <Pressable style={styles.emptyBankInfo} onPress={() => router.push('/(app)/banks')}>
-                  <MaterialCommunityIcons name="bank-plus" size={24} color={colors.textMuted} />
-                  <Text style={styles.emptyBankText}>No active banks found. Tap to add one in settings.</Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
+          <PaymentMethodSelector
+            value={draft.value.paymentMethod}
+            onChange={(paymentMethod) => draft.setValue((current) => ({ ...current, paymentMethod }))}
+            bankId={draft.value.bankId}
+            onBankChange={(bankId) => draft.setValue((current) => ({ ...current, bankId }))}
+          />
           <FormField label="Payment note" value={draft.value.paymentNote} onChangeText={(paymentNote) => draft.setValue((current) => ({ ...current, paymentNote }))} />
           <FormField label="Discount" value={String(draft.value.discount)} onChangeText={(discount) => draft.setValue((current) => ({ ...current, discount: Number(discount || 0) }))} keyboardType="numeric" />
           <TotalsCard

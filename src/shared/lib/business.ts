@@ -197,8 +197,11 @@ function isModuleScopedCapability(capability: AppCapability) {
 }
 
 export function resolveBusinessType(user: PermissionCarrier) {
-  if (!user || typeof user !== 'object' || !('businessType' in user)) return '';
-  return String((user as AccessContext).businessType || '')
+  if (!user || typeof user !== 'object') return '';
+  const rawType =
+    ('businessType' in user ? (user as AccessContext).businessType : null) ??
+    ('type' in user ? (user as any).type : null);
+  return String(rawType || '')
     .trim()
     .toLowerCase();
 }
@@ -253,8 +256,6 @@ const PERSONAL_CAPABILITIES = new Set<AppCapability>([
 
 const PERSONAL_BLOCKED_SEGMENTS = new Set([
   'pos',
-  'invoice',
-  'print-preview',
   'orders',
   'seating',
   'tables',
