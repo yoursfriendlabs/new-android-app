@@ -1,21 +1,18 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
-
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { expenseCategory, expenseDue, isInCurrentMonth } from '@/src/features/money/lib/expense';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-
 import { moneyCategoryFromNote, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
-
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
@@ -24,7 +21,6 @@ import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { buildExpenseReceipt, buildPartyTransactionReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import type { PartyTransaction, Purchase } from '@/src/types/models';
-import { Pressable } from 'react-native';
 
 type MoneyFilter = 'all' | 'in' | 'out';
 
@@ -125,7 +121,6 @@ export function PersonalMoneyScreen() {
     );
   }, [rows]);
 
-
   async function handleRefresh() {
     await Promise.all([expensesQuery.refetch(), moneyTxQuery.refetch(), partiesQuery.refetch()]);
   }
@@ -135,10 +130,18 @@ export function PersonalMoneyScreen() {
       scrollable={false}
       padded={false}
       topBarTitle={t('nav.money')}
+      topBarRight={
+        <Pressable
+          onPress={() => router.push('/(app)/money-insights' as any)}
+          hitSlop={8}
+          style={styles.headerIcon}>
+          <MaterialCommunityIcons name="chart-arc" size={22} color={colors.primary} />
+        </Pressable>
+      }
       footer={
         <StickyActionBar
-          secondary={{ label: t('home.income'), onPress: () => setEntryKind('income') }}
-          primary={{ label: t('home.expense'), onPress: () => setEntryKind('expense') }}
+          secondary={{ label: t('home.income'), onPress: () => setEntryKind('income'), tone: 'success' }}
+          primary={{ label: t('home.expense'), onPress: () => setEntryKind('expense'), tone: 'danger' }}
         />
       }>
       <ScrollView
@@ -152,19 +155,6 @@ export function PersonalMoneyScreen() {
           />
         }
         contentContainerStyle={styles.scroll}>
-        <Pressable
-          onPress={() => router.push('/(app)/money-insights' as any)}
-          style={[styles.insightsCta, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.insightsIcon, { backgroundColor: `${colors.primary}15` }]}>
-            <MaterialCommunityIcons name="chart-arc" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.insightsCtaCopy}>
-            <Text style={[styles.insightsCtaTitle, { color: colors.text }]}>{t('money.insights')}</Text>
-            <Text style={[styles.insightsCtaSub, { color: colors.textMuted }]}>{t('money.insightsCta')}</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-        </Pressable>
-
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.success }]}>{t('money.in')}</Text>
@@ -261,13 +251,19 @@ export function PersonalMoneyScreen() {
   );
 }
 
-const createStyles = (colors: AppPalette) =>
+const createStyles = (_colors: AppPalette) =>
   StyleSheet.create({
     scroll: {
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.md,
       paddingBottom: spacing.xxl,
       gap: spacing.md,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     summaryRow: {
       flexDirection: 'row',
@@ -325,7 +321,7 @@ const createStyles = (colors: AppPalette) =>
     },
     rowCopy: {
       flex: 1,
-      gap: 2,
+      gap: 3,
     },
     rowTitle: {
       fontSize: typography.body,
@@ -344,31 +340,5 @@ const createStyles = (colors: AppPalette) =>
     rowDue: {
       fontSize: typography.caption,
       fontWeight: '700',
-    },
-    insightsCta: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      padding: spacing.md,
-    },
-    insightsIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    insightsCtaCopy: {
-      flex: 1,
-      gap: 2,
-    },
-    insightsCtaTitle: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    insightsCtaSub: {
-      fontSize: typography.caption,
     },
   });

@@ -3,7 +3,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, spacing } from '@/src/theme';
+import { radius, spacing, typography } from '@/src/theme';
 
 interface SearchFieldProps {
   placeholder: string;
@@ -29,7 +29,7 @@ export function SearchField({
         { borderColor: colors.border, backgroundColor: colors.surface },
         containerStyle,
       ]}>
-      <MaterialCommunityIcons color={colors.textMuted} name="magnify" size={22} />
+      <MaterialCommunityIcons color={colors.textMuted} name="magnify" size={18} />
       <TextInput
         placeholder={placeholder}
         placeholderTextColor={colors.textSoft}
@@ -39,8 +39,8 @@ export function SearchField({
         returnKeyType="search"
       />
       {value ? (
-        <Pressable onPress={() => onChangeText('')}>
-          <MaterialCommunityIcons color={colors.textSoft} name="close-circle" size={20} />
+        <Pressable hitSlop={6} onPress={() => onChangeText('')}>
+          <MaterialCommunityIcons color={colors.textSoft} name="close-circle" size={16} />
         </Pressable>
       ) : null}
     </View>
@@ -49,17 +49,19 @@ export function SearchField({
 
 const styles = StyleSheet.create({
   container: {
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 2,
   },
   input: {
     flex: 1,
-    fontSize: 17,
-    paddingVertical: spacing.xs,
+    fontSize: typography.body,
+    paddingVertical: 6,
+    paddingHorizontal: 0,
   },
 });

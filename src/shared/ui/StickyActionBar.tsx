@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { usePalette } from '@/src/stores/theme-store';
@@ -8,32 +8,46 @@ import { radius, shadows, spacing, typography } from '@/src/theme';
 interface ActionProps {
   label: string;
   onPress: () => void;
-  tone?: 'primary' | 'secondary' | 'ghost';
+  tone?: 'primary' | 'secondary' | 'ghost' | 'success' | 'danger';
 }
 
 interface StickyActionBarProps {
   leading?: ReactNode;
   primary: ActionProps;
   secondary?: ActionProps;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 function ActionButton({ label, onPress, tone = 'secondary' }: ActionProps) {
   const colors = usePalette();
-  const isPrimary = tone === 'primary';
+  let bg = colors.backgroundAlt;
+  let fg = colors.text;
+
+  if (tone === 'primary') {
+    bg = colors.primary;
+    fg = colors.onPrimary || '#ffffff';
+  } else if (tone === 'success') {
+    bg = colors.success;
+    fg = colors.white || '#ffffff';
+  } else if (tone === 'danger') {
+    bg = colors.danger;
+    fg = colors.white || '#ffffff';
+  }
 
   return (
     <Pressable
-      style={[
+      style={({ pressed }) => [
         styles.button,
-        { backgroundColor: isPrimary ? colors.primary : colors.backgroundAlt },
+        { backgroundColor: bg },
+        pressed && { opacity: 0.88 },
       ]}
       onPress={onPress}>
-      <Text style={[styles.buttonLabel, { color: isPrimary ? colors.onPrimary : colors.text }]}>{label}</Text>
+      <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
     </Pressable>
   );
 }
 
-export function StickyActionBar({ leading, primary, secondary }: StickyActionBarProps) {
+export function StickyActionBar({ containerStyle, leading, primary, secondary }: StickyActionBarProps) {
   const colors = usePalette();
 
   return (
@@ -42,11 +56,12 @@ export function StickyActionBar({ leading, primary, secondary }: StickyActionBar
         style={[
           styles.container,
           { backgroundColor: colors.surface, borderColor: colors.border },
+          containerStyle,
         ]}>
         {leading ? <View style={styles.leading}>{leading}</View> : null}
         <View style={styles.actions}>
           {secondary ? <ActionButton {...secondary} /> : null}
-          <ActionButton {...primary} tone="primary" />
+          <ActionButton {...primary} tone={primary.tone || 'primary'} />
         </View>
       </View>
     </SafeAreaView>
@@ -58,12 +73,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   container: {
-    margin: spacing.md,
-    padding: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    marginBottom: 4,
+    padding: spacing.xs + 2,
     borderRadius: radius.lg,
     borderWidth: 1,
     ...shadows.floating,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   leading: {
     paddingHorizontal: spacing.sm,
@@ -75,7 +92,7 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 46,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
