@@ -1,8 +1,9 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { partiesApi, partyTransactionsApi } from '@/src/api';
@@ -11,6 +12,7 @@ import { DeviceContactSheet } from '@/src/features/parties/components/DeviceCont
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { submitWithOfflineQueue } from '@/src/data/sync';
@@ -48,12 +50,33 @@ import type { Party, PaymentMethod } from '@/src/types/models';
 export type MoneyEntryKind = 'income' | 'expense';
 type PaidMode = 'full' | 'due';
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Family', 'Gift', 'Refund', 'Other'];
-const PERSONAL_EXPENSE_CATEGORIES = ['Food', 'Rent', 'Transport', 'Shopping', 'Bills', 'Health', 'Other'];
+const INCOME_CATEGORIES = ['Salary', 'Investments', 'Allowance', 'Bonus', 'Freelance', 'Family', 'Refund', 'Other'];
+const PERSONAL_EXPENSE_CATEGORIES = ['Food', 'Shopping', 'Transport', 'Housing', 'Bills', 'Entertainment', 'Education', 'Health', 'Other'];
+
+const CATEGORY_VISUALS: Record<string, { icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; bg: string }> = {
+  'Food': { icon: 'food-fork-drink', color: '#d97706', bg: '#fef3c7' },
+  'Shopping': { icon: 'shopping', color: '#e11d48', bg: '#ffe4e6' },
+  'Transport': { icon: 'car', color: '#059669', bg: '#d1fae5' },
+  'Housing': { icon: 'home', color: '#0284c7', bg: '#e0f2fe' },
+  'Rent': { icon: 'home-city', color: '#0284c7', bg: '#e0f2fe' },
+  'Entertainment': { icon: 'movie-open', color: '#7c3aed', bg: '#ede9fe' },
+  'Education': { icon: 'school', color: '#2563eb', bg: '#dbeafe' },
+  'Salary': { icon: 'briefcase', color: '#b45309', bg: '#fef3c7' },
+  'Investments': { icon: 'chart-line', color: '#ca8a04', bg: '#fef9c3' },
+  'Allowance': { icon: 'wallet-giftcard', color: '#059669', bg: '#d1fae5' },
+  'Gift': { icon: 'gift', color: '#db2777', bg: '#fce7f3' },
+  'Bonus': { icon: 'trophy', color: '#ea580c', bg: '#ffedd5' },
+  'Health': { icon: 'heart-pulse', color: '#dc2626', bg: '#fee2e2' },
+  'Bills': { icon: 'receipt', color: '#4f46e5', bg: '#e0e7ff' },
+  'Freelance': { icon: 'laptop', color: '#0891b2', bg: '#cffafe' },
+  'Family': { icon: 'account-child', color: '#0d9488', bg: '#ccfbf1' },
+  'Refund': { icon: 'cash-refund', color: '#65a30d', bg: '#ecfccb' },
+  'Other': { icon: 'dots-horizontal-circle-outline', color: '#475569', bg: '#f1f5f9' },
+};
 
 const MONEY_KIND_OPTIONS = [
-  { value: 'income' as const, label: 'Receive', icon: 'arrow-down-bold-circle-outline' as const },
-  { value: 'expense' as const, label: 'Given', icon: 'arrow-up-bold-circle-outline' as const },
+  { value: 'expense' as const, label: 'Expense', icon: 'arrow-up-bold-circle-outline' as const },
+  { value: 'income' as const, label: 'Income', icon: 'arrow-down-bold-circle-outline' as const },
 ];
 
 interface MoneyEntrySheetProps {
@@ -163,7 +186,24 @@ export function MoneyEntrySheet({
     if (native === undefined) setPhoneSheetVisible(true);
   }
 
-  async function handleSave() {
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+
+  async function handlePickReceipt() {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        quality: 0.7,
+        allowsMultipleSelection: false,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setReceiptImage(result.assets[0].uri);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleSave(andContinue = false) {
     const effectiveCategory =
       form.category === 'Other' && customCategory.trim()
         ? customCategory.trim()
@@ -220,6 +260,7 @@ export function MoneyEntrySheet({
           purchaseDate: form.date,
           status: amountPaid >= amount ? 'received' : 'pending',
           notes: note,
+          attachment: receiptImage || undefined,
           amountReceived: amountPaid,
           paymentMethod: form.paymentMethod,
           bankId: form.paymentMethod === 'bank' ? form.bankId : undefined,
@@ -279,17 +320,29 @@ export function MoneyEntrySheet({
       } catch {
         // Haptics are optional on web and simulators.
       }
-      setWin(
-        buildWinMoment({
-          kind: isIncome ? 'income' : 'expense',
-          amountLabel: formatCurrency(amount),
-          previous,
-          next,
-          newBadges: freshBadges,
-          coins,
-        }),
-      );
-      setForm(emptyForm(kind));
+
+      if (andContinue) {
+        setForm((current) => ({
+          ...current,
+          amount: '',
+          notes: '',
+          party: null,
+        }));
+        setReceiptImage(null);
+      } else {
+        setWin(
+          buildWinMoment({
+            kind: isIncome ? 'income' : 'expense',
+            amountLabel: formatCurrency(amount),
+            previous,
+            next,
+            newBadges: freshBadges,
+            coins,
+          }),
+        );
+        setForm(emptyForm(kind));
+        setReceiptImage(null);
+      }
     } catch (error) {
       if (isInvalidSessionError(error)) return;
       Alert.alert(
@@ -310,44 +363,34 @@ export function MoneyEntrySheet({
     <>
       <BottomSheet
         visible={visible && !win}
-        title={compact ? 'Log money' : isIncome ? 'Money in' : 'Money out'}
-        subtitle={
-          compact
-            ? 'Amount, receive or given, and a person if you want.'
-            : isIncome
-              ? 'Category is what the money is for. Contact is optional.'
-              : 'Save who you paid, or keep it as walk-in.'
-        }
+        title={compact ? 'New Transaction' : isIncome ? 'New Income' : 'New Expense'}
+        subtitle="Quick, clean money logging"
         onClose={closeAll}
         fullHeight
         footer={
-          <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>
-            {saving ? (
-              <ActivityIndicator color={colors.white} />
-            ) : (
-              <Text style={styles.saveLabel}>{isIncome ? 'Save receive' : 'Save given'}</Text>
-            )}
-          </Pressable>
+          <View style={styles.dualFooter}>
+            <Pressable
+              style={[styles.continueBtn, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}
+              onPress={() => void handleSave(true)}
+              disabled={saving}>
+              <Text style={[styles.continueBtnText, { color: colors.text }]}>CONTINUE</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={() => void handleSave(false)}
+              disabled={saving}>
+              {saving ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.saveBtnText}>SAVE</Text>
+              )}
+            </Pressable>
+          </View>
         }>
-        <View style={styles.kindRow}>
+        {/* Top Minimal Segmented Tabs */}
+        <View style={[styles.tabContainer, { backgroundColor: colors.backgroundAlt }]}>
           {MONEY_KIND_OPTIONS.map((option) => {
             const active = form.kind === option.value;
-            const tone = option.value === 'income' ? 'success' : 'danger';
-            const backgroundColor = active
-              ? tone === 'success'
-                ? colors.successSoft
-                : colors.dangerSoft
-              : colors.surface;
-            const borderColor = active
-              ? tone === 'success'
-                ? colors.success
-                : colors.danger
-              : colors.border;
-            const contentColor = active
-              ? tone === 'success'
-                ? colors.success
-                : colors.danger
-              : colors.textMuted;
             return (
               <Pressable
                 key={option.value}
@@ -355,31 +398,93 @@ export function MoneyEntrySheet({
                   setForm((current) => ({ ...emptyForm(option.value), amount: current.amount, date: current.date }));
                   setCustomCategory('');
                 }}
-                style={[styles.kindChip, { backgroundColor, borderColor }]}>
-                <MaterialCommunityIcons color={contentColor} name={option.icon} size={22} />
-                <Text style={[styles.kindLabel, { color: active ? colors.text : colors.textMuted }]}>{option.label}</Text>
+                style={[
+                  styles.tabBtn,
+                  active && [styles.tabBtnActive, { backgroundColor: colors.surface }],
+                ]}>
+                <Text
+                  style={[
+                    styles.tabBtnText,
+                    { color: active ? colors.primary : colors.textMuted },
+                    active && styles.tabBtnTextActive,
+                  ]}>
+                  {option.label}
+                </Text>
               </Pressable>
             );
           })}
         </View>
 
-        <View style={styles.amountCard}>
-          <Text style={styles.amountKicker}>Amount</Text>
+        {/* Hero Big Bold Amount Card */}
+        <View style={[styles.amountCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.amountKicker, { color: colors.textMuted }]}>Enter Amount</Text>
           <View style={styles.amountRow}>
-            <Text style={styles.amountPrefix}>Rs</Text>
+            <Text style={[styles.amountPrefix, { color: colors.accent }]}>Rs</Text>
             <TextInput
               value={form.amount}
               onChangeText={(amountValue) => setForm((current) => ({ ...current, amount: amountValue }))}
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={colors.textSoft}
-              style={styles.amountInput}
+              style={[styles.amountInput, { color: colors.text }]}
               autoFocus={compact}
             />
           </View>
         </View>
 
-        <Pressable style={styles.selector} onPress={() => setPartyPickerVisible(true)}>
+        {/* Visual Category Grid */}
+        <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>
+          {isIncome ? 'Income Source' : 'Category'}
+        </Text>
+
+        <View style={styles.categoryGrid}>
+          {categoryOptions.map((name) => {
+            const active = form.category === name;
+            const visual = CATEGORY_VISUALS[name] || {
+              icon: isIncome ? 'cash-plus' : 'tag-outline',
+              color: colors.primary,
+              bg: colors.accentSoft,
+            };
+
+            return (
+              <Pressable
+                key={name}
+                style={[
+                  styles.categoryTile,
+                  { backgroundColor: colors.surface, borderColor: active ? colors.primary : colors.border },
+                  active && { borderWidth: 1.5, backgroundColor: colors.accentSoft },
+                ]}
+                onPress={() => setForm((current) => ({ ...current, category: name }))}>
+                <View style={[styles.categoryIconBox, { backgroundColor: visual.bg }]}>
+                  <MaterialCommunityIcons name={visual.icon} size={16} color={visual.color} />
+                </View>
+                <Text
+                  style={[
+                    styles.categoryTileLabel,
+                    { color: colors.text },
+                    active && { fontWeight: '700', color: colors.primary },
+                  ]}
+                  numberOfLines={1}>
+                  {name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {form.category === 'Other' ? (
+          <FormField
+            label={isIncome ? 'Custom source (optional)' : 'Custom category (optional)'}
+            value={customCategory}
+            onChangeText={setCustomCategory}
+            placeholder={isIncome ? 'e.g. Dividend, Bonus, Side project' : 'e.g. Repairs, Books, Subscriptions'}
+          />
+        ) : null}
+
+        {/* Contact Selector */}
+        <Pressable
+          style={[styles.selector, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => setPartyPickerVisible(true)}>
           <View style={[styles.selectorAvatar, { backgroundColor: form.party ? colors.primary : colors.backgroundAlt }]}>
             {form.party ? (
               <Text style={styles.selectorAvatarText}>{partyInitials(form.party.name)}</Text>
@@ -388,10 +493,10 @@ export function MoneyEntrySheet({
             )}
           </View>
           <View style={styles.selectorCopy}>
-            <Text style={styles.selectorTitle}>
+            <Text style={[styles.selectorTitle, { color: colors.text }]}>
               {form.party?.name ?? WALK_IN_LABEL}
             </Text>
-            <Text style={styles.selectorSubtitle}>
+            <Text style={[styles.selectorSubtitle, { color: colors.textMuted }]}>
               {form.party?.phone
                 ?? (isIncome ? 'From a contact, or skip' : 'Paid to a contact, or skip')}
             </Text>
@@ -405,63 +510,44 @@ export function MoneyEntrySheet({
           )}
         </Pressable>
 
-        {compact && !detailsOpen ? (
-          <Pressable onPress={() => setDetailsOpen(true)}>
-            <Text style={styles.detailsLink}>Add category, account, or note</Text>
+        {/* Remarks / Notes Field with Camera Icon */}
+        <View style={[styles.remarksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <MaterialCommunityIcons name="note-text-outline" size={18} color={colors.textMuted} />
+          <TextInput
+            style={[styles.remarksInput, { color: colors.text }]}
+            placeholder="Click to fill in the remarks"
+            placeholderTextColor={colors.textSoft}
+            value={form.notes}
+            onChangeText={(notes) => setForm((c) => ({ ...c, notes }))}
+          />
+          <Pressable style={styles.cameraIconBtn} onPress={() => void handlePickReceipt()}>
+            <MaterialCommunityIcons name="camera-outline" size={20} color={colors.primary} />
           </Pressable>
-        ) : (
-          <>
-            <Text style={styles.sectionLabel}>{isIncome ? 'Source' : 'Category'}</Text>
-            <View style={styles.chipWrap}>
-              {categoryOptions.map((name) => {
-                const active = form.category === name;
-                return (
-                  <Pressable
-                    key={name}
-                    style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => setForm((current) => ({ ...current, category: name }))}>
-                    <MaterialCommunityIcons
-                      name={isIncome ? 'cash-plus' : expenseCategoryIcon(name)}
-                      size={16}
-                      color={active ? colors.white : colors.primary}
-                    />
-                    <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+        </View>
 
-            {form.category === 'Other' ? (
-              <FormField
-                label={isIncome ? 'Custom source (optional)' : 'Custom category (optional)'}
-                value={customCategory}
-                onChangeText={setCustomCategory}
-                placeholder={isIncome ? 'e.g. Dividend, Bonus, Side project' : 'e.g. Repairs, Books, Subscriptions'}
-              />
-            ) : null}
+        {receiptImage ? (
+          <View style={[styles.receiptPreviewWrap, { borderColor: colors.border }]}>
+            <Image source={{ uri: receiptImage }} style={styles.receiptPreviewImg} />
+            <Pressable style={styles.removeReceiptBtn} onPress={() => setReceiptImage(null)}>
+              <MaterialCommunityIcons name="close-circle" size={20} color={colors.danger} />
+            </Pressable>
+          </View>
+        ) : null}
 
-            <PaymentMethodSelector
-              value={form.paymentMethod}
-              bankId={form.bankId}
-              onChange={(paymentMethod, bankId) =>
-                setForm((current) => ({
-                  ...current,
-                  paymentMethod,
-                  bankId: bankId ?? current.bankId,
-                }))
-              }
-            />
+        {/* Payment Method Selector */}
+        <PaymentMethodSelector
+          value={form.paymentMethod}
+          bankId={form.bankId}
+          onChange={(paymentMethod, bankId) =>
+            setForm((current) => ({
+              ...current,
+              paymentMethod,
+              bankId: bankId ?? current.bankId,
+            }))
+          }
+        />
 
-            <FormField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
-            <FormField
-              label="Note"
-              value={form.notes}
-              onChangeText={(notes) => setForm((current) => ({ ...current, notes }))}
-              placeholder="Optional"
-              multiline
-            />
-          </>
-        )}
+        <DatePickerField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
       </BottomSheet>
 
       <PartyPickerSheet
@@ -528,23 +614,32 @@ export function MoneyEntrySheet({
 
 const createStyles = (colors: AppPalette) =>
   StyleSheet.create({
-    kindRow: {
+    tabContainer: {
       flexDirection: 'row',
-      gap: spacing.sm,
+      borderRadius: radius.pill,
+      padding: 4,
+      gap: 4,
     },
-    kindChip: {
+    tabBtn: {
       flex: 1,
-      minHeight: 56,
-      borderRadius: radius.md,
-      borderWidth: 1.5,
-      flexDirection: 'row',
+      minHeight: 40,
+      borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: spacing.xs,
-      paddingHorizontal: spacing.sm,
+      paddingHorizontal: spacing.md,
     },
-    kindLabel: {
+    tabBtnActive: {
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    tabBtnText: {
       fontSize: typography.body,
+      fontWeight: '600',
+    },
+    tabBtnTextActive: {
       fontWeight: '800',
     },
     amountCard: {
@@ -552,8 +647,8 @@ const createStyles = (colors: AppPalette) =>
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.accentSoft,
-      padding: spacing.lg,
-      gap: spacing.xs,
+      padding: spacing.md,
+      gap: 2,
     },
     amountKicker: {
       fontSize: 11,
@@ -568,14 +663,14 @@ const createStyles = (colors: AppPalette) =>
       gap: spacing.sm,
     },
     amountPrefix: {
-      fontSize: typography.heading,
+      fontSize: 26,
       fontWeight: '800',
       color: colors.textMuted,
-      paddingBottom: 6,
+      paddingBottom: 4,
     },
     amountInput: {
       flex: 1,
-      fontSize: 40,
+      fontSize: 34,
       fontWeight: '800',
       color: colors.text,
       paddingVertical: 0,
@@ -586,35 +681,36 @@ const createStyles = (colors: AppPalette) =>
       letterSpacing: 0.6,
       textTransform: 'uppercase',
       color: colors.textSoft,
-      marginTop: spacing.sm,
+      marginTop: 4,
+      marginBottom: 2,
     },
-    chipWrap: {
+    categoryGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
+      gap: 8,
     },
-    chip: {
+    categoryTile: {
+      width: '48.5%',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: colors.border,
+      minHeight: 46,
     },
-    chipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
+    categoryIconBox: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    chipLabel: {
-      fontSize: typography.label,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    chipLabelActive: {
-      color: colors.white,
+    categoryTileLabel: {
+      flex: 1,
+      fontSize: 13,
+      fontWeight: '600',
     },
     selector: {
       flexDirection: 'row',
@@ -627,9 +723,9 @@ const createStyles = (colors: AppPalette) =>
       backgroundColor: colors.surface,
     },
     selectorAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
+      width: 38,
+      height: 38,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -650,50 +746,77 @@ const createStyles = (colors: AppPalette) =>
       fontSize: typography.caption,
       color: colors.textMuted,
     },
-    bankWrap: {
+    remarksCard: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
+      alignItems: 'center',
       gap: spacing.sm,
-    },
-    bankChip: {
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
-      justifyContent: 'center',
-    },
-    bankChipActive: {
-      backgroundColor: colors.primary,
-    },
-    bankChipLabel: {
-      fontSize: typography.label,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    bankChipLabelActive: {
-      color: colors.white,
-    },
-    helper: {
-      fontSize: typography.label,
-      color: colors.textMuted,
-    },
-    saveButton: {
-      minHeight: 52,
+      borderWidth: 1,
       borderRadius: radius.md,
-      backgroundColor: colors.primary,
+      paddingHorizontal: spacing.md,
+      paddingVertical: Platform.OS === 'ios' ? spacing.sm : 2,
+      minHeight: 46,
+    },
+    remarksInput: {
+      flex: 1,
+      fontSize: typography.body,
+      paddingVertical: 4,
+    },
+    cameraIconBtn: {
+      padding: 4,
+    },
+    receiptPreviewWrap: {
+      position: 'relative',
+      width: 70,
+      height: 70,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    receiptPreviewImg: {
+      width: '100%',
+      height: '100%',
+    },
+    removeReceiptBtn: {
+      position: 'absolute',
+      top: 2,
+      right: 2,
+      backgroundColor: 'rgba(255,255,255,0.85)',
+      borderRadius: 10,
+    },
+    dualFooter: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      width: '100%',
+    },
+    continueBtn: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: radius.md,
+      borderWidth: 1,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    saveLabel: {
-      color: colors.white,
-      fontWeight: '800',
+    continueBtnText: {
       fontSize: typography.body,
-    },
-    detailsLink: {
-      fontSize: typography.label,
       fontWeight: '700',
-      color: colors.primary,
-      textAlign: 'center',
-      paddingVertical: spacing.sm,
+      letterSpacing: 0.5,
+    },
+    saveBtn: {
+      flex: 1,
+      minHeight: 48,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOpacity: 0.12,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 2,
+    },
+    saveBtnText: {
+      fontSize: typography.body,
+      fontWeight: '800',
+      color: colors.white,
+      letterSpacing: 0.5,
     },
   });

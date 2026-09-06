@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
@@ -77,6 +78,7 @@ export function ShopHomeScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<DatePeriod>('this_month');
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(true);
+  const [workspaceSheetVisible, setWorkspaceSheetVisible] = useState(false);
   const range = useMemo(() => getRangeForPeriod(selectedPeriod), [selectedPeriod]);
 
   const summaryQuery = useDashboardSummary(range);
@@ -220,14 +222,23 @@ export function ShopHomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
         contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Pressable style={styles.profile} onPress={() => router.push('/(app)/(tabs)/more')}>
+          <Pressable
+            style={({ pressed }) => [styles.profile, pressed && { opacity: 0.78 }]}
+            onPress={() => setWorkspaceSheetVisible(true)}>
             <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{initials(user?.name)}</Text>
+              <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{initials(workspaceName || user?.name)}</Text>
             </View>
             <View style={styles.profileCopy}>
-              <Text style={[styles.hello, { color: colors.text }]}>{t('home.welcome')}, {greetingName}</Text>
-              <Text numberOfLines={1} style={[styles.workspace, { color: colors.textMuted }]}>
-                {workspaceName}
+              <View style={styles.workspaceRow}>
+                <Text numberOfLines={1} style={[styles.workspaceTitle, { color: colors.text }]}>
+                  {workspaceName}
+                </Text>
+                <View style={[styles.chevronWrap, { backgroundColor: colors.backgroundAlt }]}>
+                  <MaterialCommunityIcons name="chevron-down" size={16} color={colors.text} />
+                </View>
+              </View>
+              <Text numberOfLines={1} style={[styles.greetingSubtitle, { color: colors.textMuted }]}>
+                {t('home.welcome')}, {greetingName}
               </Text>
             </View>
           </Pressable>
@@ -373,6 +384,11 @@ export function ShopHomeScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <WorkspaceSwitchSheet
+        visible={workspaceSheetVisible}
+        onClose={() => setWorkspaceSheetVisible(false)}
+      />
     </Screen>
   );
 }
@@ -394,11 +410,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     flex: 1,
+    paddingRight: spacing.xs,
   },
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 16,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -408,15 +425,29 @@ const styles = StyleSheet.create({
   },
   profileCopy: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
-  hello: {
-    fontSize: 20,
-    fontWeight: '700',
+  workspaceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  workspaceTitle: {
+    fontSize: 18,
+    fontWeight: '800',
     letterSpacing: -0.3,
+    flexShrink: 1,
   },
-  workspace: {
-    fontSize: typography.label,
+  chevronWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  greetingSubtitle: {
+    fontSize: typography.caption,
+    fontWeight: '500',
   },
   headerActions: {
     flexDirection: 'row',

@@ -14,6 +14,7 @@ import {
 import { PersonalComposer } from '@/src/features/notes/components/PersonalComposer';
 import { Screen } from '@/src/shared/layout/Screen';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import {
   useTaskDetail,
   useTaskMetadata,
@@ -149,10 +150,9 @@ function BusinessTaskFormScreen() {
           multiline
         />
 
-        <FormField
-          label="Due Date (YYYY-MM-DD)"
+        <DatePickerField
+          label="Due Date"
           value={dueDate}
-          placeholder="e.g. 2026-06-15"
           onChangeText={setDueDate}
         />
 

@@ -20,8 +20,10 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { useCreateTaskMutation, useTaskDetail, useUpdateTaskMutation } from '@/src/features/notes/hooks/useTaskQueries';
+import { BsDatePickerModal } from '@/src/shared/forms/BsDatePickerModal';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
-import { localIsoDate } from '@/src/shared/lib/format';
+import { localIsoDate, prettyDate } from '@/src/shared/lib/format';
+import { useDateFormat } from '@/src/stores/date-format-store';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 import {
@@ -60,6 +62,8 @@ export function PersonalComposer() {
   const [saving, setSaving] = useState(false);
   const [win, setWin] = useState<HabitWin | null>(null);
   const [intervalOpen, setIntervalOpen] = useState(params.kind === 'interval' && !params.id);
+  const dateFormat = useDateFormat();
+  const [bsDateModalOpen, setBsDateModalOpen] = useState(false);
 
   const dueOptions = useMemo(() => reminderPresets(), []);
   const reward = kind === 'note' ? COIN_REWARDS.note : kind === 'interval' ? COIN_REWARDS.intervalCheckIn : COIN_REWARDS.reminder;
@@ -275,12 +279,18 @@ export function PersonalComposer() {
               })}
             </View>
             <Pressable
-              onPress={() => setPickerMode('date')}
+              onPress={() => {
+                if (dateFormat === 'BS') {
+                  setBsDateModalOpen(true);
+                } else {
+                  setPickerMode('date');
+                }
+              }}
               style={[styles.stampRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <MaterialCommunityIcons color={colors.accent} name="calendar" size={20} />
+              <MaterialCommunityIcons color={colors.accent} name={dateFormat === 'BS' ? 'calendar-star' : 'calendar'} size={20} />
               <View style={styles.intervalCopy}>
-                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
-                <Text style={[styles.intervalTitle, { color: colors.text }]}>{localIsoDate(dueAt)}</Text>
+                <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date ({dateFormat})</Text>
+                <Text style={[styles.intervalTitle, { color: colors.text }]}>{prettyDate(localIsoDate(dueAt))}</Text>
               </View>
             </Pressable>
             <Pressable
@@ -294,6 +304,22 @@ export function PersonalComposer() {
                 </Text>
               </View>
             </Pressable>
+            {bsDateModalOpen ? (
+              <BsDatePickerModal
+                visible={bsDateModalOpen}
+                value={localIsoDate(dueAt)}
+                onChange={(selectedIso) => {
+                  setDuePreset('custom');
+                  const [y, m, d] = selectedIso.split('-').map(Number);
+                  setDueAt((current) => {
+                    const next = new Date(current);
+                    next.setFullYear(y, m - 1, d);
+                    return next;
+                  });
+                }}
+                onClose={() => setBsDateModalOpen(false)}
+              />
+            ) : null}
             {pickerMode ? (
               <View>
                 <DateTimePicker

@@ -4,19 +4,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
-import { MoneyCharts } from '@/src/features/home/components/MoneyCharts';
-import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
+
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { expenseCategory, expenseDue, isInCurrentMonth } from '@/src/features/money/lib/expense';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-import { uniqueLogDays } from '@/src/features/habits/lib/habits';
+
 import { moneyCategoryFromNote, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
-import { useHabitStore } from '@/src/stores/habit-store';
+
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
@@ -42,7 +41,6 @@ export function PersonalMoneyScreen() {
   const [filter, setFilter] = useState<MoneyFilter>('all');
   const [search, setSearch] = useState('');
   const [entryKind, setEntryKind] = useState<MoneyEntryKind | null>(null);
-  const storedLogDates = useHabitStore((state) => state.logDates);
   const debouncedSearch = useDebouncedValue(search);
   const routeEntry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
 
@@ -127,54 +125,6 @@ export function PersonalMoneyScreen() {
     );
   }, [rows]);
 
-  const monthTotals = useMemo(() => {
-    const expenses = (expensesQuery.data ?? [])
-      .filter((item) => isInCurrentMonth(item.purchaseDate))
-      .reduce((sum, item) => sum + Number(item.grandTotal || 0), 0);
-    const income = (moneyTxQuery.data ?? [])
-      .filter((item) => item.direction === 'receive' && isInCurrentMonth(item.txDate))
-      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    return { income, expense: expenses, saved: income - expenses };
-  }, [expensesQuery.data, moneyTxQuery.data]);
-  const activityDates = useMemo(
-    () =>
-      uniqueLogDays([
-        ...storedLogDates,
-        ...(expensesQuery.data ?? []).map((item) => item.purchaseDate),
-        ...(moneyTxQuery.data ?? []).map((item) => item.txDate),
-      ]),
-    [expensesQuery.data, moneyTxQuery.data, storedLogDates],
-  );
-  const allTimeCounts = useMemo(() => {
-    const expenseCount = expensesQuery.data?.length ?? 0;
-    const incomeCount = (moneyTxQuery.data ?? []).filter((item) => item.direction === 'receive').length;
-    return {
-      entryCount: expenseCount + (moneyTxQuery.data?.length ?? 0),
-      incomeCount,
-      expenseCount,
-    };
-  }, [expensesQuery.data, moneyTxQuery.data]);
-
-  const weekFlow = useMemo(
-    () =>
-      buildSevenDayFlow({
-        expenses: expensesQuery.data ?? [],
-        payments: moneyTxQuery.data ?? [],
-      }),
-    [expensesQuery.data, moneyTxQuery.data],
-  );
-  const weekTotals = useMemo(
-    () =>
-      weekFlow.reduce(
-        (acc, point) => {
-          acc.income += point.income;
-          acc.expense += point.expense;
-          return acc;
-        },
-        { income: 0, expense: 0 },
-      ),
-    [weekFlow],
-  );
 
   async function handleRefresh() {
     await Promise.all([expensesQuery.refetch(), moneyTxQuery.refetch(), partiesQuery.refetch()]);
@@ -202,12 +152,18 @@ export function PersonalMoneyScreen() {
           />
         }
         contentContainerStyle={styles.scroll}>
-        <MoneyCharts
-          series={weekFlow}
-          incomeTotal={weekTotals.income}
-          expenseTotal={weekTotals.expense}
-          currency={currency}
-        />
+        <Pressable
+          onPress={() => router.push('/(app)/money-insights' as any)}
+          style={[styles.insightsCta, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.insightsIcon, { backgroundColor: `${colors.primary}15` }]}>
+            <MaterialCommunityIcons name="chart-arc" size={20} color={colors.primary} />
+          </View>
+          <View style={styles.insightsCtaCopy}>
+            <Text style={[styles.insightsCtaTitle, { color: colors.text }]}>{t('money.insights')}</Text>
+            <Text style={[styles.insightsCtaSub, { color: colors.textMuted }]}>{t('money.insightsCta')}</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+        </Pressable>
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
@@ -296,8 +252,6 @@ export function PersonalMoneyScreen() {
         visible={Boolean(entryKind)}
         kind={entryKind ?? 'expense'}
         compact
-        activityDates={activityDates}
-        snapshot={{ ...allTimeCounts, savedThisMonth: monthTotals.saved }}
         onClose={() => {
           setEntryKind(null);
           if (routeEntry) router.setParams({ entry: undefined });
@@ -390,5 +344,31 @@ const createStyles = (colors: AppPalette) =>
     rowDue: {
       fontSize: typography.caption,
       fontWeight: '700',
+    },
+    insightsCta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      padding: spacing.md,
+    },
+    insightsIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    insightsCtaCopy: {
+      flex: 1,
+      gap: 2,
+    },
+    insightsCtaTitle: {
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
+    insightsCtaSub: {
+      fontSize: typography.caption,
     },
   });

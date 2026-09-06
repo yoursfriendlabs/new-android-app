@@ -9,6 +9,7 @@ import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
 import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
+import { DateFormatSelector } from '@/src/shared/ui/DateFormatSelector';
 import { getCapabilitySummary, hasAppCapability, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -139,6 +140,12 @@ export default function SettingsScreen() {
         title={t('settings.language')}
         subtitle={t('settings.languageSubtitle')}>
         <LanguageSelector />
+      </SurfaceCard>
+
+      <SurfaceCard
+        title={t('settings.dateFormat')}
+        subtitle={t('settings.dateFormatSubtitle')}>
+        <DateFormatSelector />
       </SurfaceCard>
 
       <SurfaceCard

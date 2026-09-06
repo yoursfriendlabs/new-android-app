@@ -6,6 +6,7 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { partyTransactionsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { invalidatePartyQueries, useBanks } from '@/src/shared/hooks/useAppQueries';
@@ -158,7 +159,7 @@ export function PartyTransactionSheet({
           }))
         }
       />
-      <FormField
+      <DatePickerField
         label="Date"
         value={form.txDate}
         onChangeText={(txDate) => setForm((current) => ({ ...current, txDate }))}

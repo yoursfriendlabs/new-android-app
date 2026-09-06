@@ -14,6 +14,7 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -530,7 +531,7 @@ export default function ServiceCreateScreen() {
           </Pressable>
           {draft.value.deliveryDate ? (
             <>
-              <FormField
+              <DatePickerField
                 label={isGym ? "Subscription End Date" : "Delivery date"}
                 value={draft.value.deliveryDate}
                 onChangeText={(deliveryDate) => draft.setValue((current) => ({ ...current, deliveryDate }))}

@@ -14,6 +14,7 @@ interface BottomSheetProps extends PropsWithChildren {
   footer?: ReactNode;
   fullHeight?: boolean;
   compact?: boolean;
+  heightRatio?: number;
 }
 
 export function BottomSheet({
@@ -21,6 +22,7 @@ export function BottomSheet({
   compact = false,
   footer,
   fullHeight = false,
+  heightRatio,
   onClose,
   subtitle,
   title,
@@ -28,12 +30,14 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const colors = usePalette();
   const { height: windowHeight } = useWindowDimensions();
-  const tall = !compact;
-  const sheetHeight = compact
-    ? undefined
-    : fullHeight
-      ? windowHeight
-      : Math.round(windowHeight * 0.92);
+  const tall = !compact || typeof heightRatio === 'number';
+  const sheetHeight = heightRatio
+    ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.3), 0.98))
+    : compact
+      ? undefined
+      : fullHeight
+        ? windowHeight
+        : Math.round(windowHeight * 0.92);
 
   return (
     <Modal
@@ -64,13 +68,14 @@ export function BottomSheet({
           </View>
 
           <KeyboardAvoidingView
-            style={tall ? styles.body : undefined}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            style={styles.body}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}>
             <ScrollView
               bounces={false}
               keyboardShouldPersistTaps="handled"
               automaticallyAdjustKeyboardInsets={true}
-              keyboardDismissMode="interactive"
+              showsVerticalScrollIndicator={false}
               style={tall ? styles.contentFill : undefined}
               contentContainerStyle={styles.contentGrow}>
               <View style={styles.contentInner}>{children}</View>

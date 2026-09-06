@@ -10,6 +10,7 @@ import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
@@ -248,7 +249,7 @@ export default function PurchaseCreateScreen() {
             <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={22} />
           </Pressable>
           <FormField label="Invoice number" value={draft.value.invoiceNo} onChangeText={(invoiceNo) => draft.setValue((current) => ({ ...current, invoiceNo }))} />
-          <FormField label="Purchase date" value={draft.value.purchaseDate} onChangeText={(purchaseDate) => draft.setValue((current) => ({ ...current, purchaseDate }))} />
+          <DatePickerField label="Purchase date" value={draft.value.purchaseDate} onChangeText={(purchaseDate) => draft.setValue((current) => ({ ...current, purchaseDate }))} />
           <FormField label="Notes" value={draft.value.notes} onChangeText={(notes) => draft.setValue((current) => ({ ...current, notes }))} multiline />
         </SurfaceCard>
 

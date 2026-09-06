@@ -34,10 +34,16 @@ export function localIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-export function prettyDate(isoDate?: string) {
+export function prettyDate(isoDate?: string, dateFormat?: 'AD' | 'BS') {
   if (!isoDate) return 'Today';
 
   try {
+    const { useDateFormatStore } = require('@/src/stores/date-format-store');
+    const effectiveFormat = dateFormat ?? useDateFormatStore.getState().dateFormat ?? 'AD';
+    if (effectiveFormat === 'BS') {
+      const { adDateToBs } = require('@/src/shared/lib/nepali-date');
+      return adDateToBs(isoDate);
+    }
     return format(parseISO(isoDate), 'dd MMM yyyy');
   } catch {
     return isoDate;

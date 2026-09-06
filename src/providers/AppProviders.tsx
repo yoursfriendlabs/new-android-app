@@ -14,6 +14,7 @@ import { useHabitStore } from '@/src/stores/habit-store';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { useSyncStore } from '@/src/stores/sync-store';
 import { useLanguageStore } from '@/src/stores/language-store';
+import { useDateFormatStore } from '@/src/stores/date-format-store';
 import { usePalette, useThemeStore } from '@/src/stores/theme-store';
 import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
@@ -31,6 +32,7 @@ function BootstrapRuntime() {
   useEffect(() => {
     let isMounted = true;
     void useLanguageStore.getState().hydrate();
+    void useDateFormatStore.getState().hydrate();
     void useThemeStore.getState().hydrate();
     if (nativeRemindersAvailable()) {
       void import('@/src/features/habits/lib/interval-reminders')

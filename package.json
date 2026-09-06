@@ -19,6 +19,7 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.1.8",
+    "@sbmdkl/nepali-date-converter": "^2.0.5",
     "@shopify/flash-list": "2.0.2",
     "@tanstack/react-query": "^5.100.10",
     "date-fns": "^4.1.0",
