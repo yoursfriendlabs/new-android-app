@@ -105,6 +105,7 @@ export interface ProductCreatePayload {
   expiryDate?: string;
   batchNumber?: string;
   lowStockAlert?: boolean;
+  imageUrl?: string | null;
 }
 
 export type ProductUpdatePayload = Partial<ProductCreatePayload>;
@@ -127,6 +128,21 @@ export interface ProductBatchUpdatePayload {
 export interface ProductBatchExchangePayload {
   batchNumber: string;
   expiryDate: string;
+  quantity?: number;
+  note?: string;
+}
+
+export interface ProductBatchDestroyPayload {
+  quantity?: number;
+  note?: string;
+}
+
+export interface ProductStats {
+  lowStockCount: number;
+  nearExpiryCount: number;
+  expiredCount: number;
+  popularCount?: number;
+  leastPopularCount?: number;
 }
 
 export interface CategoryCreatePayload {

@@ -32,7 +32,11 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
-  const stockTone = getStockTone(product.stockOnHand, colors, t);
+  const totalStock = Number(product.stockOnHand ?? 0);
+  const expiredQty = Number(product.expiredQuantity ?? 0);
+  const sellableStock = Number(product.sellableQuantity ?? Math.max(0, totalStock - expiredQty));
+  const hasExpired = Boolean(product.hasExpiredStock) || expiredQty > 0;
+  const stockTone = getStockTone(sellableStock, colors, t);
   const imageUri = product.imageUrl || (product as any).image || (product as any).photoUrl || (product as any).thumbnailUrl;
 
   function showInfo() {
@@ -46,7 +50,9 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
       [
         product.categoryName ? `${t('common.category')}: ${product.categoryName}` : null,
         product.primaryUnit ? `${t('inventory.unit')}: ${product.primaryUnit}` : null,
-        product.stockOnHand !== undefined ? `${t('inventory.currentStock')}: ${product.stockOnHand}` : null,
+        `${t('inventory.currentStock')}: ${sellableStock} ${product.primaryUnit || ''} sellable${
+          hasExpired ? ` (${expiredQty} expired)` : ''
+        }`,
         `${t('common.price')}: ${formatCurrency(product.salePrice)}`,
       ]
         .filter(Boolean)
@@ -81,10 +87,18 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
           </View>
         ) : null}
 
-        {/* Stock status pill */}
-        <View style={[styles.stockPill, { backgroundColor: stockTone.backgroundColor }]}>
-          <Text style={[styles.stockPillText, { color: stockTone.color }]}>
-            {product.stockOnHand !== undefined ? `${product.stockOnHand}` : '∞'}
+        {/* Stock status pill / Expired indicator */}
+        <View
+          style={[
+            styles.stockPill,
+            { backgroundColor: hasExpired ? colors.dangerSoft : stockTone.backgroundColor },
+          ]}>
+          <Text
+            style={[
+              styles.stockPillText,
+              { color: hasExpired ? colors.danger : stockTone.color },
+            ]}>
+            {product.stockOnHand !== undefined ? `${sellableStock}` : '∞'}
           </Text>
         </View>
       </Pressable>
@@ -94,6 +108,11 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
         <Text numberOfLines={2} style={[styles.cleanTitle, { color: colors.text }]}>
           {product.name}
         </Text>
+        {hasExpired ? (
+          <Text style={{ fontSize: 10, color: colors.danger, fontWeight: '700' }}>
+            {expiredQty} expired
+          </Text>
+        ) : null}
         <View style={styles.priceRow}>
           <Text style={[styles.cleanPrice, { color: colors.primary }]}>
             {formatCurrency(product.salePrice)}

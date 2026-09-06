@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
@@ -12,8 +12,11 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
-import { formatCurrency } from '@/src/shared/lib/format';
+import { Avatar } from '@/src/shared/ui/Avatar';
+import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import {
+  daysUntilExpiry,
+  expiryRemainingLabel,
   getCurrentStock,
   getStockStatus,
   getStockStatusMeta,
@@ -22,10 +25,14 @@ import {
   isRestockableProduct,
   itemTypeLabel,
   productBrand,
-  productInitials,
 } from '@/src/features/inventory/lib/inventory';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { useInventorySummary, useLowStockProducts, useProducts } from '@/src/shared/hooks/useAppQueries';
+import {
+  useInventorySummary,
+  useLowStockProducts,
+  useProductStats,
+  useProducts,
+} from '@/src/shared/hooks/useAppQueries';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Product } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -52,10 +59,12 @@ export default function InventoryScreen() {
   const [menuProduct, setMenuProduct] = useState<Product | null>(null);
   const debouncedSearch = useDebouncedValue(search);
   const productsQuery = useProducts(debouncedSearch);
+  const statsQuery = useProductStats();
   const summaryQuery = useInventorySummary();
   const lowStockQuery = useLowStockProducts();
   const products = productsQuery.data ?? [];
   const summary = summaryQuery.data;
+  const stats = statsQuery.data;
 
   const categories = useMemo(() => {
     const names = Array.from(
@@ -77,8 +86,8 @@ export default function InventoryScreen() {
   }, [category, products, stockFilter]);
 
   const lowStockPreview = (lowStockQuery.data ?? []).slice(0, 3);
-  const expiringCount = products.filter(isNearExpiryProduct).length;
-  const expiredCount = products.filter((product) => getStockStatus(product) === 'expired' || product.hasExpiredStock).length;
+  const localExpiringCount = products.filter(isNearExpiryProduct).length;
+  const localExpiredCount = products.filter((product) => getStockStatus(product) === 'expired' || product.hasExpiredStock).length;
 
   function openDetail(product: Product, tab: DetailTab = 'overview') {
     setDetailTab(tab);
@@ -150,7 +159,12 @@ export default function InventoryScreen() {
   }
 
   async function handleRefresh() {
-    await Promise.all([productsQuery.refetch(), summaryQuery.refetch(), lowStockQuery.refetch()]);
+    await Promise.all([
+      productsQuery.refetch(),
+      statsQuery.refetch(),
+      summaryQuery.refetch(),
+      lowStockQuery.refetch(),
+    ]);
   }
 
   return (
@@ -167,14 +181,18 @@ export default function InventoryScreen() {
         contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            Products, stock alerts, restock, lots, and history — the same catalog actions as on web.
+            Products, stock alerts, restock, lots, and history — with live lot expiry tracking.
           </Text>
         </View>
 
+        {/* STATS TOP ROW */}
         <View style={styles.summaryRow}>
           <Pressable
             onPress={() => setStockFilter('all')}
-            style={[styles.summaryCard, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+            style={[
+              styles.summaryCard,
+              { backgroundColor: stockFilter === 'all' ? colors.accentSoft : colors.surface, borderColor: stockFilter === 'all' ? colors.primary : colors.border },
+            ]}>
             <Text style={[styles.summaryLabel, { color: colors.primary }]}>Products</Text>
             <Text style={[styles.summaryValue, { color: colors.primary }]}>
               {String(summary?.totalProducts ?? products.length)}
@@ -182,19 +200,29 @@ export default function InventoryScreen() {
           </Pressable>
           <Pressable
             onPress={() => setStockFilter('low')}
-            style={[styles.summaryCard, { backgroundColor: colors.warningSoft, borderColor: colors.border }]}>
+            style={[
+              styles.summaryCard,
+              { backgroundColor: stockFilter === 'low' ? colors.warningSoft : colors.surface, borderColor: stockFilter === 'low' ? colors.warning : colors.border },
+            ]}>
             <Text style={[styles.summaryLabel, { color: colors.warning }]}>Low</Text>
             <Text style={[styles.summaryValue, { color: colors.warning }]}>
-              {String(summary?.lowStockCount ?? lowStockQuery.data?.length ?? 0)}
+              {String(stats?.lowStockCount ?? summary?.lowStockCount ?? lowStockQuery.data?.length ?? 0)}
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setStockFilter('out')}
-            style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+            style={[
+              styles.summaryCard,
+              { backgroundColor: stockFilter === 'out' ? colors.dangerSoft : colors.surface, borderColor: stockFilter === 'out' ? colors.danger : colors.border },
+            ]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>Out</Text>
-            <Text style={[styles.summaryValue, { color: colors.danger }]}>{String(summary?.outOfStockCount ?? 0)}</Text>
+            <Text style={[styles.summaryValue, { color: colors.danger }]}>
+              {String(summary?.outOfStockCount ?? 0)}
+            </Text>
           </Pressable>
         </View>
+
+        {/* STATS BOTTOM ROW */}
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.textSoft }]}>Stock value</Text>
@@ -204,17 +232,25 @@ export default function InventoryScreen() {
           </View>
           <Pressable
             onPress={() => setStockFilter('expiring')}
-            style={[styles.summaryCard, { backgroundColor: colors.infoSoft, borderColor: colors.border }]}>
+            style={[
+              styles.summaryCard,
+              { backgroundColor: stockFilter === 'expiring' ? colors.infoSoft : colors.surface, borderColor: stockFilter === 'expiring' ? colors.info : colors.border },
+            ]}>
             <Text style={[styles.summaryLabel, { color: colors.info }]}>Expiring</Text>
             <Text style={[styles.summaryValue, { color: colors.info }]}>
-              {String(summary?.nearExpiryCount ?? expiringCount)}
+              {String(stats?.nearExpiryCount ?? summary?.nearExpiryCount ?? localExpiringCount)}
             </Text>
           </Pressable>
           <Pressable
             onPress={() => setStockFilter('expired')}
-            style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+            style={[
+              styles.summaryCard,
+              { backgroundColor: stockFilter === 'expired' ? colors.dangerSoft : colors.surface, borderColor: stockFilter === 'expired' ? colors.danger : colors.border },
+            ]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>Expired</Text>
-            <Text style={[styles.summaryValue, { color: colors.danger }]}>{String(expiredCount)}</Text>
+            <Text style={[styles.summaryValue, { color: colors.danger }]}>
+              {String(stats?.expiredCount ?? localExpiredCount)}
+            </Text>
           </Pressable>
         </View>
 
@@ -254,6 +290,15 @@ export default function InventoryScreen() {
           />
         ) : null}
 
+        {/* LOADING INDICATOR */}
+        {productsQuery.isLoading && !products.length ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading inventory...</Text>
+          </View>
+        ) : null}
+
+        {/* EMPTY STATE */}
         {!productsQuery.isLoading && !visibleProducts.length ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
@@ -265,26 +310,40 @@ export default function InventoryScreen() {
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
               {products.length
                 ? 'Try a different search or stock filter.'
-                : 'Add your first item with price, unit, and opening stock.'}
+                : 'Add your first item with photo, unit, opening stock, and price.'}
             </Text>
           </View>
         ) : null}
 
+        {/* PRODUCT LIST */}
         <View style={styles.list}>
           {visibleProducts.map((product) => {
             const status = getStockStatus(product);
             const meta = getStockStatusMeta(status, colors);
             const brand = productBrand(product);
             const restockable = isRestockableProduct(product);
+            const currentStock = getCurrentStock(product);
+            const expiredQty = Number(product.expiredQuantity ?? 0);
+            const sellableQty = Number(product.sellableQuantity ?? Math.max(0, currentStock - expiredQty));
+            const daysLeft = daysUntilExpiry(product.expiryDate);
+            const isNear = !product.hasExpiredStock && daysLeft != null && daysLeft >= 0 && daysLeft <= 20;
+
             return (
               <View key={product.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Pressable
                   onPress={() => openDetail(product)}
                   onLongPress={() => setMenuProduct(product)}
                   style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
-                  <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                    <Text style={[styles.avatarText, { color: colors.white }]}>{productInitials(product.name)}</Text>
-                  </View>
+                  {/* Thumbnail */}
+                  <Avatar
+                    uri={product.imageUrl}
+                    name={product.name}
+                    size={46}
+                    shape="rounded"
+                    backgroundColor={colors.accentSoft}
+                    textColor={colors.primary}
+                  />
+
                   <View style={styles.rowCopy}>
                     <View style={styles.nameRow}>
                       <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
@@ -294,19 +353,58 @@ export default function InventoryScreen() {
                         <Text style={[styles.badgeText, { color: meta.color }]}>{meta.label}</Text>
                       </View>
                     </View>
+
                     <Text style={[styles.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>
                       {[brand || product.categoryName || 'General', itemTypeLabel(product.itemType), product.sku]
                         .filter(Boolean)
                         .join('  ·  ')}
                     </Text>
+
+                    {/* Expiry badge if present */}
+                    {product.expiryDate ? (
+                      <View style={styles.expiryBadgeRow}>
+                        <MaterialCommunityIcons
+                          name="clock-outline"
+                          size={12}
+                          color={status === 'expired' ? colors.danger : isNear ? colors.info : colors.textMuted}
+                        />
+                        <Text
+                          style={[
+                            styles.expiryBadgeText,
+                            {
+                              color: status === 'expired' ? colors.danger : isNear ? colors.info : colors.textMuted,
+                              fontWeight: status === 'expired' || isNear ? '700' : '500',
+                            },
+                          ]}>
+                          {prettyDate(product.expiryDate)}
+                          {expiryRemainingLabel(product.expiryDate) ? ` (${expiryRemainingLabel(product.expiryDate)})` : ''}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
+
                   <View style={styles.amountWrap}>
-                    <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(product.salePrice, currency)}</Text>
-                    <Text style={[styles.rowMeta, { color: status === 'ok' ? colors.textSoft : meta.color }]}>
-                      {getCurrentStock(product)} {product.primaryUnit}
+                    <Text style={[styles.amount, { color: colors.text }]}>
+                      {formatCurrency(product.salePrice, currency)}
                     </Text>
+                    {product.hasExpiredStock ? (
+                      <View style={{ alignItems: 'flex-end', gap: 1 }}>
+                        <Text style={[styles.stockText, { color: colors.primary, fontWeight: '800' }]}>
+                          {sellableQty} {product.primaryUnit}
+                        </Text>
+                        <Text style={[styles.stockSubText, { color: colors.danger }]}>
+                          {expiredQty} expired
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={[styles.stockText, { color: status === 'ok' ? colors.textSoft : meta.color }]}>
+                        {currentStock} {product.primaryUnit}
+                      </Text>
+                    )}
                   </View>
                 </Pressable>
+
+                {/* Card Action Row */}
                 <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
                   <Pressable style={styles.actionBtn} onPress={() => openDetail(product, 'overview')}>
                     <MaterialCommunityIcons color={colors.text} name="eye-outline" size={16} />
@@ -341,7 +439,11 @@ export default function InventoryScreen() {
         actions={menuProduct ? productActions(menuProduct) : []}
       />
 
-      <ProductFormSheet visible={createVisible} onClose={() => setCreateVisible(false)} />
+      <ProductFormSheet
+        visible={createVisible}
+        onClose={() => setCreateVisible(false)}
+        onOpenDetail={(created) => openDetail(created)}
+      />
       <ProductFormSheet
         visible={Boolean(editingProduct)}
         product={editingProduct}
@@ -438,6 +540,16 @@ const createStyles = (_colors: AppPalette) =>
       fontSize: typography.body,
       fontWeight: '800',
     },
+    loadingWrap: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: spacing.xl,
+      gap: spacing.sm,
+    },
+    loadingText: {
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
     list: {
       gap: spacing.sm,
     },
@@ -456,17 +568,6 @@ const createStyles = (_colors: AppPalette) =>
     rowPressed: {
       opacity: 0.92,
     },
-    avatar: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarText: {
-      fontSize: 13,
-      fontWeight: '800',
-    },
     rowCopy: {
       flex: 1,
       gap: 3,
@@ -484,6 +585,15 @@ const createStyles = (_colors: AppPalette) =>
     rowMeta: {
       fontSize: typography.label,
     },
+    expiryBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
+    expiryBadgeText: {
+      fontSize: 11,
+    },
     badge: {
       paddingHorizontal: 8,
       paddingVertical: 3,
@@ -500,6 +610,14 @@ const createStyles = (_colors: AppPalette) =>
     amount: {
       fontSize: typography.body,
       fontWeight: '800',
+    },
+    stockText: {
+      fontSize: typography.label,
+      fontWeight: '700',
+    },
+    stockSubText: {
+      fontSize: 10,
+      fontWeight: '700',
     },
     actionRow: {
       flexDirection: 'row',

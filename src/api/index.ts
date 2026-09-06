@@ -26,6 +26,8 @@ import type {
   ProductUpdatePayload,
   ProductBatchUpdatePayload,
   ProductBatchExchangePayload,
+  ProductBatchDestroyPayload,
+  ProductStats,
   PurchaseCreatePayload,
   PurchaseUpdatePayload,
   QuickExpenseCreatePayload,
@@ -272,6 +274,7 @@ export const productsApi = {
   list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<Product>>({ path: '/api/products', query }),
   lookup: (query: { search?: string; limit?: number }) =>
     apiRequest<PaginatedResponse<Product>>({ path: '/api/products/lookup', query }),
+  stats: () => apiRequest<ProductStats>({ path: '/api/products/stats' }),
   get: (id: string) => apiRequest<Product>({ path: `/api/products/${id}` }),
   create: (payload: ProductCreatePayload) =>
     apiRequest<Product, ProductCreatePayload>({
@@ -303,11 +306,11 @@ export const productsApi = {
       path: `/api/products/${productId}/batches/${batchId}`,
       body: payload,
     }),
-  destroyBatch: (productId: string, batchId: string) =>
-    apiRequest<{ product?: Product } | Product, Record<string, never>>({
+  destroyBatch: (productId: string, batchId: string, payload?: ProductBatchDestroyPayload) =>
+    apiRequest<{ product?: Product } | Product, ProductBatchDestroyPayload | Record<string, never>>({
       method: 'POST',
       path: `/api/products/${productId}/batches/${batchId}/destroy`,
-      body: {} as Record<string, never>,
+      body: payload || ({} as Record<string, never>),
     }),
   exchangeBatch: (productId: string, batchId: string, payload: ProductBatchExchangePayload) =>
     apiRequest<{ product?: Product } | Product, ProductBatchExchangePayload>({

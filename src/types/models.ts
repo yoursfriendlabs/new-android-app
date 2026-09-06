@@ -417,6 +417,8 @@ export interface PurchaseItem {
   lineTotal: number;
   itemType?: string;
   description?: string;
+  expiryDate?: string;
+  batchNumber?: string;
   [key: string]: unknown;
 }
 

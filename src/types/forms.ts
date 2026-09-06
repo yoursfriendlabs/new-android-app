@@ -66,6 +66,8 @@ export interface DraftPurchaseLine {
   unitPrice: number;
   taxRate: number;
   itemType: string;
+  expiryDate?: string;
+  batchNumber?: string;
 }
 
 export interface PurchaseDraft {

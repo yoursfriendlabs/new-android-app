@@ -134,7 +134,7 @@ export default function PartiesScreen() {
       }
       footer={
         <StickyActionBar
-          secondary={{ label: t('parties.addFromPhone'), onPress: () => void importFromPhone() }}
+          secondary={{ label: t('parties.fromPhone') || 'From Phone', onPress: () => void importFromPhone() }}
           primary={{
             label: personal ? t('parties.newContact') : t('parties.newParty'),
             onPress: () => {
@@ -196,13 +196,13 @@ export default function PartiesScreen() {
           />
         )}
 
-        {partiesQuery.isLoading && !visibleParties.length ? (
+        {(partiesQuery.isLoading || (partiesQuery.isFetching && !partiesQuery.data)) && !visibleParties.length ? (
           <View style={styles.empty}>
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : null}
 
-        {!partiesQuery.isLoading && !visibleParties.length ? (
+        {!partiesQuery.isLoading && !partiesQuery.isFetching && !visibleParties.length ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
               <MaterialCommunityIcons name="account-plus-outline" size={28} color={colors.primary} />

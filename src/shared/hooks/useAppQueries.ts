@@ -1,5 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 
+import { isInvalidSessionError } from '@/src/api/client';
+import { useAuthStore } from '@/src/stores/auth-store';
 import {
   authApi,
   analyticsApi,
@@ -94,12 +96,24 @@ import type {
   Unit,
   User,
 } from '@/src/types/models';
+import type { ProductStats } from '@/src/types/contracts';
 
 async function withFallback<T>(loader: () => Promise<T>, fallback: () => Promise<T>) {
   try {
     return await loader();
-  } catch {
-    return fallback();
+  } catch (error) {
+    if (isInvalidSessionError(error)) {
+      throw error;
+    }
+    try {
+      const cached = await fallback();
+      if (cached !== undefined && cached !== null && (!Array.isArray(cached) || cached.length > 0)) {
+        return cached;
+      }
+    } catch {
+      // ignore fallback error
+    }
+    throw error;
   }
 }
 
@@ -206,8 +220,12 @@ export function useNextSequences() {
 }
 
 export function useProducts(search = '') {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
+
   return useQuery<Product[]>({
-    queryKey: ['products', search],
+    queryKey: ['products', businessId, search],
+    enabled: Boolean(token && businessId),
     queryFn: async () =>
       withFallback(
         async () => {
@@ -234,6 +252,41 @@ export function useProducts(search = '') {
           return filterProducts(items, search).slice(0, 60);
         },
         async () => readProductsFromCache(search, search.trim() ? 60 : 500),
+      ),
+    staleTime: 30_000,
+  });
+}
+
+export function useProductStats() {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
+
+  return useQuery<ProductStats>({
+    queryKey: ['product-stats', businessId],
+    enabled: Boolean(token && businessId),
+    queryFn: async () =>
+      withFallback(
+        async () => {
+          const res = await productsApi.stats();
+          const entity = unwrapEntity<ProductStats>(res);
+          return {
+            lowStockCount: Number(entity?.lowStockCount ?? 0),
+            nearExpiryCount: Number(entity?.nearExpiryCount ?? 0),
+            expiredCount: Number(entity?.expiredCount ?? 0),
+            popularCount: entity?.popularCount != null ? Number(entity.popularCount) : undefined,
+            leastPopularCount: entity?.leastPopularCount != null ? Number(entity.leastPopularCount) : undefined,
+          };
+        },
+        async () => {
+          const cached = await readProductsFromCache(undefined, 500);
+          const lowStock = cached.filter((p) => Number(p.stockOnHand ?? 0) <= 5).length;
+          const expired = cached.filter((p) => Boolean(p.hasExpiredStock) || (p.expiredQuantity ?? 0) > 0).length;
+          return {
+            lowStockCount: lowStock,
+            nearExpiryCount: 0,
+            expiredCount: expired,
+          };
+        },
       ),
     staleTime: 30_000,
   });
@@ -311,8 +364,11 @@ export function useUnits() {
 }
 
 export function useParties(search = '', type = 'customer') {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
   return useQuery<Party[]>({
-    queryKey: ['parties', search, type],
+    queryKey: ['parties', businessId, search, type],
+    enabled: Boolean(token && businessId),
     queryFn: async () =>
       withFallback(
         async () => {

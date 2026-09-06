@@ -360,10 +360,11 @@ export function normalizeQuickExpense(raw: unknown): QuickExpense {
 
 export function normalizeInventoryBatch(raw: unknown): InventoryBatch {
   const record = asRecord(raw) ?? {};
-  const expiryDate = asString(firstDefined(record.expiryDate, record.expiry_date), '');
+  const expiryDate = asString(firstDefined(record.expiryDate, record.expiry_date), '').slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   const isExpired =
     record.isExpired === true ||
-    (expiryDate ? new Date(expiryDate) < new Date(new Date().toISOString().slice(0, 10)) : false);
+    (expiryDate ? expiryDate < today : false);
 
   return {
     ...(record as InventoryBatch),
@@ -402,6 +403,9 @@ export function normalizeProduct(raw: unknown): Product {
     ? batchesRaw.map(normalizeInventoryBatch).filter((item) => item.id)
     : undefined;
   const expiredFromBatches = batches?.reduce((sum, batch) => sum + (batch.isExpired ? batch.quantityOnHand : 0), 0);
+  const stockOnHand = asNumber(firstDefined(record.stockOnHand, record.currentStock, record.stock, record.quantity));
+  const expiredQuantity = asNumber(firstDefined(expiredFromBatches, record.expiredQuantity, record.expiredStock, 0));
+  const sellableQuantity = asNumber(firstDefined(record.sellableQuantity, Math.max(0, stockOnHand - expiredQuantity)));
 
   return {
     ...(record as Product),
@@ -426,7 +430,7 @@ export function normalizeProduct(raw: unknown): Product {
       firstDefined(record.secondaryConversionRate, record.conversionRate, record.secondaryToPrimaryRate),
     ),
     taxRate: asNumber(firstDefined(record.taxRate, record.tax)),
-    stockOnHand: asNumber(firstDefined(record.stockOnHand, record.currentStock, record.stock, record.quantity)),
+    stockOnHand,
     openingStock: asNumber(record.openingStock),
     minStockLevel: asNumber(firstDefined(record.minStockLevel, record.lowStockLevel)),
     lowStockAlert: Boolean(firstDefined(record.lowStockAlert, true)),
@@ -439,10 +443,10 @@ export function normalizeProduct(raw: unknown): Product {
     expiryDate: asString(firstDefined(record.expiryDate, record.expiry_date), ''),
     batchNumber: asString(firstDefined(record.batchNumber, record.batch_number), ''),
     batchCount: asNumber(firstDefined(record.batchCount, batches?.length)),
-    expiredQuantity: asNumber(firstDefined(expiredFromBatches, record.expiredQuantity)),
-    sellableQuantity: asNumber(firstDefined(record.sellableQuantity, record.stockOnHand)),
+    expiredQuantity,
+    sellableQuantity,
     hasExpiredStock:
-      Boolean(record.hasExpiredStock) || asNumber(firstDefined(expiredFromBatches, record.expiredQuantity)) > 0,
+      Boolean(record.hasExpiredStock) || expiredQuantity > 0,
     isActive: Boolean(firstDefined(record.isActive, true)),
     batches,
   };

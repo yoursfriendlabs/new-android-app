@@ -197,7 +197,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
           onPress={() => void importFromPhone()}>
           <MaterialCommunityIcons name="contacts-outline" size={20} color={colors.primary} />
           <Text style={[styles.importLabel, { color: colors.text }]}>
-            {personal ? 'Add from phone contacts' : 'Choose from phone contacts'}
+            From Phone
           </Text>
         </Pressable>
       ) : null}

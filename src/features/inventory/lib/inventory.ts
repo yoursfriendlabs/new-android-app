@@ -116,6 +116,7 @@ export function invalidateInventoryQueries(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ['products'] }),
     queryClient.invalidateQueries({ queryKey: ['product'] }),
+    queryClient.invalidateQueries({ queryKey: ['product-stats'] }),
     queryClient.invalidateQueries({ queryKey: ['inventory-summary'] }),
     queryClient.invalidateQueries({ queryKey: ['low-stock-products'] }),
     queryClient.invalidateQueries({ queryKey: ['stock-ledger'] }),

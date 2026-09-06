@@ -6,14 +6,17 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 import { categoriesApi, productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { ProductImagePicker } from '@/src/shared/forms/ProductImagePicker';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { useCategories, useUnits } from '@/src/shared/hooks/useAppQueries';
 import {
+  expiryRemainingLabel,
   getPurityOptions,
   invalidateInventoryQueries,
   METAL_TYPE_OPTIONS,
   unitLabel,
 } from '@/src/features/inventory/lib/inventory';
+import { prettyDate } from '@/src/shared/lib/format';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
@@ -27,10 +30,12 @@ interface ProductFormSheetProps {
   visible: boolean;
   product?: Product | null;
   onClose: () => void;
+  onOpenDetail?: (product: Product) => void;
 }
 
 function formFromProduct(product?: Product | null) {
   return {
+    imageUrl: product?.imageUrl || null,
     name: product?.name ?? '',
     companyName: String(product?.companyName ?? ''),
     sku: String(product?.sku ?? ''),
@@ -56,7 +61,7 @@ function formFromProduct(product?: Product | null) {
   };
 }
 
-export function ProductFormSheet({ onClose, product, visible }: ProductFormSheetProps) {
+export function ProductFormSheet({ onClose, onOpenDetail, product, visible }: ProductFormSheetProps) {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
@@ -129,14 +134,15 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
       minWholesaleQuantity: form.minWholesaleQuantity.trim() ? Number(form.minWholesaleQuantity) : undefined,
       taxRate: form.taxRate.trim() ? Number(form.taxRate) : undefined,
       lowStockAlert: form.lowStockAlert,
+      imageUrl: form.imageUrl || null,
       metalType: form.metalType || undefined,
       purity: form.purity || undefined,
       ...(isEditing
         ? {}
         : {
             openingStock: form.openingStock.trim() ? Number(form.openingStock) : 0,
-            expiryDate: form.expiryDate || undefined,
-            batchNumber: form.batchNumber.trim() || undefined,
+            expiryDate: form.expiryDate.trim() ? form.expiryDate.trim() : undefined,
+            batchNumber: form.batchNumber.trim() ? form.batchNumber.trim() : undefined,
           }),
     };
 
@@ -144,7 +150,13 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
       if (product?.id) {
         await productsApi.update(product.id, payload);
       } else {
-        await productsApi.create(payload);
+        const created = await productsApi.create(payload);
+        if (created?.id && onOpenDetail) {
+          await invalidateInventoryQueries(queryClient);
+          onClose();
+          onOpenDetail(created);
+          return;
+        }
       }
       await invalidateInventoryQueries(queryClient);
       onClose();
@@ -162,17 +174,45 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
     <BottomSheet
       visible={visible}
       title={isEditing ? 'Edit product' : 'New product'}
-      subtitle={isEditing ? 'Update catalog details, prices, and units.' : 'Add an item with price, unit, and opening stock.'}
+      subtitle={isEditing ? 'Update catalog details, prices, and units.' : 'Add an item with photo, unit, opening stock, and price.'}
       onClose={onClose}
       fullHeight
       footer={
         <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>
-          {saving ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveLabel}>{isEditing ? 'Save changes' : 'Create product'}</Text>}
+          {saving ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.saveLabel}>{isEditing ? 'Save changes' : 'Create product'}</Text>
+          )}
         </Pressable>
       }>
-      <FormField label="Name" value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} placeholder="e.g. Coca-Cola 250ml" />
-      <FormField label="Brand" value={form.companyName} onChangeText={(companyName) => setForm((current) => ({ ...current, companyName }))} placeholder="Optional" />
-      <FormField label="SKU / item code" value={form.sku} onChangeText={(sku) => setForm((current) => ({ ...current, sku }))} placeholder="Optional" />
+      {/* 1. Product Image */}
+      <ProductImagePicker
+        value={form.imageUrl}
+        onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))}
+        label="Product photo"
+        size={96}
+      />
+
+      {/* 2. Name & Basics */}
+      <FormField
+        label="Name *"
+        value={form.name}
+        onChangeText={(name) => setForm((current) => ({ ...current, name }))}
+        placeholder="e.g. Amul Milk 1L"
+      />
+      <FormField
+        label="Brand / Company"
+        value={form.companyName}
+        onChangeText={(companyName) => setForm((current) => ({ ...current, companyName }))}
+        placeholder="e.g. Amul"
+      />
+      <FormField
+        label="SKU / Item code"
+        value={form.sku}
+        onChangeText={(sku) => setForm((current) => ({ ...current, sku }))}
+        placeholder="e.g. AML-1L"
+      />
 
       <Text style={styles.sectionLabel}>Type</Text>
       <SegmentedTabs
@@ -205,7 +245,7 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
       {addingCategory ? (
         <View style={styles.inlineRow}>
           <View style={{ flex: 1 }}>
-            <FormField label="New category" value={newCategory} onChangeText={setNewCategory} placeholder="e.g. Drinks" />
+            <FormField label="New category" value={newCategory} onChangeText={setNewCategory} placeholder="e.g. Dairy" />
           </View>
           <Pressable style={styles.inlineButton} onPress={() => void handleAddCategory()}>
             <Text style={styles.inlineButtonLabel}>Add</Text>
@@ -213,7 +253,7 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
         </View>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Primary unit</Text>
+      <Text style={styles.sectionLabel}>Primary unit *</Text>
       {units.length ? (
         <View style={styles.chipWrap}>
           {units.map((unit) => {
@@ -236,43 +276,121 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
         </View>
       ) : null}
       <FormField
-        label="Or type a unit"
+        label="Or type primary unit"
         value={form.primaryUnit}
         onChangeText={(primaryUnit) => setForm((current) => ({ ...current, primaryUnit, unitId: '' }))}
-        placeholder="pcs, kg, box"
+        placeholder="pcs, kg, box, ltr"
       />
-      <FormField label="Secondary unit" value={form.secondaryUnit} onChangeText={(secondaryUnit) => setForm((current) => ({ ...current, secondaryUnit }))} placeholder="Optional, e.g. pack" />
+      <FormField
+        label="Secondary unit"
+        value={form.secondaryUnit}
+        onChangeText={(secondaryUnit) => setForm((current) => ({ ...current, secondaryUnit }))}
+        placeholder="Optional, e.g. carton, pack"
+      />
       {form.secondaryUnit ? (
         <FormField
           label="Conversion rate"
           value={form.conversionRate}
           onChangeText={(conversionRate) => setForm((current) => ({ ...current, conversionRate }))}
           keyboardType="numeric"
-          placeholder="How many primary units in one secondary"
+          placeholder={`1 ${form.secondaryUnit} = N ${form.primaryUnit || 'units'}`}
         />
       ) : null}
 
+      {/* 3. Opening Stock & Lot Seeding (Create only) */}
+      {!isEditing && form.itemType === 'goods' ? (
+        <>
+          <Text style={styles.sectionLabel}>Opening Stock & Expiry</Text>
+          <FormField
+            label="Opening stock"
+            value={form.openingStock}
+            onChangeText={(openingStock) => setForm((current) => ({ ...current, openingStock }))}
+            keyboardType="numeric"
+            placeholder="0"
+          />
+          <FormField
+            label="Expiry date"
+            value={form.expiryDate}
+            onChangeText={(expiryDate) => setForm((current) => ({ ...current, expiryDate }))}
+            placeholder="YYYY-MM-DD"
+          />
+          <FormField
+            label="Batch / Lot number"
+            value={form.batchNumber}
+            onChangeText={(batchNumber) => setForm((current) => ({ ...current, batchNumber }))}
+            placeholder="e.g. LOT-A12"
+          />
+        </>
+      ) : null}
+
+      {/* On Edit, show existing batches info */}
+      {isEditing && product?.batches?.length ? (
+        <View style={styles.lotsInfoCard}>
+          <Text style={styles.lotsInfoTitle}>Existing stock lots</Text>
+          <Text style={styles.lotsInfoSubtitle}>
+            Lot details and expiry are managed per batch. Use Restock or the Lots tab in product details to change stock or expiry dates.
+          </Text>
+          {product.batches.slice(0, 3).map((b) => (
+            <View key={b.id} style={styles.lotPreviewRow}>
+              <Text style={styles.lotPreviewText}>
+                {b.batchNumber ? `Batch: ${b.batchNumber}` : 'Lot'}: {b.quantityOnHand} {product.primaryUnit}
+              </Text>
+              <Text style={[styles.lotPreviewMeta, b.isExpired && { color: colors.danger }]}>
+                {b.expiryDate ? prettyDate(b.expiryDate) : 'No expiry'}
+                {expiryRemainingLabel(b.expiryDate) ? ` (${expiryRemainingLabel(b.expiryDate)})` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {/* 4. Pricing & Stock Alert */}
+      <Text style={styles.sectionLabel}>Pricing</Text>
       <View style={styles.formRow}>
         <View style={{ flex: 1 }}>
-          <FormField label="Sale price" value={form.salePrice} onChangeText={(salePrice) => setForm((current) => ({ ...current, salePrice }))} keyboardType="numeric" />
+          <FormField
+            label="Sale price *"
+            value={form.salePrice}
+            onChangeText={(salePrice) => setForm((current) => ({ ...current, salePrice }))}
+            keyboardType="numeric"
+            placeholder="0"
+          />
         </View>
         <View style={{ width: spacing.sm }} />
         <View style={{ flex: 1 }}>
-          <FormField label="Purchase price" value={form.purchasePrice} onChangeText={(purchasePrice) => setForm((current) => ({ ...current, purchasePrice }))} keyboardType="numeric" />
+          <FormField
+            label="Purchase price"
+            value={form.purchasePrice}
+            onChangeText={(purchasePrice) => setForm((current) => ({ ...current, purchasePrice }))}
+            keyboardType="numeric"
+            placeholder="0"
+          />
         </View>
       </View>
       <View style={styles.formRow}>
         <View style={{ flex: 1 }}>
-          <FormField label="MRP" value={form.mrpPrice} onChangeText={(mrpPrice) => setForm((current) => ({ ...current, mrpPrice }))} keyboardType="numeric" />
+          <FormField
+            label="MRP"
+            value={form.mrpPrice}
+            onChangeText={(mrpPrice) => setForm((current) => ({ ...current, mrpPrice }))}
+            keyboardType="numeric"
+            placeholder="Optional"
+          />
         </View>
         <View style={{ width: spacing.sm }} />
         <View style={{ flex: 1 }}>
-          <FormField label="Wholesale" value={form.wholesalePrice} onChangeText={(wholesalePrice) => setForm((current) => ({ ...current, wholesalePrice }))} keyboardType="numeric" />
+          <FormField
+            label="Wholesale"
+            value={form.wholesalePrice}
+            onChangeText={(wholesalePrice) => setForm((current) => ({ ...current, wholesalePrice }))}
+            keyboardType="numeric"
+            placeholder="Optional"
+          />
         </View>
       </View>
       {form.secondaryUnit ? (
         <FormField
-          label={`Sale price (${form.secondaryUnit})`}
+          label={`Sale price per ${form.secondaryUnit}`}
           value={form.secondarySalePrice}
           onChangeText={(secondarySalePrice) => setForm((current) => ({ ...current, secondarySalePrice }))}
           keyboardType="numeric"
@@ -286,7 +404,14 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
         keyboardType="numeric"
         placeholder="Optional"
       />
-      <FormField label="Tax %" value={form.taxRate} onChangeText={(taxRate) => setForm((current) => ({ ...current, taxRate }))} keyboardType="numeric" />
+      <FormField
+        label="Tax %"
+        value={form.taxRate}
+        onChangeText={(taxRate) => setForm((current) => ({ ...current, taxRate }))}
+        keyboardType="numeric"
+        placeholder="0"
+      />
+
       <Pressable
         style={[styles.toggleRow, form.lowStockAlert && styles.toggleRowOn]}
         onPress={() => setForm((current) => ({ ...current, lowStockAlert: !current.lowStockAlert }))}>
@@ -301,20 +426,7 @@ export function ProductFormSheet({ onClose, product, visible }: ProductFormSheet
         />
       </Pressable>
 
-      {!isEditing && form.itemType === 'goods' ? (
-        <>
-          <FormField
-            label="Opening stock"
-            value={form.openingStock}
-            onChangeText={(openingStock) => setForm((current) => ({ ...current, openingStock }))}
-            keyboardType="numeric"
-            placeholder="0"
-          />
-          <FormField label="Expiry date" value={form.expiryDate} onChangeText={(expiryDate) => setForm((current) => ({ ...current, expiryDate }))} placeholder="YYYY-MM-DD" />
-          <FormField label="Batch number" value={form.batchNumber} onChangeText={(batchNumber) => setForm((current) => ({ ...current, batchNumber }))} placeholder="Optional" />
-        </>
-      ) : null}
-
+      {/* 5. Jewellery Attributes */}
       {isJewellery ? (
         <>
           <Text style={styles.sectionLabel}>Metal</Text>
@@ -452,6 +564,40 @@ const createStyles = (colors: AppPalette) =>
       fontSize: typography.caption,
       color: colors.textMuted,
       lineHeight: 18,
+    },
+    lotsInfoCard: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      gap: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    lotsInfoTitle: {
+      fontSize: typography.caption,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      color: colors.textSoft,
+    },
+    lotsInfoSubtitle: {
+      fontSize: typography.caption,
+      color: colors.textMuted,
+      lineHeight: 16,
+    },
+    lotPreviewRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 2,
+    },
+    lotPreviewText: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    lotPreviewMeta: {
+      fontSize: 11,
+      color: colors.textMuted,
     },
     saveButton: {
       minHeight: 52,

@@ -171,6 +171,8 @@ export default function PurchaseCreateScreen() {
           lineTotal: computeLineTotal(item),
           itemType: item.itemType,
           description: item.description,
+          expiryDate: item.expiryDate?.trim() || undefined,
+          batchNumber: item.batchNumber?.trim() || undefined,
         })),
       };
 
@@ -290,6 +292,8 @@ export default function PurchaseCreateScreen() {
               <FormField label="Quantity" value={String(item.quantity)} onChangeText={(quantity) => updateLine(item.id, { quantity: Number(quantity || 0) })} keyboardType="numeric" />
               <FormField label="Unit cost" value={String(item.unitPrice)} onChangeText={(unitPrice) => updateLine(item.id, { unitPrice: Number(unitPrice || 0) })} keyboardType="numeric" />
               <FormField label="Tax rate" value={String(item.taxRate)} onChangeText={(taxRate) => updateLine(item.id, { taxRate: Number(taxRate || 0) })} keyboardType="numeric" />
+              <FormField label="Expiry date" value={item.expiryDate ?? ''} onChangeText={(expiryDate) => updateLine(item.id, { expiryDate })} placeholder="YYYY-MM-DD (Optional)" />
+              <FormField label="Batch / Lot number" value={item.batchNumber ?? ''} onChangeText={(batchNumber) => updateLine(item.id, { batchNumber })} placeholder="Optional batch no." />
               <Text style={styles.lineTotal}>Line total {formatCurrency(computeLineTotal(item))}</Text>
             </View>
           ))}

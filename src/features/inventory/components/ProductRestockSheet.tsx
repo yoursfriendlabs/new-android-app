@@ -30,6 +30,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
+  const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
       setQuantity('');
       setExpiryDate('');
       setBatchNumber('');
+      setNote('');
     }
   }, [visible, product?.id]);
 
@@ -63,8 +65,9 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
         quantity: qty,
         action,
         unitType: 'primary',
-        ...(action === 'add' && expiryDate ? { expiryDate } : {}),
+        ...(action === 'add' && expiryDate.trim() ? { expiryDate: expiryDate.trim() } : {}),
         ...(action === 'add' && batchNumber.trim() ? { batchNumber: batchNumber.trim() } : {}),
+        ...(note.trim() ? { note: note.trim() } : {}),
       });
       await invalidateInventoryQueries(queryClient);
       onClose();
@@ -127,6 +130,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
           <FormField label="Batch number" value={batchNumber} onChangeText={setBatchNumber} placeholder="Optional" />
         </>
       ) : null}
+      <FormField label="Notes / Remarks" value={note} onChangeText={setNote} placeholder="Optional note" />
       {product?.salePrice ? (
         <Text style={styles.helper}>Selling at {formatCurrency(product.salePrice)} per {unit}.</Text>
       ) : null}
