@@ -11,6 +11,7 @@ import { workspaceAccessMessage } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -278,17 +279,21 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         ) : null}
 
         <Pressable style={styles.selector} onPress={() => setPartyPickerVisible(true)}>
-          <View
-            style={[
-              styles.selectorAvatar,
-              { backgroundColor: form.party ? colors.primary : colors.backgroundAlt },
-            ]}>
-            {form.party ? (
-              <Text style={styles.selectorAvatarText}>{partyInitials(form.party.name)}</Text>
-            ) : (
+          {form.party ? (
+            <Avatar
+              uri={form.party.avatarUrl}
+              name={form.party.name}
+              size={36}
+            />
+          ) : (
+            <View
+              style={[
+                styles.selectorAvatar,
+                { backgroundColor: colors.backgroundAlt },
+              ]}>
               <MaterialCommunityIcons color={colors.textMuted} name="account-outline" size={18} />
-            )}
-          </View>
+            </View>
+          )}
           <View style={styles.selectorCopy}>
             <Text style={styles.selectorTitle}>{form.party?.name ?? 'Paid to (optional)'}</Text>
             <Text style={styles.selectorSubtitle}>

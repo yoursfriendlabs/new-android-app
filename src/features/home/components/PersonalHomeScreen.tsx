@@ -17,6 +17,7 @@ import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/compo
 import { expenseCategory } from '@/src/features/money/lib/expense';
 import { moneyCategoryFromNote, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
@@ -247,9 +248,12 @@ export function PersonalHomeScreen() {
           <Pressable
             style={({ pressed }) => [styles.profile, pressed && { opacity: 0.78 }]}
             onPress={() => setWorkspaceSheetVisible(true)}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{initials(workspaceName || user?.name)}</Text>
-            </View>
+            <Avatar
+              uri={user?.avatarUrl}
+              name={workspaceName || user?.name}
+              size={44}
+              shape="rounded"
+            />
             <View style={styles.profileCopy}>
               <View style={styles.workspaceRow}>
                 <Text numberOfLines={1} style={[styles.workspaceTitle, { color: colors.text }]}>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
+import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
@@ -377,6 +378,20 @@ export default function MoreScreen() {
     }
   }
 
+  async function handleAvatarChange(newUrl: string | null) {
+    try {
+      setSaving(true);
+      setMessage('');
+      await updateProfile({ avatarUrl: newUrl });
+      setMessage(t('common.success'));
+    } catch (error) {
+      if (isInvalidSessionError(error)) return;
+      setMessage(error instanceof Error ? error.message : t('common.error'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSignOut() {
     try {
       setSigningOut(true);
@@ -390,9 +405,12 @@ export default function MoreScreen() {
   return (
     <Screen showTopBar={false}>
       <View style={styles.header}>
-        <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-          <Text style={[styles.avatarLabel, { color: colors.onPrimary }]}>{initials(user?.name)}</Text>
-        </View>
+        <AvatarPicker
+          value={user?.avatarUrl}
+          name={user?.name}
+          size={64}
+          onChange={handleAvatarChange}
+        />
         <View style={styles.headerCopy}>
           <Text style={[styles.name, { color: colors.text }]}>{user?.name || 'Your profile'}</Text>
           <Text style={[styles.meta, { color: colors.textMuted }]}>
@@ -507,6 +525,13 @@ export default function MoreScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.profile')}</Text>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.md }]}>
+          <AvatarPicker
+            value={user?.avatarUrl}
+            name={user?.name}
+            size={80}
+            label={user?.avatarUrl ? 'Change photo' : 'Add photo'}
+            onChange={handleAvatarChange}
+          />
           <FormField
             label={t('common.name')}
             value={profileForm.name}

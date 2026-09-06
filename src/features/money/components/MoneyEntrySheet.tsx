@@ -10,6 +10,7 @@ import { partiesApi, partyTransactionsApi } from '@/src/api';
 import { extractListItems, normalizeParty } from '@/src/api/normalize';
 import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
@@ -481,17 +482,20 @@ export function MoneyEntrySheet({
           />
         ) : null}
 
-        {/* Contact Selector */}
         <Pressable
           style={[styles.selector, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => setPartyPickerVisible(true)}>
-          <View style={[styles.selectorAvatar, { backgroundColor: form.party ? colors.primary : colors.backgroundAlt }]}>
-            {form.party ? (
-              <Text style={styles.selectorAvatarText}>{partyInitials(form.party.name)}</Text>
-            ) : (
+          {form.party ? (
+            <Avatar
+              uri={form.party.avatarUrl}
+              name={form.party.name}
+              size={36}
+            />
+          ) : (
+            <View style={[styles.selectorAvatar, { backgroundColor: colors.backgroundAlt }]}>
               <MaterialCommunityIcons color={colors.textMuted} name="account-outline" size={18} />
-            )}
-          </View>
+            </View>
+          )}
           <View style={styles.selectorCopy}>
             <Text style={[styles.selectorTitle, { color: colors.text }]}>
               {form.party?.name ?? WALK_IN_LABEL}

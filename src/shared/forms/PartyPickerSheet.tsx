@@ -3,6 +3,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { getPartyBalanceMeta } from '@/src/features/parties/lib/party';
@@ -107,16 +108,11 @@ export function PartyPickerSheet({
               style={[styles.partyRow, { borderBottomColor: colors.border }]}
               onPress={() => onPick(item)}>
               <View style={styles.partyLead}>
-                <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
-                  <Text style={[styles.avatarLabel, { color: colors.text }]}>
-                    {item.name
-                      .split(' ')
-                      .map((part) => part[0])
-                      .join('')
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </Text>
-                </View>
+                <Avatar
+                  uri={item.avatarUrl}
+                  name={item.name}
+                  size={40}
+                />
                 <View style={styles.partyMeta}>
                   <Text style={[styles.partyName, { color: colors.text }]}>{item.name}</Text>
                   <Text style={[styles.partyInfo, { color: colors.textMuted }]}>

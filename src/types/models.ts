@@ -20,6 +20,7 @@ export interface User {
   name: string;
   email?: string;
   phone?: string;
+  avatarUrl?: string | null;
   role?: string;
   permissions?: string[] | Record<string, string>;
   businessId?: string;
@@ -290,6 +291,7 @@ export interface Party {
   email?: string;
   address?: string;
   type: PartyType;
+  avatarUrl?: string | null;
   openingBalance?: number;
   balanceType?: PaymentDirection;
   currentAmount?: number;

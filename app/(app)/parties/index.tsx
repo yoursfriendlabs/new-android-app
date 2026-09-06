@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleS
 
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -274,9 +275,11 @@ function PartyRow({
         { backgroundColor: colors.surface, borderColor: colors.border },
         pressed && styles.rowPressed,
       ]}>
-      <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-        <Text style={[styles.avatarText, { color: colors.white }]}>{partyInitials(party.name)}</Text>
-      </View>
+      <Avatar
+        uri={party.avatarUrl}
+        name={party.name}
+        size={44}
+      />
       <View style={styles.rowCopy}>
         <View style={styles.nameRow}>
           <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
@@ -225,9 +226,12 @@ export function ShopHomeScreen() {
           <Pressable
             style={({ pressed }) => [styles.profile, pressed && { opacity: 0.78 }]}
             onPress={() => setWorkspaceSheetVisible(true)}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{initials(workspaceName || user?.name)}</Text>
-            </View>
+            <Avatar
+              uri={user?.avatarUrl}
+              name={workspaceName || user?.name}
+              size={44}
+              shape="rounded"
+            />
             <View style={styles.profileCopy}>
               <View style={styles.workspaceRow}>
                 <Text numberOfLines={1} style={[styles.workspaceTitle, { color: colors.text }]}>

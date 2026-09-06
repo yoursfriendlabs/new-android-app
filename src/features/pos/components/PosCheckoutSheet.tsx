@@ -4,6 +4,7 @@ import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { router } from 'expo-router';
 
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { formatCurrency } from '@/src/shared/lib/format';
@@ -121,11 +122,17 @@ export function PosCheckoutSheet({
 
         <Pressable style={styles.partyCard} onPress={onSelectParty}>
           <View style={styles.partyLead}>
-            <View style={styles.partyAvatar}>
-              <Text style={styles.partyAvatarText}>
-                {value.party?.name ? partyInitials(value.party.name) : 'W'}
-              </Text>
-            </View>
+            {value.party?.name ? (
+              <Avatar
+                uri={value.party?.avatarUrl}
+                name={value.party?.name}
+                size={38}
+              />
+            ) : (
+              <View style={styles.partyAvatar}>
+                <Text style={styles.partyAvatarText}>W</Text>
+              </View>
+            )}
             <View style={styles.partyCopy}>
               <Text style={styles.partyTitle}>{value.party?.name ?? 'Walk-in'}</Text>
               <Text style={styles.partySubtitle}>

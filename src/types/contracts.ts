@@ -56,6 +56,7 @@ export interface LoginPayload {
 export interface UpdateMePayload {
   name?: string;
   phone?: string;
+  avatarUrl?: string | null;
 }
 
 export interface UpdateBusinessSettingsPayload extends BusinessSettings {}
@@ -172,6 +173,7 @@ export interface PartyCreatePayload {
   email?: string;
   address?: string;
   type: string;
+  avatarUrl?: string | null;
   openingBalance?: number;
   asOfDate?: string;
   balanceType?: string;

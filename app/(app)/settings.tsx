@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { metaApi } from '@/src/api';
+import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
@@ -109,6 +110,16 @@ export default function SettingsScreen() {
     setMessage(t('common.success'));
   }
 
+  async function handleAvatarChange(newUrl: string | null) {
+    try {
+      setMessage('');
+      await updateProfile({ avatarUrl: newUrl });
+      setMessage(t('common.success'));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t('common.error'));
+    }
+  }
+
   async function handleSignOut() {
     try {
       setSigningOut(true);
@@ -170,6 +181,13 @@ export default function SettingsScreen() {
       <SurfaceCard
         title={t('settings.profile')}
         subtitle={user?.email || t('settings.profileSubtitle')}>
+        <AvatarPicker
+          value={user?.avatarUrl}
+          name={user?.name}
+          size={80}
+          label={user?.avatarUrl ? 'Change photo' : 'Add photo'}
+          onChange={handleAvatarChange}
+        />
         <FormField
           label={t('common.name')}
           value={profileForm.name}

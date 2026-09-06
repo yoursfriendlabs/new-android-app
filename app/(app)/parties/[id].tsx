@@ -15,6 +15,7 @@ import {
 
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { PartyTransactionSheet } from '@/src/features/parties/components/PartyTransactionSheet';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { usePartyById, usePartyStatement } from '@/src/shared/hooks/useAppQueries';
@@ -325,9 +326,11 @@ export default function PartyDetailScreen() {
         contentContainerStyle={styles.scroll}>
         <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.profileTop}>
-            <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.avatarText, { color: colors.white }]}>{partyInitials(party.name)}</Text>
-            </View>
+            <Avatar
+              uri={party.avatarUrl}
+              name={party.name}
+              size={54}
+            />
             <View style={styles.profileCopy}>
               <Text style={[styles.profileName, { color: colors.text }]}>{party.name}</Text>
               <View style={styles.chipRow}>

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { isInvalidSessionError } from '@/src/api/client';
 import { partiesApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
 import { FormField } from '@/src/shared/forms/FormField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
@@ -28,6 +29,7 @@ function createPartyForm(party?: Party | null, seed?: DeviceContactDraft | null,
     email: seed?.email ?? String(party?.email ?? ''),
     address: String(party?.address ?? ''),
     type: String(party?.type ?? (personal ? 'both' : 'customer')),
+    avatarUrl: (party?.avatarUrl as string | null) ?? null,
     openingBalance: String(party?.openingBalance ?? 0),
     balanceType: String(party?.balanceType ?? 'receive'),
   };
@@ -76,6 +78,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
       email: form.email || undefined,
       address: form.address || undefined,
       type: form.type,
+      avatarUrl: form.avatarUrl || null,
       openingBalance: Number(form.openingBalance || 0),
       balanceType: form.balanceType,
     };
@@ -198,6 +201,13 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
           </Text>
         </Pressable>
       ) : null}
+      <AvatarPicker
+        value={form.avatarUrl}
+        name={form.name}
+        size={76}
+        label={form.avatarUrl ? 'Change photo' : 'Add photo'}
+        onChange={(avatarUrl) => setForm((current) => ({ ...current, avatarUrl }))}
+      />
       <FormField
         label="Name"
         value={form.name}
