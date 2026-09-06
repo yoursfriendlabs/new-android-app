@@ -565,6 +565,68 @@ export function useLedger(partyId?: string, range?: { from?: string; to?: string
     queryFn: async () =>
       withFallback(
         async () => {
+          if (partyId) {
+            try {
+              const statementRes = await reportsApi.partyStatement({
+                partyId,
+                limit: 200,
+                from: range?.from,
+                to: range?.to,
+              });
+              const statement = normalizePartyStatement(statementRes);
+              if (statement.rows && statement.rows.length > 0) {
+                const statementEntries: LedgerEntry[] = statement.rows.map((row) => {
+                  const amt = Number(
+                    row.amount ||
+                    row.grandTotal ||
+                    row.totalAmount ||
+                    row.total ||
+                    row.paidAmount ||
+                    row.amountReceived ||
+                    row.amountPaid ||
+                    row.subTotal ||
+                    (row as any).netAmount ||
+                    0
+                  );
+                  const typeLower = String(row.type || '').toLowerCase();
+                  const isCredit =
+                    typeLower === 'payment_in' ||
+                    typeLower === 'income' ||
+                    typeLower === 'sale' ||
+                    typeLower === 'receive';
+                  const isDebit =
+                    typeLower === 'payment_out' ||
+                    typeLower === 'expense' ||
+                    typeLower === 'purchase' ||
+                    typeLower === 'give' ||
+                    typeLower === 'service';
+                  const title =
+                    row.note && row.note !== 'Opening Balance'
+                      ? row.note
+                      : row.referenceNo
+                        ? `${String(row.type).toUpperCase()} #${row.referenceNo}`
+                        : String(row.type || 'Entry');
+                  return {
+                    id: String(row.id),
+                    partyId,
+                    partyName: statement.party?.name || '',
+                    refType: String(row.type || 'entry'),
+                    refNo: String(row.referenceNo || ''),
+                    entryDate: String(row.date || row.createdAt || ''),
+                    description: title,
+                    debit: isDebit ? amt : !isCredit && amt > 0 ? amt : 0,
+                    credit: isCredit ? amt : 0,
+                    runningBalance: typeof row.runningBalance === 'number' ? row.runningBalance : undefined,
+                    balanceDirection: (row.direction as any) || undefined,
+                  };
+                });
+                return statementEntries;
+              }
+            } catch {
+              // fallback to regular ledger
+            }
+          }
+
           const response = await reportsApi.ledger({
             limit: 200,
             partyId,
@@ -572,7 +634,57 @@ export function useLedger(partyId?: string, range?: { from?: string; to?: string
             to: range?.to,
           });
           const items = extractListItems<LedgerEntry>(response).map(normalizeLedgerEntry).filter((item) => item.id);
-          await cacheLedgerEntries(items);
+          if (items.length > 0) {
+            await cacheLedgerEntries(items);
+            return items;
+          }
+
+          // Fallback if party is selected and remote ledger is empty
+          if (partyId) {
+            const [txRes, expRes] = await Promise.all([
+              partyTransactionsApi.list({ partyId, limit: 200 }).catch(() => ({ items: [] })),
+              purchasesApi.list({ partyId, limit: 200 }).catch(() => ({ items: [] })),
+            ]);
+            const txItems = extractListItems<PartyTransaction>(txRes);
+            const expItems = extractListItems<Purchase>(expRes);
+            const combined: LedgerEntry[] = [
+              ...txItems.map((tx) => {
+                const txAmt = Number(tx.amount || (tx as any).amountReceived || (tx as any).amountPaid || (tx as any).total || 0);
+                return {
+                  id: `tx-${tx.id}`,
+                  partyId,
+                  partyName: '',
+                  refType: tx.direction === 'receive' ? 'payment_in' : 'payment_out',
+                  refNo: '',
+                  entryDate: String(tx.txDate || tx.createdAt || ''),
+                  description: tx.note || (tx.direction === 'receive' ? 'Payment Received' : 'Payment Made'),
+                  debit: tx.direction === 'give' ? txAmt : 0,
+                  credit: tx.direction === 'receive' ? txAmt : 0,
+                  runningBalance: undefined,
+                };
+              }),
+              ...expItems.map((exp) => {
+                const expAmt = Number(exp.grandTotal || (exp as any).amount || (exp as any).total || (exp as any).subTotal || 0);
+                return {
+                  id: `exp-${exp.id}`,
+                  partyId,
+                  partyName: exp.partyName || '',
+                  refType: 'expense',
+                  refNo: exp.invoiceNo || '',
+                  entryDate: String(exp.purchaseDate || exp.createdAt || ''),
+                  description: exp.notes || 'Expense',
+                  debit: expAmt,
+                  credit: 0,
+                  runningBalance: undefined,
+                };
+              }),
+            ].sort((a, b) => String(b.entryDate).localeCompare(String(a.entryDate)));
+
+            if (combined.length > 0) {
+              return combined;
+            }
+          }
+
           return items;
         },
         () => readLedgerEntriesFromCache(200),

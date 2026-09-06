@@ -670,19 +670,55 @@ export function normalizePartyStatement(raw: unknown): PartyStatement {
 
 export function normalizeLedgerEntry(raw: unknown): LedgerEntry {
   const record = asRecord(raw) ?? {};
+  const refType = asString(firstDefined(record.refType, record.type, record.entryType), '');
+  const refLower = refType.toLowerCase();
+  const isDebitType =
+    refLower.includes('expense') ||
+    refLower.includes('purchase') ||
+    refLower.includes('out') ||
+    refLower.includes('give') ||
+    refLower.includes('payment_out');
+  const isCreditType =
+    refLower.includes('income') ||
+    refLower.includes('sale') ||
+    refLower.includes('in') ||
+    refLower.includes('receive') ||
+    refLower.includes('payment_in');
+
+  const rawAmount = asNumber(firstDefined(record.amount, record.grandTotal, record.total, record.subTotal));
+  const rawDebit = asNumber(firstDefined(record.debit, record.debitAmount));
+  const rawCredit = asNumber(firstDefined(record.credit, record.creditAmount));
+
+  let debit = rawDebit;
+  let credit = rawCredit;
+
+  if (debit === 0 && credit === 0 && rawAmount > 0) {
+    if (isDebitType) {
+      debit = rawAmount;
+    } else if (isCreditType) {
+      credit = rawAmount;
+    } else {
+      const dir = asString(firstDefined(record.direction, record.balanceDirection), '').toLowerCase();
+      if (dir === 'give' || dir === 'out' || dir === 'dr') {
+        debit = rawAmount;
+      } else {
+        credit = rawAmount;
+      }
+    }
+  }
 
   return {
     ...(record as LedgerEntry),
     id: asString(firstDefined(record.id, record._id), ''),
     partyId: asString(record.partyId, ''),
     partyName: asString(firstDefined(record.partyName, asRecord(record.party)?.name), ''),
-    refType: asString(record.refType, ''),
-    refNo: asString(record.refNo, ''),
-    entryDate: asString(firstDefined(record.entryDate, record.txDate, record.createdAt), ''),
-    description: asString(firstDefined(record.description, record.note), ''),
-    debit: asNumber(record.debit),
-    credit: asNumber(record.credit),
-    runningBalance: asNumber(firstDefined(record.runningBalance, record.balance)),
+    refType: refType || 'entry',
+    refNo: asString(firstDefined(record.refNo, record.invoiceNo, record.billNo), ''),
+    entryDate: asString(firstDefined(record.entryDate, record.txDate, record.purchaseDate, record.saleDate, record.createdAt), ''),
+    description: asString(firstDefined(record.description, record.note, record.notes, record.category), ''),
+    debit,
+    credit,
+    runningBalance: firstDefined(record.runningBalance, record.balance) !== undefined ? asNumber(firstDefined(record.runningBalance, record.balance)) : undefined,
     balanceDirection: asString(firstDefined(record.balanceDirection, record.direction), '') as LedgerEntry['balanceDirection'],
   };
 }

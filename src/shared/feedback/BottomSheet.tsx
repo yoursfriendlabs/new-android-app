@@ -30,14 +30,14 @@ export function BottomSheet({
 }: BottomSheetProps) {
   const colors = usePalette();
   const { height: windowHeight } = useWindowDimensions();
-  const tall = !compact || typeof heightRatio === 'number';
-  const sheetHeight = heightRatio
-    ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.3), 0.98))
+  const tall = true;
+  const calculatedHeight = heightRatio
+    ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.35), 0.96))
     : compact
-      ? undefined
+      ? Math.min(Math.round(windowHeight * 0.68), 580)
       : fullHeight
-        ? windowHeight
-        : Math.round(windowHeight * 0.92);
+        ? Math.round(windowHeight * 0.94)
+        : Math.round(windowHeight * 0.90);
 
   return (
     <Modal
@@ -51,7 +51,7 @@ export function BottomSheet({
         <View
           style={[
             styles.sheet,
-            { backgroundColor: colors.surface, height: sheetHeight },
+            { backgroundColor: colors.surface, height: calculatedHeight },
             compact && styles.sheetCompact,
             fullHeight && styles.sheetFull,
           ]}>

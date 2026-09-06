@@ -10,6 +10,7 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
 import { CompactLanguageToggle } from '@/src/shared/ui/LanguageSelector';
 import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
+import { Snackbar } from '@/src/shared/feedback/Snackbar';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
@@ -261,6 +262,11 @@ export default function MoreScreen() {
     name: user?.name ?? '',
     phone: user?.phone ?? '',
   });
+  const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string; tone: 'success' | 'danger' }>({
+    visible: false,
+    message: '',
+    tone: 'success',
+  });
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -369,10 +375,12 @@ export default function MoreScreen() {
       setSaving(true);
       setMessage('');
       await updateProfile(profileForm);
-      setMessage(t('common.success'));
+      setSnackbar({ visible: true, message: 'Profile updated successfully', tone: 'success' });
     } catch (error) {
       if (isInvalidSessionError(error)) return;
-      setMessage(error instanceof Error ? error.message : t('common.error'));
+      const errMsg = error instanceof Error ? error.message : t('common.error');
+      setMessage(errMsg);
+      setSnackbar({ visible: true, message: errMsg, tone: 'danger' });
     } finally {
       setSaving(false);
     }
@@ -383,10 +391,12 @@ export default function MoreScreen() {
       setSaving(true);
       setMessage('');
       await updateProfile({ avatarUrl: newUrl });
-      setMessage(t('common.success'));
+      setSnackbar({ visible: true, message: 'Profile photo updated', tone: 'success' });
     } catch (error) {
       if (isInvalidSessionError(error)) return;
-      setMessage(error instanceof Error ? error.message : t('common.error'));
+      const errMsg = error instanceof Error ? error.message : t('common.error');
+      setMessage(errMsg);
+      setSnackbar({ visible: true, message: errMsg, tone: 'danger' });
     } finally {
       setSaving(false);
     }
@@ -580,6 +590,13 @@ export default function MoreScreen() {
           </Pressable>
         </View>
       </View>
+
+      <Snackbar
+        visible={snackbar.visible}
+        message={snackbar.message}
+        tone={snackbar.tone}
+        onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+      />
     </Screen>
   );
 }

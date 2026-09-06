@@ -292,6 +292,7 @@ export interface Party {
   address?: string;
   type: PartyType;
   avatarUrl?: string | null;
+  photoUrl?: string | null;
   openingBalance?: number;
   balanceType?: PaymentDirection;
   currentAmount?: number;

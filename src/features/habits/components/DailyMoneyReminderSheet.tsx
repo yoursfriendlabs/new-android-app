@@ -62,6 +62,7 @@ export function DailyMoneyReminderSheet({ onClose, onSave, value, visible }: Dai
       title="Daily money reminder"
       subtitle="One ping a day. Water and focus stays extra, not louder than this."
       onClose={onClose}
+      heightRatio={0.78}
       footer={
         <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>
           <Text style={styles.saveLabel}>{saving ? 'Saving…' : enabled ? 'Save reminder' : 'Turn off'}</Text>

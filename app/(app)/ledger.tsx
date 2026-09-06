@@ -1,28 +1,78 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { Screen } from '@/src/shared/layout/Screen';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
+import { Avatar } from '@/src/shared/ui/Avatar';
 import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { useLedger, useParties } from '@/src/shared/hooks/useAppQueries';
+import { useLedger, useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { buildLedgerReportHtml, printHtmlDocument, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import { openReceiptPreview, type ReceiptInput } from '@/src/shared/lib/receipt';
 import { radius, shadows, spacing, typography } from '@/src/theme';
-import type { Party } from '@/src/types/models';
+import type { LedgerEntry, Party, PartyTransaction, Purchase } from '@/src/types/models';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
-import { partyTypeLabel } from '@/src/features/parties/lib/party';
+import {
+  getBalanceColor,
+  getBalanceSoftColor,
+  getPartyBalanceMeta,
+  getPartyWhatsAppUrl,
+  partyInitials,
+  partyTypeLabel,
+} from '@/src/features/parties/lib/party';
+import { expenseCategory, isInCurrentMonth } from '@/src/features/money/lib/expense';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type LedgerPeriod = Extract<DatePeriod, 'this_month' | 'this_year'> | 'all';
+
+function isDateInPeriod(dateStr?: string, period?: LedgerPeriod) {
+  if (!dateStr || period === 'all') return true;
+  const d = dateStr.slice(0, 10);
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentYear = `${now.getFullYear()}`;
+  if (period === 'this_month') return d.startsWith(currentMonth);
+  if (period === 'this_year') return d.startsWith(currentYear);
+  return true;
+}
+
+function getEntryIcon(refType: string) {
+  const type = refType.toLowerCase();
+  if (type.includes('payment_in') || type.includes('receive') || type.includes('income')) {
+    return { name: 'arrow-bottom-left' as const, tone: 'success' as const };
+  }
+  if (type.includes('payment_out') || type.includes('paid') || type.includes('give')) {
+    return { name: 'arrow-top-right' as const, tone: 'danger' as const };
+  }
+  if (type.includes('sale')) {
+    return { name: 'receipt-outline' as const, tone: 'info' as const };
+  }
+  if (type.includes('purchase')) {
+    return { name: 'cart-outline' as const, tone: 'warning' as const };
+  }
+  if (type.includes('expense')) {
+    return { name: 'wallet-outline' as const, tone: 'danger' as const };
+  }
+  return { name: 'swap-horizontal' as const, tone: 'neutral' as const };
+}
 
 export default function LedgerScreen() {
   const colors = usePalette();
@@ -41,14 +91,102 @@ export default function LedgerScreen() {
   const debouncedPartySearch = useDebouncedValue(partySearch);
   const { data: parties } = useParties(debouncedPartySearch, 'both');
   const range = period === 'all' ? undefined : getRangeForPeriod(period);
+
   const ledgerQuery = useLedger(selectedParty?.id, range);
-  const entries = ledgerQuery.data ?? [];
+  const personalTxQuery = usePartyTransactions(selectedParty?.id);
+  const personalExpensesQuery = usePurchases('expense');
+
+  const partyById = useMemo(() => {
+    return new Map((parties ?? []).map((party) => [party.id, party]));
+  }, [parties]);
+
+  const rawLedgerEntries = ledgerQuery.data ?? [];
+
+  const entries = useMemo<LedgerEntry[]>(() => {
+    if (rawLedgerEntries.length > 0) {
+      return rawLedgerEntries.filter((e) => isDateInPeriod(e.entryDate, period));
+    }
+
+    // Fallback synthesis for personal workspace or empty server ledger
+    const partyTx = (personalTxQuery.data ?? []).filter((tx) => {
+      if (selectedParty && tx.partyId !== selectedParty.id) return false;
+      return isDateInPeriod(tx.txDate, period);
+    });
+
+    const expenses = (personalExpensesQuery.data ?? []).filter((exp) => {
+      if (selectedParty && exp.partyId !== selectedParty.id) return false;
+      return isDateInPeriod(exp.purchaseDate, period);
+    });
+
+    const synthesized: LedgerEntry[] = [
+      ...partyTx.map((tx) => {
+        const party = partyById.get(tx.partyId);
+        const isReceive = tx.direction === 'receive';
+        return {
+          id: `tx-${tx.id}`,
+          partyId: tx.partyId,
+          partyName: party?.name || '',
+          refType: isReceive ? 'payment_in' : 'payment_out',
+          refNo: '',
+          entryDate: String(tx.txDate || tx.createdAt || ''),
+          description: tx.note || (isReceive ? 'Income / Payment In' : 'Payment Out'),
+          debit: isReceive ? 0 : Number(tx.amount || 0),
+          credit: isReceive ? Number(tx.amount || 0) : 0,
+          runningBalance: undefined,
+        };
+      }),
+      ...expenses.map((exp) => {
+        const amt = Number(exp.grandTotal || (exp as any).amount || 0);
+        return {
+          id: `exp-${exp.id}`,
+          partyId: exp.partyId || '',
+          partyName: exp.partyName || (exp.partyId ? partyById.get(exp.partyId)?.name : '') || '',
+          refType: 'expense',
+          refNo: exp.invoiceNo || '',
+          entryDate: String(exp.purchaseDate || exp.createdAt || ''),
+          description: exp.notes || expenseCategory(exp),
+          debit: amt,
+          credit: 0,
+          runningBalance: undefined,
+        };
+      }),
+    ];
+
+    return synthesized.sort((a, b) => String(b.entryDate).localeCompare(String(a.entryDate)));
+  }, [
+    rawLedgerEntries,
+    personalTxQuery.data,
+    personalExpensesQuery.data,
+    selectedParty,
+    period,
+    partyById,
+  ]);
 
   const totals = useMemo(() => {
     return entries.reduce(
       (acc, entry) => {
-        acc.debit += Number(entry.debit || 0);
-        acc.credit += Number(entry.credit || 0);
+        const d = Number(entry.debit || 0);
+        const c = Number(entry.credit || 0);
+        const rawAmt = Number((entry as any).amount || (entry as any).grandTotal || (entry as any).total || 0);
+        const typeLower = String(entry.refType || '').toLowerCase();
+        const isExp =
+          typeLower.includes('expense') ||
+          typeLower.includes('purchase') ||
+          typeLower.includes('out') ||
+          typeLower.includes('give') ||
+          typeLower.includes('payment_out');
+
+        if (d > 0) {
+          acc.debit += d;
+        } else if (isExp && rawAmt > 0) {
+          acc.debit += rawAmt;
+        }
+
+        if (c > 0) {
+          acc.credit += c;
+        } else if (!isExp && rawAmt > 0) {
+          acc.credit += rawAmt;
+        }
         return acc;
       },
       { debit: 0, credit: 0 },
@@ -57,6 +195,13 @@ export default function LedgerScreen() {
 
   const latestBalance = entries[0]?.runningBalance ?? entries[entries.length - 1]?.runningBalance ?? 0;
   const net = totals.credit - totals.debit;
+
+  const partyBalanceMeta = selectedParty ? getPartyBalanceMeta(selectedParty, undefined, personal) : null;
+  const partyToneColor = partyBalanceMeta ? getBalanceColor(partyBalanceMeta.tone, colors) : colors.text;
+  const partyToneSoft = partyBalanceMeta ? getBalanceSoftColor(partyBalanceMeta.tone, colors) : colors.surface;
+  const whatsappUrl = selectedParty
+    ? getPartyWhatsAppUrl(selectedParty, partyBalanceMeta?.tone === 'receive' ? partyBalanceMeta.absoluteAmount : 0)
+    : '';
 
   function reportHtml() {
     return buildLedgerReportHtml({
@@ -85,7 +230,7 @@ export default function LedgerScreen() {
   async function handleShare() {
     try {
       setExporting(true);
-      await shareHtmlAsPdf(reportHtml(), 'Share ledger PDF');
+      await shareHtmlAsPdf(reportHtml(), personal ? 'Share history PDF' : 'Share ledger PDF');
     } catch (error) {
       Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -107,13 +252,13 @@ export default function LedgerScreen() {
     });
     const html = reportHtml();
     const input: ReceiptInput = {
-      heading: selectedParty?.name ? `LEDGER - ${selectedParty.name}` : 'ACCOUNT LEDGER STATEMENT',
-      reference: `LDG-${Date.now().toString().slice(-6)}`,
+      heading: selectedParty?.name ? `STATEMENT - ${selectedParty.name}` : personal ? 'TRANSACTION HISTORY STATEMENT' : 'ACCOUNT LEDGER STATEMENT',
+      reference: `STMT-${Date.now().toString().slice(-6)}`,
       date: new Date().toISOString(),
-      dateLabel: 'Ledger Date',
+      dateLabel: 'Statement Date',
       partyName: selectedParty?.name,
       partyPhone: selectedParty?.phone ? String(selectedParty.phone) : undefined,
-      notes: `Total Debit: ${formatCurrency(totals.debit, currency)} · Total Credit: ${formatCurrency(totals.credit, currency)} · Net: ${formatCurrency(net, currency)}`,
+      notes: `${personal ? 'In' : 'Credit'}: ${formatCurrency(totals.credit, currency)} · ${personal ? 'Out' : 'Debit'}: ${formatCurrency(totals.debit, currency)} · Net: ${formatCurrency(net, currency)}`,
       lines,
       subTotal: totals.debit + totals.credit,
       taxTotal: 0,
@@ -124,13 +269,23 @@ export default function LedgerScreen() {
     openReceiptPreview(router, input, html);
   }
 
+  async function handleRefresh() {
+    await Promise.all([
+      ledgerQuery.refetch(),
+      personalTxQuery.refetch(),
+      personalExpensesQuery.refetch(),
+    ]);
+  }
+
+  const isLoading = ledgerQuery.isLoading && !entries.length;
+
   return (
     <Screen
       scrollable={false}
       padded={false}
       topBarTitle={personal ? 'History' : 'Ledger'}
       topBarRight={
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <View style={styles.headerRightActions}>
           <Pressable onPress={handleBillPreview} hitSlop={8} style={styles.headerIcon}>
             <MaterialCommunityIcons color={colors.text} name="printer-outline" size={22} />
           </Pressable>
@@ -153,17 +308,11 @@ export default function LedgerScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={ledgerQuery.isRefetching} onRefresh={() => void ledgerQuery.refetch()} />
+          <RefreshControl refreshing={ledgerQuery.isRefetching || personalTxQuery.isRefetching} onRefresh={() => void handleRefresh()} />
         }
         contentContainerStyle={styles.scroll}>
-        <View style={styles.hero}>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            {personal
-              ? 'Every payment in and out, for one contact or everyone.'
-              : 'Debits, credits, and running balance for one party or everyone.'}
-          </Text>
-        </View>
-
+        
+        {/* Period tabs */}
         <SegmentedTabs
           value={period}
           onChange={setPeriod}
@@ -174,25 +323,32 @@ export default function LedgerScreen() {
           ]}
         />
 
+        {/* Contact / Party selector card */}
         <Pressable
           onPress={() => setPickerVisible(true)}
           style={[styles.filterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={[styles.filterIcon, { backgroundColor: colors.accentSoft }]}>
-            <MaterialCommunityIcons name="account-search-outline" size={20} color={colors.primary} />
-          </View>
+          <Avatar
+            name={selectedParty?.name || (personal ? 'All Contacts' : 'All Parties')}
+            uri={selectedParty?.photoUrl || selectedParty?.avatarUrl}
+            size={38}
+          />
           <View style={styles.filterCopy}>
             <Text style={[styles.filterLabel, { color: colors.textSoft }]}>
               {personal ? 'Contact' : 'Party'}
             </Text>
-            <Text style={[styles.filterValue, { color: colors.text }]}>
+            <Text style={[styles.filterValue, { color: colors.text }]} numberOfLines={1}>
               {selectedParty?.name ?? (personal ? 'All contacts' : 'All parties')}
             </Text>
           </View>
           {selectedParty ? (
             <Pressable
-              onPress={() => setSelectedParty(null)}
+              onPress={(e) => {
+                e.stopPropagation();
+                setSelectedParty(null);
+              }}
               hitSlop={8}
               style={[styles.clearBtn, { backgroundColor: colors.backgroundAlt }]}>
+              <MaterialCommunityIcons name="close" size={14} color={colors.textMuted} />
               <Text style={[styles.clearText, { color: colors.textMuted }]}>Clear</Text>
             </Pressable>
           ) : (
@@ -200,71 +356,184 @@ export default function LedgerScreen() {
           )}
         </Pressable>
 
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.danger }]}>Debit</Text>
-            <Text style={[styles.summaryValue, { color: colors.danger }]}>{formatCurrency(totals.debit, currency)}</Text>
+        {/* Selected Party detail banner if selected */}
+        {selectedParty && partyBalanceMeta ? (
+          <View style={[styles.partyBanner, { backgroundColor: partyToneSoft, borderColor: colors.border }]}>
+            <View style={styles.partyBannerLeft}>
+              <Text style={[styles.partyBannerTitle, { color: colors.text }]}>
+                {partyTypeLabel(selectedParty.type, personal)}
+              </Text>
+              <Text style={[styles.partyBalanceText, { color: partyToneColor }]}>
+                {partyBalanceMeta.label}
+              </Text>
+            </View>
+            <View style={styles.partyBannerActions}>
+              {selectedParty.phone ? (
+                <Pressable
+                  onPress={() => void Linking.openURL(`tel:${selectedParty.phone}`)}
+                  style={[styles.quickActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color={colors.primary} />
+                </Pressable>
+              ) : null}
+              {whatsappUrl ? (
+                <Pressable
+                  onPress={() => void Linking.openURL(whatsappUrl)}
+                  style={[styles.quickActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name="whatsapp" size={18} color={colors.success} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => router.push(`/(app)/parties/${selectedParty.id}` as any)}
+                style={[styles.quickActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name="open-in-new" size={18} color={colors.text} />
+              </Pressable>
+            </View>
           </View>
+        ) : null}
+
+        {/* Summary Metrics */}
+        <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.success }]}>Credit</Text>
-            <Text style={[styles.summaryValue, { color: colors.success }]}>{formatCurrency(totals.credit, currency)}</Text>
+            <View style={styles.summaryCardHeader}>
+              <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                {personal ? 'Money In' : 'Credit'}
+              </Text>
+              <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
+            </View>
+            <Text style={[styles.summaryValue, { color: colors.success }]}>
+              {formatCurrency(totals.credit, currency)}
+            </Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+            <View style={styles.summaryCardHeader}>
+              <Text style={[styles.summaryLabel, { color: colors.danger }]}>
+                {personal ? 'Money Out' : 'Debit'}
+              </Text>
+              <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
+            </View>
+            <Text style={[styles.summaryValue, { color: colors.danger }]}>
+              {formatCurrency(totals.debit, currency)}
+            </Text>
           </View>
         </View>
 
         <View style={[styles.netCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View>
             <Text style={[styles.netLabel, { color: colors.textSoft }]}>Net movement</Text>
-            <Text style={[styles.netValue, { color: colors.text }]}>{formatCurrency(net, currency)}</Text>
+            <Text style={[styles.netValue, { color: net >= 0 ? colors.success : colors.danger }]}>
+              {net >= 0 ? '+' : ''}{formatCurrency(net, currency)}
+            </Text>
           </View>
           <View style={styles.netSide}>
-            <Text style={[styles.netLabel, { color: colors.textSoft }]}>Latest balance</Text>
-            <Text style={[styles.netValue, { color: colors.text }]}>{formatCurrency(Number(latestBalance || 0), currency)}</Text>
+            <Text style={[styles.netLabel, { color: colors.textSoft }]}>
+              {selectedParty ? 'Balance' : 'Total Entries'}
+            </Text>
+            <Text style={[styles.netValue, { color: colors.text }]}>
+              {selectedParty
+                ? formatCurrency(Number(latestBalance || 0), currency)
+                : `${entries.length} items`}
+            </Text>
           </View>
         </View>
 
-        {ledgerQuery.isLoading && !entries.length ? (
+        {isLoading ? (
           <View style={styles.empty}>
-            <ActivityIndicator color={colors.primary} />
+            <ActivityIndicator color={colors.primary} size="large" />
           </View>
         ) : null}
 
-        {!ledgerQuery.isLoading && !entries.length ? (
+        {!isLoading && !entries.length ? (
           <EmptyState
-            title="No ledger entries"
+            title="No records found"
             message={
               selectedParty
-                ? `Nothing posted for ${selectedParty.name} in this period.`
+                ? `No transactions recorded for ${selectedParty.name} in this period.`
                 : personal
-                  ? 'Income, expenses, and payments to contacts will show here.'
-                  : 'Sales, purchases, and party payments will show here.'
+                  ? 'All income, expenses, and contact payments will appear here.'
+                  : 'Sales, purchases, and ledger entries will appear here.'
             }
           />
         ) : null}
 
+        {/* Entries list */}
         <View style={styles.list}>
           {entries.map((entry) => {
             const debit = Number(entry.debit || 0);
             const credit = Number(entry.credit || 0);
-            const positive = credit >= debit;
+            const rawAmt = Number((entry as any).amount || (entry as any).grandTotal || (entry as any).total || 0);
+            const typeLower = String(entry.refType || '').toLowerCase();
+            const isExpenseOrOut =
+              typeLower.includes('expense') ||
+              typeLower.includes('purchase') ||
+              typeLower.includes('out') ||
+              typeLower.includes('give') ||
+              typeLower.includes('payment_out') ||
+              debit > credit;
+
+            const isIncomeOrIn =
+              typeLower.includes('income') ||
+              typeLower.includes('sale') ||
+              typeLower.includes('in') ||
+              typeLower.includes('receive') ||
+              typeLower.includes('payment_in') ||
+              credit > debit;
+
+            const isCredit = isIncomeOrIn || (!isExpenseOrOut && credit > 0);
+            const amount = credit > 0 ? credit : debit > 0 ? debit : rawAmt;
+            const iconMeta = getEntryIcon(entry.refType || (isCredit ? 'payment_in' : 'payment_out'));
+
+            const iconBg =
+              iconMeta.tone === 'success'
+                ? colors.successSoft
+                : iconMeta.tone === 'danger'
+                  ? colors.dangerSoft
+                  : iconMeta.tone === 'info'
+                    ? colors.infoSoft
+                    : iconMeta.tone === 'warning'
+                      ? colors.warningSoft
+                      : colors.backgroundAlt;
+
+            const iconFg =
+              iconMeta.tone === 'success'
+                ? colors.success
+                : iconMeta.tone === 'danger'
+                  ? colors.danger
+                  : iconMeta.tone === 'info'
+                    ? colors.info
+                    : iconMeta.tone === 'warning'
+                      ? colors.warning
+                      : colors.textMuted;
+
             return (
-              <View key={entry.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View
+                key={entry.id}
+                style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.rowIconCircle, { backgroundColor: iconBg }]}>
+                  <MaterialCommunityIcons name={iconMeta.name} size={18} color={iconFg} />
+                </View>
                 <View style={styles.copy}>
-                  <Text style={[styles.rowTitle, { color: colors.text }]}>
-                    {entry.refNo || entry.description || 'Ledger entry'}
+                  <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
+                    {entry.description || entry.refNo || 'Transaction'}
                   </Text>
                   <Text style={[styles.meta, { color: colors.textMuted }]}>
-                    {[prettyDate(entry.entryDate), entry.partyName, entry.refType].filter(Boolean).join('  ·  ')}
+                    {[
+                      prettyDate(entry.entryDate),
+                      entry.partyName || (selectedParty ? undefined : ''),
+                      entry.refNo ? `#${entry.refNo}` : undefined,
+                    ]
+                      .filter(Boolean)
+                      .join('  ·  ')}
                   </Text>
                 </View>
                 <View style={styles.side}>
-                  <Text style={[styles.value, { color: positive ? colors.success : colors.danger }]}>
-                    {positive ? '+' : '-'}
-                    {formatCurrency(Math.abs(credit - debit), currency)}
+                  <Text style={[styles.value, { color: isCredit ? colors.success : colors.danger }]}>
+                    {isCredit ? '+' : '-'}{formatCurrency(amount, currency)}
                   </Text>
-                  <Text style={[styles.runningBalance, { color: colors.textSoft }]}>
-                    Bal {formatCurrency(Number(entry.runningBalance || 0), currency)}
-                    {entry.balanceDirection ? ` ${entry.balanceDirection}` : ''}
-                  </Text>
+                  {typeof entry.runningBalance === 'number' ? (
+                    <Text style={[styles.runningBalance, { color: colors.textSoft }]}>
+                      Bal {formatCurrency(entry.runningBalance, currency)}
+                    </Text>
+                  ) : null}
                 </View>
               </View>
             );
@@ -279,7 +548,7 @@ export default function LedgerScreen() {
         parties={parties ?? []}
         allowWalkIn={false}
         title={personal ? 'Filter by contact' : 'Filter by party'}
-        subtitle={personal ? 'Show one person, or keep all contacts.' : 'Show one statement, or keep all parties.'}
+        subtitle={personal ? 'Show one contact, or view everyone.' : 'Show one statement, or view all parties.'}
         typeLabel={(party) => partyTypeLabel(party.type, personal)}
         onPick={(party) => {
           setSelectedParty(party);
@@ -299,22 +568,16 @@ const createStyles = (colors: AppPalette) =>
       paddingBottom: spacing.xxl,
       gap: spacing.md,
     },
+    headerRightActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
     headerIcon: {
       width: 40,
       height: 40,
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    hero: {
-      gap: spacing.xs,
-    },
-    title: {
-      fontSize: typography.heading,
-      fontWeight: '800',
-    },
-    subtitle: {
-      fontSize: typography.body,
-      lineHeight: 22,
     },
     filterCard: {
       flexDirection: 'row',
@@ -322,15 +585,8 @@ const createStyles = (colors: AppPalette) =>
       gap: spacing.sm,
       borderRadius: radius.lg,
       borderWidth: 1,
-      padding: spacing.md,
+      padding: spacing.sm + 2,
       ...shadows.card,
-    },
-    filterIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     filterCopy: {
       flex: 1,
@@ -347,6 +603,9 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '700',
     },
     clearBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
       borderRadius: radius.sm,
       paddingHorizontal: spacing.sm,
       paddingVertical: 6,
@@ -354,6 +613,41 @@ const createStyles = (colors: AppPalette) =>
     clearText: {
       fontSize: typography.caption,
       fontWeight: '700',
+    },
+    partyBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: radius.md,
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    partyBannerLeft: {
+      flex: 1,
+      gap: 2,
+    },
+    partyBannerTitle: {
+      fontSize: typography.caption,
+      fontWeight: '600',
+      textTransform: 'capitalize',
+    },
+    partyBalanceText: {
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
+    partyBannerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    quickActionBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     summaryRow: {
       flexDirection: 'row',
@@ -365,6 +659,11 @@ const createStyles = (colors: AppPalette) =>
       borderWidth: 1,
       padding: spacing.md,
       gap: 4,
+    },
+    summaryCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
     },
     summaryLabel: {
       fontSize: 11,
@@ -379,6 +678,7 @@ const createStyles = (colors: AppPalette) =>
     netCard: {
       flexDirection: 'row',
       justifyContent: 'space-between',
+      alignItems: 'center',
       borderRadius: radius.lg,
       borderWidth: 1,
       padding: spacing.md,
@@ -394,7 +694,7 @@ const createStyles = (colors: AppPalette) =>
       textTransform: 'uppercase',
     },
     netValue: {
-      marginTop: 4,
+      marginTop: 2,
       fontSize: typography.body,
       fontWeight: '800',
     },
@@ -403,38 +703,45 @@ const createStyles = (colors: AppPalette) =>
       alignItems: 'center',
     },
     list: {
-      gap: spacing.sm,
+      gap: spacing.xs + 2,
     },
     row: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: spacing.md,
+      alignItems: 'center',
+      gap: spacing.sm,
       borderRadius: radius.lg,
       borderWidth: 1,
       padding: spacing.md,
       ...shadows.card,
     },
+    rowIconCircle: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     copy: {
       flex: 1,
-      gap: spacing.xxs,
+      gap: 2,
     },
     rowTitle: {
       fontSize: typography.body,
       fontWeight: '700',
     },
     meta: {
-      fontSize: typography.label,
+      fontSize: typography.caption,
     },
     side: {
       alignItems: 'flex-end',
-      gap: spacing.xxs,
+      gap: 2,
     },
     value: {
       fontSize: typography.body,
       fontWeight: '800',
     },
     runningBalance: {
-      fontSize: typography.caption,
+      fontSize: 11,
       textAlign: 'right',
     },
   });

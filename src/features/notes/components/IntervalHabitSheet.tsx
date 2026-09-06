@@ -111,7 +111,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
           : 'Works in the app now. Lock-screen notification pings activate in a native build.'
       }
       onClose={onClose}
-      fullHeight
+      heightRatio={0.94}
       footer={
         <View style={{ gap: spacing.sm }}>
           <Pressable
@@ -247,11 +247,13 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
 const styles = StyleSheet.create({
   kinds: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.xs + 2,
     marginBottom: spacing.md,
   },
   kind: {
-    flex: 1,
+    flexBasis: '31%',
+    flexGrow: 1,
     minHeight: 64,
     borderRadius: radius.md,
     borderWidth: 1,

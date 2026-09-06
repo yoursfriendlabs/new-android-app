@@ -598,35 +598,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   updateProfile: async (payload) => {
     const response = await authApi.updateMe(payload);
-    const parsed = parseAuthResponse(response as AuthResponseShape | User, get().user?.email ?? '', get().session);
-    const user = parsed.user ?? normalizeUser(unwrapEntity(response));
+    const updatedUser = normalizeUser(unwrapEntity(response));
+    const currentUser = get().user;
+    const mergedUser: User = {
+      ...(currentUser ?? {}),
+      ...updatedUser,
+      role: updatedUser.role || currentUser?.role || '',
+      permissions: updatedUser.permissions?.length ? updatedUser.permissions : currentUser?.permissions ?? [],
+      businessId: updatedUser.businessId || currentUser?.businessId || '',
+    };
+
     const existingSession = get().session;
-    const nextSession = existingSession
-      ? attachWorkspaceFields(
-          {
-            ...existingSession,
-            user,
-            role: parsed.session?.role ?? existingSession.role,
-            accessControl: parsed.accessControl ?? existingSession.accessControl ?? null,
-          },
-          parsed,
-        )
+    const nextSession: SessionData | null = existingSession
+      ? {
+          ...existingSession,
+          user: mergedUser,
+        }
       : null;
+
     if (nextSession) {
       await persistSession(nextSession);
     }
-    if (parsed.businessProfile) {
-      await persistBusinessProfile(parsed.businessProfile);
-    }
+
     set({
-      user,
+      user: mergedUser,
       session: nextSession,
-      businessProfile: parsed.businessProfile ?? get().businessProfile,
-      accessControl: parsed.accessControl ?? get().accessControl,
-      businesses: parsed.businesses.length ? parsed.businesses : get().businesses,
-      canCreateBusiness: parsed.canCreateBusiness,
     });
-    return user;
+    return mergedUser;
   },
   updateSettings: async (settings) => {
     await persistBusinessSettings(settings);

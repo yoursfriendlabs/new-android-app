@@ -12,6 +12,7 @@ import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
 import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
 import { DateFormatSelector } from '@/src/shared/ui/DateFormatSelector';
 import { getCapabilitySummary, hasAppCapability, isPersonalWorkspace } from '@/src/shared/lib/business';
+import { Snackbar } from '@/src/shared/feedback/Snackbar';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
@@ -35,6 +36,11 @@ export default function SettingsScreen() {
     name: user?.name ?? '',
     phone: user?.phone ?? '',
   });
+  const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string; tone: 'success' | 'danger' }>({
+    visible: false,
+    message: '',
+    tone: 'success',
+  });
   const [message, setMessage] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [geofencingForm, setGeofencingForm] = useState(() => ({
@@ -56,8 +62,10 @@ export default function SettingsScreen() {
       await updateSettings(nextSettings);
       await metaApi.updateBusinessSettings(nextSettings);
       setGeofenceMessage(t('common.success'));
+      setSnackbar({ visible: true, message: 'Settings saved', tone: 'success' });
     } catch (error) {
       setGeofenceMessage(error instanceof Error ? error.message : t('common.error'));
+      setSnackbar({ visible: true, message: error instanceof Error ? error.message : t('common.error'), tone: 'danger' });
     }
   }
 
@@ -105,18 +113,22 @@ export default function SettingsScreen() {
   }
 
   async function handleProfileSave() {
-    setMessage('');
-    await updateProfile(profileForm);
-    setMessage(t('common.success'));
+    try {
+      setMessage('');
+      await updateProfile(profileForm);
+      setSnackbar({ visible: true, message: 'Profile updated successfully', tone: 'success' });
+    } catch (error) {
+      setSnackbar({ visible: true, message: error instanceof Error ? error.message : t('common.error'), tone: 'danger' });
+    }
   }
 
   async function handleAvatarChange(newUrl: string | null) {
     try {
       setMessage('');
       await updateProfile({ avatarUrl: newUrl });
-      setMessage(t('common.success'));
+      setSnackbar({ visible: true, message: 'Profile photo updated', tone: 'success' });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : t('common.error'));
+      setSnackbar({ visible: true, message: error instanceof Error ? error.message : t('common.error'), tone: 'danger' });
     }
   }
 
@@ -294,6 +306,13 @@ export default function SettingsScreen() {
           <Text style={styles.signOutLabel}>{signingOut ? t('auth.signingOut') : t('settings.signOutDevice')}</Text>
         </Pressable>
       </SurfaceCard>
+
+      <Snackbar
+        visible={snackbar.visible}
+        message={snackbar.message}
+        tone={snackbar.tone}
+        onDismiss={() => setSnackbar((s) => ({ ...s, visible: false }))}
+      />
     </Screen>
   );
 }
