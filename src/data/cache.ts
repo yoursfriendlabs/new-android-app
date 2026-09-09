@@ -150,8 +150,10 @@ export async function cachePartyRecord(record: Party) {
   });
 }
 
-export async function cacheQuickExpenses(records: QuickExpense[]) {
-  await replaceCacheRecords(cacheKeys.quickExpenses, records, {
+export async function cacheQuickExpenses(records: QuickExpense[], kind?: 'expense' | 'income') {
+  const existing = kind ? await readCacheRecords<QuickExpense>(cacheKeys.quickExpenses) : [];
+  const kept = kind ? existing.filter((item) => (item.kind || 'expense') !== kind) : [];
+  await replaceCacheRecords(cacheKeys.quickExpenses, [...kept, ...records], {
     getId: (item) => item.id,
     getTitle: (item) => item.name,
     getSearchText: (item) => item.name,
@@ -167,11 +169,15 @@ export async function readQuickExpensesFromCache(search?: string, limit = 250) {
   return records.slice(0, limit);
 }
 
-export async function addQuickExpenseLocally(categoryName: string): Promise<QuickExpense> {
+export async function addQuickExpenseLocally(
+  categoryName: string,
+  kind: 'expense' | 'income' = 'expense',
+): Promise<QuickExpense> {
   const record: QuickExpense = {
     id: generateId('quick-expense'),
     businessId: '',
     name: categoryName,
+    kind,
   };
   await upsertCacheRecord(cacheKeys.quickExpenses, record, {
     getId: (item) => item.id,

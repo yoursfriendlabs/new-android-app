@@ -254,6 +254,7 @@ export interface ListQuery {
   category?: string;
   entityType?: string;
   productId?: string;
+  kind?: 'expense' | 'income' | string;
 }
 
 export interface AuthResponseShape {
@@ -347,6 +348,7 @@ export interface PopularCategoriesResponse extends PaginatedResponse<PopularCate
 
 export interface QuickExpenseCreatePayload {
   name: string;
+  kind?: 'expense' | 'income';
 }
 
 export type QuickExpenseUpdatePayload = Partial<QuickExpenseCreatePayload>;

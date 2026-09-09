@@ -67,6 +67,7 @@ import {
   readQuickExpensesFromCache,
 } from '@/src/data/cache';
 import { todayIso } from '@/src/shared/lib/format';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import type {
   BankAccount,
   BusinessProfile,
@@ -315,25 +316,35 @@ export function useCategories() {
   });
 }
 
-export function useQuickExpenses(search = '') {
+export function useQuickExpenses(search = '', kind: 'expense' | 'income' = 'expense') {
   return useQuery<QuickExpense[]>({
-    queryKey: ['quick-expenses', search],
+    queryKey: ['quick-expenses', kind, search],
     queryFn: async () =>
       withFallback(
         async () => {
-          const response = await quickExpensesApi.list({ search, limit: 250 });
+          const response = await quickExpensesApi.list({ search, limit: 250, kind });
           const items = extractListItems<QuickExpense>(response)
             .map(normalizeQuickExpense)
             .filter((item) => item.id);
-          await cacheQuickExpenses(items);
+          await cacheQuickExpenses(items, kind);
           return items;
         },
         async () => {
           const cached = await readQuickExpensesFromCache(search, 250);
-          if (cached.length) {
-            return cached;
+          const matchingKind = cached.filter((item) => (item.kind || 'expense') === kind);
+          if (matchingKind.length) {
+            return matchingKind;
           }
-          const defaults = [
+          const defaults = kind === 'income'
+            ? [
+                { id: 'inc-1', businessId: '', name: 'Salary', kind: 'income' as const },
+                { id: 'inc-2', businessId: '', name: 'Freelance', kind: 'income' as const },
+                { id: 'inc-3', businessId: '', name: 'Family', kind: 'income' as const },
+                { id: 'inc-4', businessId: '', name: 'Bonus', kind: 'income' as const },
+                { id: 'inc-5', businessId: '', name: 'Investments', kind: 'income' as const },
+                { id: 'inc-6', businessId: '', name: 'Other', kind: 'income' as const },
+              ]
+            : [
             { id: 'def-1', businessId: '', name: 'Rent' },
             { id: 'def-2', businessId: '', name: 'Utilities' },
             { id: 'def-3', businessId: '', name: 'Salary' },
@@ -497,11 +508,11 @@ export function useRecentPurchases() {
   });
 }
 
-export function usePurchases(entryType?: 'purchase' | 'expense') {
+export function usePurchases(entryType?: 'purchase' | 'expense' | 'income') {
   return useQuery<Purchase[]>({
     queryKey: ['purchases', entryType ?? 'all'],
     queryFn: async () => {
-      const response = await purchasesApi.list({ limit: 80, entryType });
+      const response = await purchasesApi.list({ limit: 250, entryType });
       return extractListItems<Purchase>(response).map(normalizePurchase).filter((item) => item.id);
     },
     staleTime: 30_000,
@@ -646,7 +657,19 @@ export function useLedger(partyId?: string, range?: { from?: string; to?: string
               purchasesApi.list({ partyId, limit: 200 }).catch(() => ({ items: [] })),
             ]);
             const txItems = extractListItems<PartyTransaction>(txRes);
-            const expItems = extractListItems<Purchase>(expRes);
+            const expItems = extractListItems<Purchase>(expRes).filter((item) => {
+              const type = String(item.entryType || 'purchase').toLowerCase();
+              if (type === 'income') return false;
+              if (type === 'expense') {
+                const businessType = String(
+                  useAuthStore.getState().businessProfile?.businessType
+                    ?? useAuthStore.getState().businessProfile?.type
+                    ?? '',
+                );
+                return !isPersonalWorkspace({ businessType });
+              }
+              return type === 'purchase';
+            });
             const combined: LedgerEntry[] = [
               ...txItems.map((tx) => {
                 const txAmt = Number(tx.amount || (tx as any).amountReceived || (tx as any).amountPaid || (tx as any).total || 0);

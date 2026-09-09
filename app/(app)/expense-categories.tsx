@@ -8,21 +8,32 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
+import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { QuickExpense } from '@/src/types/models';
+import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
+
+type CategoryKind = 'expense' | 'income';
 
 export default function ExpenseCategoriesScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
-  const categoriesQuery = useQuickExpenses();
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const personal = isPersonalWorkspace({
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
+  const [kind, setKind] = useState<CategoryKind>('expense');
+  const activeKind = personal ? kind : 'expense';
+  const categoriesQuery = useQuickExpenses('', activeKind);
   const categories = categoriesQuery.data ?? [];
   const [search, setSearch] = useState('');
   const [createName, setCreateName] = useState('');
@@ -48,7 +59,7 @@ export default function ExpenseCategoriesScreen() {
 
     try {
       setAdding(true);
-      await quickExpensesApi.create({ name });
+      await quickExpensesApi.create({ name, kind: activeKind });
       await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
       setCreateName('');
       setCreateVisible(false);
@@ -117,9 +128,24 @@ export default function ExpenseCategoriesScreen() {
         }>
         <View style={styles.hero}>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            Labels like rent, tea, and fuel, used when you add a new expense.
+            {personal
+              ? activeKind === 'income'
+                ? 'Labels like salary, freelance, and gifts, used when you add income.'
+                : 'Labels like food, rent, and bills, used when you add an expense.'
+              : 'Labels like rent, tea, and fuel, used when you add a new expense.'}
           </Text>
         </View>
+
+        {personal ? (
+          <SegmentedTabs
+            value={kind}
+            onChange={setKind}
+            options={[
+              { label: 'Expense', value: 'expense' },
+              { label: 'Income', value: 'income' },
+            ]}
+          />
+        ) : null}
 
         <SearchField placeholder="Search categories" value={search} onChangeText={setSearch} />
 
@@ -138,7 +164,7 @@ export default function ExpenseCategoriesScreen() {
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
               {categories.length
                 ? 'Try a different search.'
-                : 'Add a few labels so recording expenses is a one-tap choice.'}
+                : `Add a few labels so recording ${activeKind === 'income' ? 'income' : 'expenses'} is a one-tap choice.`}
             </Text>
           </View>
         ) : null}
@@ -167,8 +193,12 @@ export default function ExpenseCategoriesScreen() {
 
       <BottomSheet
         visible={createVisible}
-        title="New category"
-        subtitle="This label appears as a chip when recording an expense."
+        title={activeKind === 'income' ? 'New income category' : 'New category'}
+        subtitle={
+          activeKind === 'income'
+            ? 'This label appears as a chip when recording income.'
+            : 'This label appears as a chip when recording an expense.'
+        }
         onClose={() => setCreateVisible(false)}
         footer={
           <Pressable
@@ -185,7 +215,7 @@ export default function ExpenseCategoriesScreen() {
         <FormField
           label="Name"
           value={createName}
-          placeholder="e.g. Rent, Utilities, Tea"
+          placeholder={activeKind === 'income' ? 'e.g. Salary, Freelance, Gift' : 'e.g. Rent, Utilities, Tea'}
           onChangeText={setCreateName}
         />
       </BottomSheet>

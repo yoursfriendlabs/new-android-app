@@ -294,6 +294,9 @@ export function normalizeDashboardSummary(raw: unknown): DashboardSummary {
     purchaseTotal: asNumber(firstDefined(record.purchaseTotal, purchaseToday)),
     serviceTotal: asNumber(record.serviceTotal),
     expenseTotal: asNumber(record.expenseTotal),
+    incomeTotal: asNumber(firstDefined(record.incomeTotal, record.totalIncome)),
+    toReceive: asNumber(firstDefined(record.toReceive, record.partyToReceive)),
+    toPay: asNumber(firstDefined(record.toPay, record.partyToPay)),
     profitOrLoss: asNumber(record.profitOrLoss),
     profitOrLossStatus: asString(record.profitOrLossStatus, 'neutral'),
     productCount: asNumber(record.productCount),
@@ -354,6 +357,7 @@ export function normalizeQuickExpense(raw: unknown): QuickExpense {
     id: asString(firstDefined(record.id, record._id), ''),
     businessId: asString(record.businessId, ''),
     name: asString(firstDefined(record.name, record.label), 'Expense Category'),
+    kind: asString(firstDefined(record.kind, record.type), 'expense') as QuickExpense['kind'],
   };
 }
 

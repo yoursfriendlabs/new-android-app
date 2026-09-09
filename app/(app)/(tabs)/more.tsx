@@ -311,12 +311,12 @@ export default function MoreScreen() {
       purchases: { label: t('nav.purchases'), subtitle: 'Supplier bills and stock buying' },
       ledger: {
         label: personal ? 'History' : t('money.ledger'),
-        subtitle: personal ? 'Every payment in and out' : 'Balances, dues, and history',
+        subtitle: personal ? 'Income, expenses, and contact balances' : 'Balances, dues, and history',
       },
       banks: { label: t('money.bankAccounts'), subtitle: 'Accounts and transfers' },
       'expense-categories': {
         label: personal ? 'Categories' : t('money.categories'),
-        subtitle: 'Labels used when adding an expense',
+        subtitle: personal ? 'Income and expense labels' : 'Labels used when adding an expense',
       },
       orders: { label: t('cafe.activeOrders'), subtitle: 'Tables and cafe orders' },
       tables: { label: t('cafe.manageTables'), subtitle: 'Layout and seating setup' },

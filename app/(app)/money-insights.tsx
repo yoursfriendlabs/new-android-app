@@ -8,8 +8,8 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { expenseCategory } from '@/src/features/money/lib/expense';
 import { formatCurrency } from '@/src/shared/lib/format';
-import { moneyCategoryFromNote } from '@/src/features/money/lib/money';
-import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import { moneyCategoryFromPurchase } from '@/src/features/money/lib/money';
+import { usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
@@ -23,12 +23,7 @@ export default function MoneyInsightsScreen() {
   const { t } = useTranslation();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const expensesQuery = usePurchases('expense');
-  const moneyTxQuery = usePartyTransactions();
-  const partiesQuery = useParties('', 'both');
-
-  const partyById = useMemo(() => {
-    return new Map((partiesQuery.data ?? []).map((party) => [party.id, party]));
-  }, [partiesQuery.data]);
+  const incomesQuery = usePurchases('income');
 
   const rows: CategoryBreakdownItem[] = useMemo(() => {
     const expenses = (expensesQuery.data ?? []).map((item) => ({
@@ -37,25 +32,22 @@ export default function MoneyInsightsScreen() {
       title: expenseCategory(item),
       amount: Number(item.grandTotal || 0),
     }));
-    const payments = (moneyTxQuery.data ?? []).map((item) => {
-      const inbound = item.direction === 'receive';
-      return {
-        id: `${inbound ? 'in' : 'paid'}-${item.id}`,
-        kind: inbound ? ('in' as const) : ('out' as const),
-        title: moneyCategoryFromNote(item.note) || (inbound ? t('home.income') : t('common.paid')),
-        amount: Number(item.amount || 0),
-      };
-    });
-    return [...payments, ...expenses];
-  }, [expensesQuery.data, moneyTxQuery.data, t]);
+    const incomes = (incomesQuery.data ?? []).map((item) => ({
+      id: `in-${item.id}`,
+      kind: 'in' as const,
+      title: moneyCategoryFromPurchase(item),
+      amount: Number(item.grandTotal || 0),
+    }));
+    return [...incomes, ...expenses];
+  }, [expensesQuery.data, incomesQuery.data]);
 
   const weekFlow = useMemo(
     () =>
       buildSevenDayFlow({
         expenses: expensesQuery.data ?? [],
-        payments: moneyTxQuery.data ?? [],
+        incomes: incomesQuery.data ?? [],
       }),
-    [expensesQuery.data, moneyTxQuery.data],
+    [expensesQuery.data, incomesQuery.data],
   );
 
   const weekTotals = useMemo(

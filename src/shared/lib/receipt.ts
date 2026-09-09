@@ -377,7 +377,9 @@ export function buildExpenseReceipt(
   bankName?: string
 ) {
   const isExpense = purchase.entryType === 'expense';
-  const heading = isExpense ? 'EXPENSE VOUCHER' : 'PURCHASE BILL';
+  const heading = purchase.entryType === 'income'
+    ? 'INCOME VOUCHER'
+    : isExpense ? 'EXPENSE VOUCHER' : 'PURCHASE BILL';
   const grandTotal = Number(purchase.grandTotal || 0);
   const amountReceived = Number(purchase.amountReceived || 0);
 
@@ -391,7 +393,7 @@ export function buildExpenseReceipt(
         }))
       : [
           {
-            name: purchase.notes ? String(purchase.notes) : isExpense ? 'Expense' : 'Purchase',
+            name: purchase.notes ? String(purchase.notes) : purchase.entryType === 'income' ? 'Income' : isExpense ? 'Expense' : 'Purchase',
             quantity: 1,
             unitPrice: grandTotal,
             lineTotal: grandTotal,

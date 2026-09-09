@@ -11,12 +11,12 @@ import type { PersonalPulse } from '@/src/features/home/lib/personal-pulse';
 
 interface PersonalPulseStripProps {
   pulse: PersonalPulse;
-  saveGoal: number;
   currency: string;
   hideAmounts?: boolean;
-  onPressToday: () => void;
-  onPressMonth: () => void;
-  onPressOwed: () => void;
+  onPressIncome: () => void;
+  onPressExpense: () => void;
+  onPressReceive: () => void;
+  onPressPay: () => void;
 }
 
 function amountLabel(value: number, visible: boolean, currency: string) {
@@ -27,59 +27,64 @@ function amountLabel(value: number, visible: boolean, currency: string) {
 export function PersonalPulseStrip({
   currency,
   hideAmounts = false,
-  onPressMonth,
-  onPressOwed,
-  onPressToday,
+  onPressExpense,
+  onPressIncome,
+  onPressPay,
+  onPressReceive,
   pulse,
-  saveGoal,
 }: PersonalPulseStripProps) {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
 
-  const monthHint = saveGoal
-    ? hideAmounts
-      ? t('home.vsGoal')
-      : `${amountLabel(Math.max(0, pulse.monthSaved), true, currency)} / ${formatCurrency(saveGoal, currency)}`
-    : pulse.monthSaved >= 0
-      ? t('home.savedThisMonth')
-      : t('home.overspentThisMonth');
-
-  const owedHint = pulse.topOwedBy
+  const receiveHint = pulse.topOwedBy
     ? pulse.oweCount > 1
       ? `${pulse.topOwedBy} +${pulse.oweCount - 1}`
       : pulse.topOwedBy
     : t('home.contacts');
+  const payHint = pulse.topOwedTo
+    ? pulse.payCount > 1
+      ? `${pulse.topOwedTo} +${pulse.payCount - 1}`
+      : pulse.topOwedTo
+    : t('home.contacts');
 
   const cards = [
     {
-      key: 'today',
-      label: t('home.todaySpent'),
-      value: amountLabel(pulse.todaySpent, !hideAmounts, currency),
-      hint: t('home.tapToLog'),
+      key: 'income',
+      label: t('money.totalIncome'),
+      value: amountLabel(pulse.monthIncome, !hideAmounts, currency),
+      hint: t('common.thisMonth'),
+      tone: 'success' as const,
+      onPress: onPressIncome,
+    },
+    {
+      key: 'expense',
+      label: t('money.totalExpense'),
+      value: amountLabel(pulse.monthExpense, !hideAmounts, currency),
+      hint: t('common.thisMonth'),
       tone: 'danger' as const,
-      onPress: onPressToday,
+      onPress: onPressExpense,
     },
     {
-      key: 'month',
-      label: t('home.thisMonth'),
-      value: amountLabel(Math.abs(pulse.monthSaved), !hideAmounts, currency),
-      hint: monthHint,
-      tone: pulse.monthSaved >= 0 ? ('success' as const) : ('danger' as const),
-      onPress: onPressMonth,
-    },
-    {
-      key: 'owed',
+      key: 'receive',
       label: t('home.theyOweYou'),
       value: amountLabel(pulse.theyOweYou, !hideAmounts, currency),
-      hint: owedHint,
+      hint: receiveHint,
       tone: 'neutral' as const,
-      onPress: onPressOwed,
+      onPress: onPressReceive,
+    },
+    {
+      key: 'pay',
+      label: t('home.iOweThem'),
+      value: amountLabel(pulse.youOweThem, !hideAmounts, currency),
+      hint: payHint,
+      tone: 'neutral' as const,
+      onPress: onPressPay,
     },
   ];
 
   return (
-    <View style={styles.row}>
+    <View style={styles.grid}>
       {cards.map((card) => {
         const backgroundColor =
           card.tone === 'success'
@@ -113,13 +118,15 @@ export function PersonalPulseStrip({
 
 const createStyles = (_colors: AppPalette) =>
   StyleSheet.create({
-    row: {
+    grid: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: spacing.sm,
     },
     card: {
-      flex: 1,
-      minWidth: 0,
+      width: '48%',
+      flexGrow: 1,
+      minWidth: 140,
       borderRadius: radius.md,
       borderWidth: 1,
       padding: spacing.sm,

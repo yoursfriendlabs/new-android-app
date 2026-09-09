@@ -15,13 +15,13 @@ import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
 import { buildPersonalPulse } from '@/src/features/home/lib/personal-pulse';
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
 import { expenseCategory } from '@/src/features/money/lib/expense';
-import { moneyCategoryFromNote, moneyPersonLabel } from '@/src/features/money/lib/money';
+import { moneyCategoryFromPurchase, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
-import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import { formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
+import { useDashboardSummary, useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -37,18 +37,6 @@ type Shortcut = {
   segment: string;
   onPress: () => void;
 };
-
-function initials(name?: string | null) {
-  const parts = String(name || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!parts.length) return 'PM';
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('');
-}
 
 function money(value: number, visible: boolean, currency?: string) {
   if (!visible) return '••••';
@@ -85,8 +73,11 @@ export function PersonalHomeScreen() {
   const dailyReminder = useHabitStore((state) => state.dailyMoneyReminder);
 
   const expensesQuery = usePurchases('expense');
+  const incomesQuery = usePurchases('income');
   const partyTxQuery = usePartyTransactions();
   const partiesQuery = useParties('', 'both');
+  const monthRange = getRangeForPeriod('this_month');
+  const summaryQuery = useDashboardSummary(monthRange);
 
   const currency = businessProfile?.currencyCode || 'NPR';
   const workspaceName = businessProfile?.businessName || 'PM';
@@ -100,42 +91,49 @@ export function PersonalHomeScreen() {
     void useHabitStore.getState().applyDailyMoneyReminder(true);
   }, []);
 
-  const pulse = useMemo(
-    () =>
-      buildPersonalPulse({
-        expenses: expensesQuery.data ?? [],
-        payments: partyTxQuery.data ?? [],
-        parties: partiesQuery.data ?? [],
-      }),
-    [expensesQuery.data, partiesQuery.data, partyTxQuery.data],
-  );
+  const pulse = useMemo(() => {
+    const local = buildPersonalPulse({
+      expenses: expensesQuery.data ?? [],
+      incomes: incomesQuery.data ?? [],
+      parties: partiesQuery.data ?? [],
+    });
+    const summary = summaryQuery.data;
+    return {
+      ...local,
+      monthIncome: summary?.incomeTotal ?? local.monthIncome,
+      monthExpense: summary?.expenseTotal ?? local.monthExpense,
+      theyOweYou: summary?.toReceive ?? local.theyOweYou,
+      youOweThem: summary?.toPay ?? local.youOweThem,
+    };
+  }, [expensesQuery.data, incomesQuery.data, partiesQuery.data, summaryQuery.data]);
 
   const activityDates = useMemo(
     () =>
       uniqueLogDays([
         ...storedLogDates,
         ...(expensesQuery.data ?? []).map((item) => item.purchaseDate),
+        ...(incomesQuery.data ?? []).map((item) => item.purchaseDate),
         ...(partyTxQuery.data ?? []).map((item) => item.txDate),
       ]),
-    [expensesQuery.data, partyTxQuery.data, storedLogDates],
+    [expensesQuery.data, incomesQuery.data, partyTxQuery.data, storedLogDates],
   );
   const allTimeCounts = useMemo(() => {
     const expenseCount = expensesQuery.data?.length ?? 0;
-    const incomeCount = (partyTxQuery.data ?? []).filter((item) => item.direction === 'receive').length;
+    const incomeCount = incomesQuery.data?.length ?? 0;
     return {
-      entryCount: expenseCount + (partyTxQuery.data?.length ?? 0),
+      entryCount: expenseCount + incomeCount + (partyTxQuery.data?.length ?? 0),
       incomeCount,
       expenseCount,
     };
-  }, [expensesQuery.data, partyTxQuery.data]);
+  }, [expensesQuery.data, incomesQuery.data, partyTxQuery.data]);
 
   const personalWeekFlow = useMemo(
     () =>
       buildSevenDayFlow({
         expenses: expensesQuery.data ?? [],
-        payments: partyTxQuery.data ?? [],
+        incomes: incomesQuery.data ?? [],
       }),
-    [partyTxQuery.data, expensesQuery.data],
+    [incomesQuery.data, expensesQuery.data],
   );
   const personalWeekTotals = useMemo(
     () =>
@@ -163,20 +161,31 @@ export function PersonalHomeScreen() {
         route: '/(app)/(tabs)/expenses',
         sort: item.purchaseDate || '',
       })),
+      ...(incomesQuery.data ?? []).map((item) => ({
+        id: `income-${item.id}`,
+        kind: t('home.income'),
+        icon: 'arrow-down-bold-circle-outline' as Shortcut['icon'],
+        title: moneyCategoryFromPurchase(item),
+        subtitle: `${prettyDate(item.purchaseDate)}  ·  ${moneyPersonLabel(item.partyId ? partyById.get(item.partyId) ?? null : null, item.partyName)}`,
+        amount: Number(item.grandTotal ?? 0),
+        positive: true,
+        route: '/(app)/(tabs)/expenses',
+        sort: item.purchaseDate || '',
+      })),
       ...(partyTxQuery.data ?? []).map((item) => ({
         id: `tx-${item.id}`,
-        kind: item.direction === 'receive' ? t('home.income') : t('common.paid'),
+        kind: item.direction === 'receive' ? t('parties.toReceive') : t('parties.toPay'),
         icon: (item.direction === 'receive' ? 'arrow-down-bold-circle-outline' : 'arrow-up-bold-circle-outline') as Shortcut['icon'],
-        title: moneyCategoryFromNote(item.note) || (item.direction === 'receive' ? t('home.income') : t('common.paid')),
+        title: item.note || (item.direction === 'receive' ? t('parties.toReceive') : t('parties.toPay')),
         subtitle: `${prettyDate(item.txDate)}  ·  ${moneyPersonLabel(partyById.get(item.partyId) ?? null)}`,
         amount: Number(item.amount ?? 0),
         positive: item.direction === 'receive',
-        route: '/(app)/(tabs)/expenses',
+        route: '/(app)/(tabs)/parties',
         sort: item.txDate || '',
       })),
     ];
     return list.sort((a, b) => b.sort.localeCompare(a.sort)).slice(0, 6);
-  }, [expensesQuery.data, partyById, partyTxQuery.data, t]);
+  }, [expensesQuery.data, incomesQuery.data, partyById, partyTxQuery.data, t]);
 
   const shortcuts = (
     [
@@ -227,7 +236,13 @@ export function PersonalHomeScreen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await Promise.all([expensesQuery.refetch(), partyTxQuery.refetch(), partiesQuery.refetch()]);
+      await Promise.all([
+        expensesQuery.refetch(),
+        incomesQuery.refetch(),
+        partyTxQuery.refetch(),
+        partiesQuery.refetch(),
+        summaryQuery.refetch(),
+      ]);
     } finally {
       setRefreshing(false);
     }
@@ -291,12 +306,12 @@ export function PersonalHomeScreen() {
 
         <PersonalPulseStrip
           pulse={pulse}
-          saveGoal={saveGoal}
           currency={currency}
           hideAmounts={!balanceVisible}
-          onPressToday={() => openLog('expense')}
-          onPressMonth={() => setGoalVisible(true)}
-          onPressOwed={() => router.push('/(app)/(tabs)/parties')}
+          onPressIncome={() => router.push('/(app)/(tabs)/expenses?filter=in' as never)}
+          onPressExpense={() => router.push('/(app)/(tabs)/expenses?filter=out' as never)}
+          onPressReceive={() => router.push('/(app)/(tabs)/parties')}
+          onPressPay={() => router.push('/(app)/(tabs)/parties')}
         />
 
         <PersonalShareWidget hideAmounts={!balanceVisible} />

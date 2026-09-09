@@ -51,6 +51,12 @@ export function expenseCategoryIcon(name?: string | null): IconName {
   if (key.includes('internet') || key.includes('wifi') || key.includes('phone')) return 'wifi';
   if (key.includes('tea') || key.includes('food') || key.includes('snack') || key.includes('lunch')) return 'food-outline';
   if (key.includes('fuel') || key.includes('petrol') || key.includes('diesel')) return 'gas-station-outline';
+  if (key.includes('freelance') || key.includes('consult')) return 'laptop';
+  if (key.includes('family') || key.includes('allowance')) return 'account-child-outline';
+  if (key.includes('gift')) return 'gift-outline';
+  if (key.includes('bonus')) return 'trophy-outline';
+  if (key.includes('invest')) return 'chart-line';
+  if (key.includes('refund')) return 'cash-refund';
   if (key.includes('salary') || key.includes('wage') || key.includes('staff')) return 'account-cash-outline';
   if (key.includes('transport') || key.includes('travel') || key.includes('taxi')) return 'car-outline';
   if (key.includes('repair') || key.includes('maintain')) return 'wrench-outline';

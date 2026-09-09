@@ -1,7 +1,7 @@
 export type BusinessType = 'retail' | 'cafe' | 'jewellery' | string;
 export type PaymentMethod = 'cash' | 'bank';
 export type PartyType = 'customer' | 'supplier' | 'both' | string;
-export type EntryType = 'purchase' | 'expense';
+export type EntryType = 'purchase' | 'expense' | 'income';
 export type ServiceStatus = 'open' | 'in_progress' | 'ready' | 'delivered' | 'closed' | string;
 export type PaymentDirection = 'receive' | 'give';
 export type QueueMethod = 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -101,6 +101,9 @@ export interface DashboardSummary {
   purchaseTotal?: number;
   serviceTotal?: number;
   expenseTotal?: number;
+  incomeTotal?: number;
+  toReceive?: number;
+  toPay?: number;
   profitOrLoss?: number;
   profitOrLossStatus?: 'profit' | 'loss' | string;
   productCount?: number;
@@ -640,6 +643,7 @@ export interface QuickExpense {
   id: string;
   businessId: string;
   name: string;
+  kind?: 'expense' | 'income' | string;
 }
 
 export interface TaskAssignment {

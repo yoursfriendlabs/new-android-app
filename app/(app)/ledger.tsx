@@ -36,12 +36,14 @@ import {
   partyTypeLabel,
 } from '@/src/features/parties/lib/party';
 import { expenseCategory, isInCurrentMonth } from '@/src/features/money/lib/expense';
+import { moneyCategoryFromPurchase } from '@/src/features/money/lib/money';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type LedgerPeriod = Extract<DatePeriod, 'this_month' | 'this_year'> | 'all';
+type PersonalBook = 'income' | 'expense' | 'party';
 
 function isDateInPeriod(dateStr?: string, period?: LedgerPeriod) {
   if (!dateStr || period === 'all') return true;
@@ -74,6 +76,48 @@ function getEntryIcon(refType: string) {
   return { name: 'swap-horizontal' as const, tone: 'neutral' as const };
 }
 
+function mapMoneyPurchaseToLedger(
+  item: Purchase,
+  kind: 'income' | 'expense',
+  partyById: Map<string, Party>,
+): LedgerEntry {
+  const amt = Number(item.grandTotal || 0);
+  const isIncome = kind === 'income';
+  return {
+    id: `${kind}-${item.id}`,
+    partyId: item.partyId || '',
+    partyName: item.partyName || (item.partyId ? partyById.get(item.partyId)?.name : '') || '',
+    refType: isIncome ? 'income' : 'expense',
+    refNo: item.invoiceNo || '',
+    entryDate: String(item.purchaseDate || item.createdAt || ''),
+    description: isIncome ? moneyCategoryFromPurchase(item) : item.notes || expenseCategory(item),
+    debit: isIncome ? 0 : amt,
+    credit: isIncome ? amt : 0,
+    runningBalance: undefined,
+  };
+}
+
+function mapPartyTxToLedger(
+  tx: PartyTransaction,
+  partyById: Map<string, Party>,
+  personal: boolean,
+): LedgerEntry {
+  const party = partyById.get(tx.partyId);
+  const isReceive = tx.direction === 'receive';
+  return {
+    id: `tx-${tx.id}`,
+    partyId: tx.partyId,
+    partyName: party?.name || '',
+    refType: isReceive ? 'payment_in' : 'payment_out',
+    refNo: '',
+    entryDate: String(tx.txDate || tx.createdAt || ''),
+    description: tx.note || (isReceive ? (personal ? 'To Receive' : 'Payment In') : personal ? 'To Pay' : 'Payment Out'),
+    debit: isReceive ? 0 : Number(tx.amount || 0),
+    credit: isReceive ? Number(tx.amount || 0) : 0,
+    runningBalance: undefined,
+  };
+}
+
 export default function LedgerScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
@@ -84,6 +128,7 @@ export default function LedgerScreen() {
     businessType: String(businessProfile?.businessType ?? ''),
   });
   const [period, setPeriod] = useState<LedgerPeriod>('this_month');
+  const [book, setBook] = useState<PersonalBook>('income');
   const [partySearch, setPartySearch] = useState('');
   const [pickerVisible, setPickerVisible] = useState(false);
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
@@ -95,6 +140,7 @@ export default function LedgerScreen() {
   const ledgerQuery = useLedger(selectedParty?.id, range);
   const personalTxQuery = usePartyTransactions(selectedParty?.id);
   const personalExpensesQuery = usePurchases('expense');
+  const personalIncomesQuery = usePurchases('income');
 
   const partyById = useMemo(() => {
     return new Map((parties ?? []).map((party) => [party.id, party]));
@@ -103,11 +149,53 @@ export default function LedgerScreen() {
   const rawLedgerEntries = ledgerQuery.data ?? [];
 
   const entries = useMemo<LedgerEntry[]>(() => {
+    const byDate = (a: LedgerEntry, b: LedgerEntry) =>
+      String(b.entryDate).localeCompare(String(a.entryDate));
+
+    if (personal) {
+      if (book === 'income') {
+        return (personalIncomesQuery.data ?? [])
+          .filter((item) => {
+            if (selectedParty && item.partyId !== selectedParty.id) return false;
+            return isDateInPeriod(item.purchaseDate, period);
+          })
+          .map((item) => mapMoneyPurchaseToLedger(item, 'income', partyById))
+          .sort(byDate);
+      }
+
+      if (book === 'expense') {
+        return (personalExpensesQuery.data ?? [])
+          .filter((item) => {
+            if (selectedParty && item.partyId !== selectedParty.id) return false;
+            return isDateInPeriod(item.purchaseDate, period);
+          })
+          .map((item) => mapMoneyPurchaseToLedger(item, 'expense', partyById))
+          .sort(byDate);
+      }
+
+      if (selectedParty && rawLedgerEntries.length > 0) {
+        return rawLedgerEntries.filter((entry) => {
+          const type = String(entry.refType || '').toLowerCase();
+          if (type.includes('expense') || type.includes('income') || type.includes('purchase')) {
+            return false;
+          }
+          return isDateInPeriod(entry.entryDate, period);
+        });
+      }
+
+      return (personalTxQuery.data ?? [])
+        .filter((tx) => {
+          if (selectedParty && tx.partyId !== selectedParty.id) return false;
+          return isDateInPeriod(tx.txDate, period);
+        })
+        .map((tx) => mapPartyTxToLedger(tx, partyById, true))
+        .sort(byDate);
+    }
+
     if (rawLedgerEntries.length > 0) {
       return rawLedgerEntries.filter((e) => isDateInPeriod(e.entryDate, period));
     }
 
-    // Fallback synthesis for personal workspace or empty server ledger
     const partyTx = (personalTxQuery.data ?? []).filter((tx) => {
       if (selectedParty && tx.partyId !== selectedParty.id) return false;
       return isDateInPeriod(tx.txDate, period);
@@ -118,48 +206,20 @@ export default function LedgerScreen() {
       return isDateInPeriod(exp.purchaseDate, period);
     });
 
-    const synthesized: LedgerEntry[] = [
-      ...partyTx.map((tx) => {
-        const party = partyById.get(tx.partyId);
-        const isReceive = tx.direction === 'receive';
-        return {
-          id: `tx-${tx.id}`,
-          partyId: tx.partyId,
-          partyName: party?.name || '',
-          refType: isReceive ? 'payment_in' : 'payment_out',
-          refNo: '',
-          entryDate: String(tx.txDate || tx.createdAt || ''),
-          description: tx.note || (isReceive ? 'Income / Payment In' : 'Payment Out'),
-          debit: isReceive ? 0 : Number(tx.amount || 0),
-          credit: isReceive ? Number(tx.amount || 0) : 0,
-          runningBalance: undefined,
-        };
-      }),
-      ...expenses.map((exp) => {
-        const amt = Number(exp.grandTotal || (exp as any).amount || 0);
-        return {
-          id: `exp-${exp.id}`,
-          partyId: exp.partyId || '',
-          partyName: exp.partyName || (exp.partyId ? partyById.get(exp.partyId)?.name : '') || '',
-          refType: 'expense',
-          refNo: exp.invoiceNo || '',
-          entryDate: String(exp.purchaseDate || exp.createdAt || ''),
-          description: exp.notes || expenseCategory(exp),
-          debit: amt,
-          credit: 0,
-          runningBalance: undefined,
-        };
-      }),
-    ];
-
-    return synthesized.sort((a, b) => String(b.entryDate).localeCompare(String(a.entryDate)));
+    return [
+      ...partyTx.map((tx) => mapPartyTxToLedger(tx, partyById, false)),
+      ...expenses.map((exp) => mapMoneyPurchaseToLedger(exp, 'expense', partyById)),
+    ].sort(byDate);
   }, [
-    rawLedgerEntries,
-    personalTxQuery.data,
-    personalExpensesQuery.data,
-    selectedParty,
-    period,
+    book,
     partyById,
+    period,
+    personal,
+    personalExpensesQuery.data,
+    personalIncomesQuery.data,
+    personalTxQuery.data,
+    rawLedgerEntries,
+    selectedParty,
   ]);
 
   const totals = useMemo(() => {
@@ -274,10 +334,17 @@ export default function LedgerScreen() {
       ledgerQuery.refetch(),
       personalTxQuery.refetch(),
       personalExpensesQuery.refetch(),
+      personalIncomesQuery.refetch(),
     ]);
   }
 
-  const isLoading = ledgerQuery.isLoading && !entries.length;
+  const isLoading = personal
+    ? book === 'income'
+      ? personalIncomesQuery.isLoading && !entries.length
+      : book === 'expense'
+        ? personalExpensesQuery.isLoading && !entries.length
+        : (selectedParty ? ledgerQuery.isLoading : personalTxQuery.isLoading) && !entries.length
+    : ledgerQuery.isLoading && !entries.length;
 
   return (
     <Screen
@@ -308,7 +375,15 @@ export default function LedgerScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={ledgerQuery.isRefetching || personalTxQuery.isRefetching} onRefresh={() => void handleRefresh()} />
+          <RefreshControl
+            refreshing={
+              ledgerQuery.isRefetching
+              || personalTxQuery.isRefetching
+              || personalExpensesQuery.isRefetching
+              || personalIncomesQuery.isRefetching
+            }
+            onRefresh={() => void handleRefresh()}
+          />
         }
         contentContainerStyle={styles.scroll}>
         
@@ -322,6 +397,18 @@ export default function LedgerScreen() {
             { label: 'All time', value: 'all' },
           ]}
         />
+
+        {personal ? (
+          <SegmentedTabs
+            value={book}
+            onChange={setBook}
+            options={[
+              { label: 'Income', value: 'income' },
+              { label: 'Expense', value: 'expense' },
+              { label: 'Contacts', value: 'party' },
+            ]}
+          />
+        ) : null}
 
         {/* Contact / Party selector card */}
         <Pressable
@@ -357,7 +444,7 @@ export default function LedgerScreen() {
         </Pressable>
 
         {/* Selected Party detail banner if selected */}
-        {selectedParty && partyBalanceMeta ? (
+        {selectedParty && partyBalanceMeta && (!personal || book === 'party') ? (
           <View style={[styles.partyBanner, { backgroundColor: partyToneSoft, borderColor: colors.border }]}>
             <View style={styles.partyBannerLeft}>
               <Text style={[styles.partyBannerTitle, { color: colors.text }]}>
@@ -393,43 +480,57 @@ export default function LedgerScreen() {
 
         {/* Summary Metrics */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
-            <View style={styles.summaryCardHeader}>
-              <Text style={[styles.summaryLabel, { color: colors.success }]}>
-                {personal ? 'Money In' : 'Credit'}
+          {personal && book === 'expense' ? null : (
+            <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
+              <View style={styles.summaryCardHeader}>
+                <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                  {personal && book === 'income'
+                    ? 'Total Income'
+                    : personal
+                      ? 'Received'
+                      : 'Credit'}
+                </Text>
+                <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
+              </View>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>
+                {formatCurrency(totals.credit, currency)}
               </Text>
-              <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
             </View>
-            <Text style={[styles.summaryValue, { color: colors.success }]}>
-              {formatCurrency(totals.credit, currency)}
-            </Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
-            <View style={styles.summaryCardHeader}>
-              <Text style={[styles.summaryLabel, { color: colors.danger }]}>
-                {personal ? 'Money Out' : 'Debit'}
+          )}
+          {personal && book === 'income' ? null : (
+            <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+              <View style={styles.summaryCardHeader}>
+                <Text style={[styles.summaryLabel, { color: colors.danger }]}>
+                  {personal && book === 'expense'
+                    ? 'Total Expense'
+                    : personal
+                      ? 'Paid'
+                      : 'Debit'}
+                </Text>
+                <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
+              </View>
+              <Text style={[styles.summaryValue, { color: colors.danger }]}>
+                {formatCurrency(totals.debit, currency)}
               </Text>
-              <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
             </View>
-            <Text style={[styles.summaryValue, { color: colors.danger }]}>
-              {formatCurrency(totals.debit, currency)}
-            </Text>
-          </View>
+          )}
         </View>
 
         <View style={[styles.netCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View>
-            <Text style={[styles.netLabel, { color: colors.textSoft }]}>Net movement</Text>
+            <Text style={[styles.netLabel, { color: colors.textSoft }]}>
+              {personal && book !== 'party' ? 'Total' : 'Net movement'}
+            </Text>
             <Text style={[styles.netValue, { color: net >= 0 ? colors.success : colors.danger }]}>
               {net >= 0 ? '+' : ''}{formatCurrency(net, currency)}
             </Text>
           </View>
           <View style={styles.netSide}>
             <Text style={[styles.netLabel, { color: colors.textSoft }]}>
-              {selectedParty ? 'Balance' : 'Total Entries'}
+              {selectedParty && (!personal || book === 'party') ? 'Balance' : 'Total Entries'}
             </Text>
             <Text style={[styles.netValue, { color: colors.text }]}>
-              {selectedParty
+              {selectedParty && (!personal || book === 'party')
                 ? formatCurrency(Number(latestBalance || 0), currency)
                 : `${entries.length} items`}
             </Text>
@@ -448,9 +549,13 @@ export default function LedgerScreen() {
             message={
               selectedParty
                 ? `No transactions recorded for ${selectedParty.name} in this period.`
-                : personal
-                  ? 'All income, expenses, and contact payments will appear here.'
-                  : 'Sales, purchases, and ledger entries will appear here.'
+                : personal && book === 'income'
+                  ? 'Income you log will appear here, separate from contact balances.'
+                  : personal && book === 'expense'
+                    ? 'Expenses you log will appear here, separate from contact balances.'
+                    : personal
+                      ? 'Lend and borrow with contacts will appear here.'
+                      : 'Sales, purchases, and ledger entries will appear here.'
             }
           />
         ) : null}

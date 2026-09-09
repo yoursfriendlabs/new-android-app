@@ -10,17 +10,16 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { expenseCategory, expenseDue, isInCurrentMonth } from '@/src/features/money/lib/expense';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-import { moneyCategoryFromNote, moneyPersonLabel } from '@/src/features/money/lib/money';
+import { moneyCategoryFromPurchase, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import { useParties, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
-import { buildExpenseReceipt, buildPartyTransactionReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
-import type { PartyTransaction, Purchase } from '@/src/types/models';
+import { buildExpenseReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 
 type MoneyFilter = 'all' | 'in' | 'out';
 
@@ -28,10 +27,10 @@ export function PersonalMoneyScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ entry?: string | string[] }>();
+  const params = useLocalSearchParams<{ entry?: string | string[]; filter?: string | string[] }>();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const expensesQuery = usePurchases('expense');
-  const moneyTxQuery = usePartyTransactions();
+  const incomesQuery = usePurchases('income');
   const partiesQuery = useParties('', 'both');
   const [period, setPeriod] = useState<'month' | 'all'>('month');
   const [filter, setFilter] = useState<MoneyFilter>('all');
@@ -39,12 +38,19 @@ export function PersonalMoneyScreen() {
   const [entryKind, setEntryKind] = useState<MoneyEntryKind | null>(null);
   const debouncedSearch = useDebouncedValue(search);
   const routeEntry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
+  const routeFilter = Array.isArray(params.filter) ? params.filter[0] : params.filter;
 
   useEffect(() => {
     if (routeEntry === 'income' || routeEntry === 'expense') {
       setEntryKind(routeEntry);
     }
   }, [routeEntry]);
+
+  useEffect(() => {
+    if (routeFilter === 'in' || routeFilter === 'out' || routeFilter === 'all') {
+      setFilter(routeFilter);
+    }
+  }, [routeFilter]);
 
   const businessProfile = useAuthStore((state) => state.businessProfile);
 
@@ -63,42 +69,26 @@ export function PersonalMoneyScreen() {
         date: item.purchaseDate,
         amount: Number(item.grandTotal || 0),
         due: expenseDue(item),
-        rawExpense: item,
-        rawPayment: undefined as PartyTransaction | undefined,
+        raw: item,
       }));
-    const payments = (moneyTxQuery.data ?? [])
-      .filter((item) => (period === 'all' ? true : isInCurrentMonth(item.txDate)))
-      .map((item) => {
-        const party = partyById.get(item.partyId) ?? null;
-        const inbound = item.direction === 'receive';
-        return {
-          id: `${inbound ? 'in' : 'paid'}-${item.id}`,
-          kind: inbound ? ('in' as const) : ('out' as const),
-          title: moneyCategoryFromNote(item.note) || (inbound ? t('home.income') : t('common.paid')),
-          person: moneyPersonLabel(party),
-          date: item.txDate,
-          amount: Number(item.amount || 0),
-          due: 0,
-          rawExpense: undefined as Purchase | undefined,
-          rawPayment: item,
-        };
-      });
-    return [...payments, ...expenses].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [expensesQuery.data, moneyTxQuery.data, partyById, period, t]);
+    const incomes = (incomesQuery.data ?? [])
+      .filter((item) => (period === 'all' ? true : isInCurrentMonth(item.purchaseDate)))
+      .map((item) => ({
+        id: `in-${item.id}`,
+        kind: 'in' as const,
+        title: moneyCategoryFromPurchase(item),
+        person: moneyPersonLabel(item.partyId ? partyById.get(item.partyId) ?? null : null, item.partyName),
+        date: item.purchaseDate,
+        amount: Number(item.grandTotal || 0),
+        due: 0,
+        raw: item,
+      }));
+    return [...incomes, ...expenses].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }, [expensesQuery.data, incomesQuery.data, partyById, period]);
 
   const handleOpenReceipt = (row: (typeof rows)[number]) => {
-    if (row.rawExpense) {
-      const { input, html } = buildExpenseReceipt(row.rawExpense, businessProfile);
-      openReceiptPreview(router, input, html);
-    } else if (row.rawPayment) {
-      const party = partyById.get(row.rawPayment.partyId);
-      const { input, html } = buildPartyTransactionReceipt(
-        row.rawPayment,
-        party || { id: row.rawPayment.partyId, name: row.person || 'Contact', type: 'customer', createdAt: row.rawPayment.txDate, updatedAt: row.rawPayment.txDate },
-        businessProfile,
-      );
-      openReceiptPreview(router, input, html);
-    }
+    const { input, html } = buildExpenseReceipt(row.raw, businessProfile);
+    openReceiptPreview(router, input, html);
   };
 
   const visibleRows = useMemo(() => {
@@ -122,7 +112,7 @@ export function PersonalMoneyScreen() {
   }, [rows]);
 
   async function handleRefresh() {
-    await Promise.all([expensesQuery.refetch(), moneyTxQuery.refetch(), partiesQuery.refetch()]);
+    await Promise.all([expensesQuery.refetch(), incomesQuery.refetch(), partiesQuery.refetch()]);
   }
 
   return (
@@ -150,18 +140,18 @@ export function PersonalMoneyScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
-            refreshing={expensesQuery.isRefetching || moneyTxQuery.isRefetching}
+            refreshing={expensesQuery.isRefetching || incomesQuery.isRefetching}
             onRefresh={() => void handleRefresh()}
           />
         }
         contentContainerStyle={styles.scroll}>
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.success }]}>{t('money.in')}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.success }]}>{t('money.totalIncome')}</Text>
             <Text style={[styles.summaryValue, { color: colors.success }]}>{formatCurrency(totals.income, currency)}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.danger }]}>{t('money.out')}</Text>
+            <Text style={[styles.summaryLabel, { color: colors.danger }]}>{t('money.totalExpense')}</Text>
             <Text style={[styles.summaryValue, { color: colors.danger }]}>{formatCurrency(totals.expense, currency)}</Text>
           </View>
         </View>

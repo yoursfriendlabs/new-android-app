@@ -21,7 +21,7 @@ export function lastSevenDayKeys() {
 
 export function buildSevenDayFlow(input: {
   expenses: Array<{ purchaseDate?: string; grandTotal?: number; entryType?: string }>;
-  payments: Array<{ txDate?: string; amount?: number; direction?: string }>;
+  incomes?: Array<{ purchaseDate?: string; grandTotal?: number; entryType?: string }>;
 }): FlowPoint[] {
   const days = lastSevenDayKeys();
   const byDay = new Map(days.map((day) => [day.key, { income: 0, expense: 0 }]));
@@ -33,13 +33,11 @@ export function buildSevenDayFlow(input: {
     if (bucket) bucket.expense += Number(item.grandTotal || 0);
   }
 
-  for (const item of input.payments) {
-    const key = String(item.txDate || '').slice(0, 10);
+  for (const item of input.incomes ?? []) {
+    if (item.entryType && item.entryType !== 'income') continue;
+    const key = String(item.purchaseDate || '').slice(0, 10);
     const bucket = byDay.get(key);
-    if (!bucket) continue;
-    const amount = Number(item.amount || 0);
-    if (item.direction === 'receive') bucket.income += amount;
-    else bucket.expense += amount;
+    if (bucket) bucket.income += Number(item.grandTotal || 0);
   }
 
   return days.map((day) => ({

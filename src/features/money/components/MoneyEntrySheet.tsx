@@ -6,8 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
-import { partiesApi, partyTransactionsApi } from '@/src/api';
-import { extractListItems, normalizeParty } from '@/src/api/normalize';
+import { quickExpensesApi } from '@/src/api';
 import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
@@ -31,11 +30,9 @@ import {
 } from '@/src/features/habits/lib/habits';
 import { useHabitStore } from '@/src/stores/habit-store';
 import {
-  isWalkInParty,
-  moneyNote,
-  moneyPersonLabel,
   visibleMoneyParties,
   WALK_IN_LABEL,
+  buildMoneyPurchasePayload,
 } from '@/src/features/money/lib/money';
 import { partyInitials, partyTypeLabel } from '@/src/features/parties/lib/party';
 import { workspaceAccessMessage, firstNonEmptyId } from '@/src/shared/lib/workspace';
@@ -126,7 +123,8 @@ export function MoneyEntrySheet({
   const [win, setWin] = useState<HabitWin | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(!compact);
   const debouncedPartySearch = useDebouncedValue(partySearch);
-  const { data: categories } = useQuickExpenses();
+  const { data: expenseCategories } = useQuickExpenses('', 'expense');
+  const { data: incomeCategories } = useQuickExpenses('', 'income');
   const { data: parties } = useParties(debouncedPartySearch, 'both');
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
@@ -154,27 +152,10 @@ export function MoneyEntrySheet({
   const amountPaid = form.paidMode === 'full' ? amount : Number(form.amountPaid || 0);
   const isIncome = form.kind === 'income';
   const categoryOptions = isIncome
-    ? INCOME_CATEGORIES
-    : Array.from(new Set([...(categories ?? []).map((item) => item.name), ...PERSONAL_EXPENSE_CATEGORIES])).filter(Boolean);
+    ? Array.from(new Set([...(incomeCategories ?? []).map((item) => item.name), ...INCOME_CATEGORIES])).filter(Boolean)
+    : Array.from(new Set([...(expenseCategories ?? []).map((item) => item.name), ...PERSONAL_EXPENSE_CATEGORIES])).filter(Boolean);
 
   const pickerParties = visibleMoneyParties(parties);
-
-  async function ensureWalkInParty() {
-    const local = (parties ?? []).find((item) => isWalkInParty(item));
-    if (local) return local;
-    const lookup = await partiesApi.lookup({ search: WALK_IN_LABEL, limit: 20 });
-    const match = extractListItems<Party>(lookup).map(normalizeParty).find((item) => isWalkInParty(item));
-    if (match) return match;
-    const created = await withWorkspaceRetry(() =>
-      partiesApi.create({
-        name: WALK_IN_LABEL,
-        type: 'both',
-      }),
-    );
-    const saved = normalizeParty(created);
-    await invalidatePartyQueries(queryClient, [saved.id]);
-    return saved;
-  }
 
   async function importFromPhone() {
     const native = await pickNativeDeviceContact();
@@ -229,72 +210,41 @@ export function MoneyEntrySheet({
 
     setSaving(true);
     try {
-      const note = moneyNote(effectiveCategory, form.notes);
       let moneySourceId = '';
-      if (isIncome) {
-        const contact = form.party ?? (await ensureWalkInParty());
-        const created = await withWorkspaceRetry(() =>
-          partyTransactionsApi.create({
-            partyId: contact.id,
-            direction: 'receive',
-            amount,
-            txDate: form.date,
-            paymentMethod: form.paymentMethod,
-            bankId: form.paymentMethod === 'bank' ? form.bankId : undefined,
-            note,
-          }),
-        );
-        moneySourceId = firstNonEmptyId(created);
-        if (!isWalkInParty(contact)) {
-          await invalidatePartyQueries(queryClient, [contact.id]);
-        } else {
-          await queryClient.invalidateQueries({ queryKey: ['parties'] });
+      const payload = buildMoneyPurchasePayload({
+        kind: form.kind,
+        category: effectiveCategory,
+        amount,
+        amountPaid: isIncome ? amount : amountPaid,
+        date: form.date,
+        notes: form.notes,
+        party: form.party,
+        paymentMethod: form.paymentMethod,
+        bankId: form.bankId,
+        attachment: receiptImage,
+      });
+      const queued = await withWorkspaceRetry(() =>
+        submitWithOfflineQueue<{ id?: string }, typeof payload>({
+          entityType: isIncome ? 'income' : 'expense',
+          method: 'POST',
+          path: '/api/purchases',
+          body: payload,
+        }),
+      );
+      moneySourceId = firstNonEmptyId(queued.data);
+      if (form.category === 'Other' && customCategory.trim()) {
+        try {
+          await quickExpensesApi.create({ name: customCategory.trim(), kind: form.kind });
+        } catch {
+          // Duplicate or offline is fine; the money entry still saved.
         }
-        await queryClient.invalidateQueries({ queryKey: ['party-transactions'] });
-        await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      } else {
-        const payload = {
-          entryType: 'expense' as const,
-          partyId: form.party?.id || null,
-          partyName: moneyPersonLabel(form.party),
-          invoiceNo: `EXP-${Date.now().toString().slice(-6)}`,
-          purchaseDate: form.date,
-          status: amountPaid >= amount ? 'received' : 'pending',
-          notes: note,
-          attachment: receiptImage || undefined,
-          amountReceived: amountPaid,
-          paymentMethod: form.paymentMethod,
-          bankId: form.paymentMethod === 'bank' ? form.bankId : undefined,
-          paymentNote: '',
-          subTotal: amount,
-          taxTotal: 0,
-          grandTotal: amount,
-          items: [
-            {
-              description: effectiveCategory,
-              quantity: 1,
-              unitType: 'primary',
-              unitPrice: amount,
-              taxRate: 0,
-              lineTotal: amount,
-              itemType: 'expense',
-            },
-          ],
-        };
-        const queued = await withWorkspaceRetry(() =>
-          submitWithOfflineQueue<{ id?: string }, typeof payload>({
-            entityType: 'expense',
-            method: 'POST',
-            path: '/api/purchases',
-            body: payload,
-          }),
-        );
-        moneySourceId = firstNonEmptyId(queued.data);
-        await queryClient.invalidateQueries({ queryKey: ['purchases'] });
-        await queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
-        await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-        if (form.party?.id) await invalidatePartyQueries(queryClient, [form.party.id]);
       }
+      await queryClient.invalidateQueries({ queryKey: ['purchases'] });
+      await queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
+      if (form.party?.id) await invalidatePartyQueries(queryClient, [form.party.id]);
 
       const storedDates = await useHabitStore.getState().recordLog(form.date);
       const previous = computeStreak(activityDates, form.date, useHabitStore.getState().bestStreak);

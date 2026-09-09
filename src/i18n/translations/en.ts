@@ -285,7 +285,7 @@ export const en = {
     insightsSubtitle: 'Charts, trends, and category analysis of your money flow.',
     insightsCta: 'View charts & category breakdown',
     totalIncome: 'Total Income',
-    totalExpense: 'Total Expense',
+    totalExpense: 'Total Expenses',
     netSaved: 'Net Saved',
     positiveSavings: 'You saved more than you spent 🎉',
     negativeSavings: 'You spent more than you earned',
