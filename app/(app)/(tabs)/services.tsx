@@ -753,7 +753,7 @@ export default function ServicesScreen() {
       <Modal visible={Boolean(previewImage)} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
         <View style={styles.imageModalBackdrop}>
           <Pressable style={styles.closeModalBtn} onPress={() => setPreviewImage(null)}>
-            <MaterialCommunityIcons name="close" size={26} color="#ffffff" />
+            <MaterialCommunityIcons name="close" size={26} color={colors.onPrimary} />
           </Pressable>
           {previewImage ? (
             <Image source={{ uri: previewImage }} style={styles.modalImage} resizeMode="contain" />

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { haptics } from '@/src/shared/lib/haptics';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 
@@ -25,23 +26,28 @@ function ActionButton({ label, onPress, tone = 'secondary' }: ActionProps) {
 
   if (tone === 'primary') {
     bg = colors.primary;
-    fg = colors.onPrimary || '#ffffff';
+    fg = colors.onPrimary;
   } else if (tone === 'success') {
     bg = colors.success;
-    fg = colors.white || '#ffffff';
+    fg = colors.onSuccess;
   } else if (tone === 'danger') {
     bg = colors.danger;
-    fg = colors.white || '#ffffff';
+    fg = colors.onDanger;
   }
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: bg },
         pressed && { opacity: 0.88 },
       ]}
-      onPress={onPress}>
+      onPress={() => {
+        haptics.tapMedium();
+        onPress();
+      }}>
       <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
     </Pressable>
   );

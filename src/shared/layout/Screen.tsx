@@ -30,7 +30,7 @@ export function Screen({
   topBarTitle,
 }: ScreenProps) {
   const colors = usePalette();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
   const isAppRoute = segments[0] === '(app)';
   const isRootTabScreen = segments[1] === '(tabs)' && segments.length === 3;
   const currentLeafSegment = segments[segments.length - 1];

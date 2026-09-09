@@ -183,7 +183,7 @@ const createStyles = (colors: AppPalette) =>
       maxWidth: '75%',
     },
     floatingCategoryText: {
-      color: '#ffffff',
+      color: colors.onPrimary,
       fontSize: 9,
       fontWeight: '700',
     },

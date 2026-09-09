@@ -7,6 +7,7 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
+import { ThemeModeSelector } from '@/src/shared/ui/ThemeModeSelector';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
 import { CompactLanguageToggle } from '@/src/shared/ui/LanguageSelector';
 import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
@@ -522,6 +523,7 @@ export default function MoreScreen() {
           <Text style={[styles.hint, { color: colors.textMuted }]}>
             {t('settings.themeSubtitle')}
           </Text>
+          <ThemeModeSelector compact />
           <CompactThemeRow />
           <Pressable
             style={[styles.secondaryButton, { backgroundColor: colors.backgroundAlt }]}

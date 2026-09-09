@@ -167,7 +167,7 @@ export function AvatarPicker({
 
         {uploading ? (
           <View style={[styles.overlay, { borderRadius: shape === 'circle' ? size / 2 : radius.md }]}>
-            <ActivityIndicator size="small" color="#ffffff" />
+            <ActivityIndicator size="small" color={colors.onPrimary} />
           </View>
         ) : (
           <View
@@ -184,7 +184,7 @@ export function AvatarPicker({
             <MaterialCommunityIcons
               name={value ? 'camera-flip-outline' : 'camera-plus-outline'}
               size={badgeIconSize}
-              color={colors.onPrimary || '#ffffff'}
+              color={colors.onPrimary}
             />
           </View>
         )}
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',

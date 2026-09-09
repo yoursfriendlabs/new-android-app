@@ -190,7 +190,7 @@ export default function SharesScreen() {
             pressed && { opacity: 0.8 },
           ]}
         >
-          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <MaterialCommunityIcons name="plus" size={18} color={colors.onPrimary} />
           <Text style={styles.quickAddBtnText}>Trade</Text>
         </Pressable>
       </View>
@@ -260,7 +260,7 @@ export default function SharesScreen() {
                   pressed && { opacity: 0.85 },
                 ]}
               >
-                <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                <MaterialCommunityIcons name="plus" size={18} color={colors.onPrimary} />
                 <Text style={styles.emptyCtaButtonText}>Add First Stock Trade</Text>
               </Pressable>
             </View>
@@ -460,7 +460,7 @@ const createStyles = (colors: AppPalette) =>
     quickAddBtnText: {
       fontSize: typography.label,
       fontWeight: '800',
-      color: '#FFFFFF',
+      color: colors.surface,
     },
     tabsWrapper: {
       paddingHorizontal: spacing.md,
@@ -550,7 +550,7 @@ const createStyles = (colors: AppPalette) =>
     emptyCtaButtonText: {
       fontSize: typography.label,
       fontWeight: '800',
-      color: '#FFFFFF',
+      color: colors.surface,
     },
     emptyMarket: {
       alignItems: 'center',

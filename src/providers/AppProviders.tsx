@@ -6,6 +6,8 @@ import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ConfirmProvider } from '@/src/shared/feedback/ConfirmProvider';
+import { ToastProvider } from '@/src/shared/feedback/ToastProvider';
 import { initializeDatabase } from '@/src/data/database';
 import { flushQueuedMutations } from '@/src/data/sync';
 import { setUnauthorizedHandler } from '@/src/api/client';
@@ -15,7 +17,7 @@ import { useReceiptStore } from '@/src/stores/receipt-store';
 import { useSyncStore } from '@/src/stores/sync-store';
 import { useLanguageStore } from '@/src/stores/language-store';
 import { useDateFormatStore } from '@/src/stores/date-format-store';
-import { usePalette, useThemeStore } from '@/src/stores/theme-store';
+import { usePalette, useThemeMode, useThemeStore } from '@/src/stores/theme-store';
 import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 
@@ -127,16 +129,19 @@ function SessionStateBridge() {
 
 export function AppProviders({ children }: PropsWithChildren) {
   const colors = usePalette();
+  const mode = useThemeMode();
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" backgroundColor={colors.background} translucent={false} />
+          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <BootstrapRuntime />
           <SessionStateBridge />
           <ReminderWatch />
-          {children}
+          <ToastProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </ToastProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

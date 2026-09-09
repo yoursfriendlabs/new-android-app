@@ -186,7 +186,7 @@ export default function SeatingOrdersScreen() {
       ) : viewMode === 'floor' ? (
         /* Floor Map View */
         <View style={{ flex: 1 }}>
-          <View style={{ gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+          <View style={{ gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.backgroundAlt }}>
             {/* Floor Filter Chips */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
               <Pressable
@@ -271,7 +271,7 @@ export default function SeatingOrdersScreen() {
                     <View
                       style={[
                         styles.indicatorDot,
-                        { backgroundColor: item.occupied && statusMeta ? getStatusDotColor(statusMeta.value) : '#cbd5e1' },
+                        { backgroundColor: item.occupied && statusMeta ? getStatusDotColor(statusMeta.value, colors) : colors.borderStrong },
                       ]}
                     />
                   </View>
@@ -407,16 +407,16 @@ export default function SeatingOrdersScreen() {
                     {nextStatus ? (
                       <Pressable
                         disabled={updatingId === item.id}
-                        style={[styles.advanceButton, { backgroundColor: getStatusColor(nextStatus.value, colors.primary) }]}
+                        style={[styles.advanceButton, { backgroundColor: getStatusColor(nextStatus.value, colors) }]}
                         onPress={() => void handleAdvanceStatus(item)}>
                         {updatingId === item.id ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                          <ActivityIndicator size="small" color={colors.onPrimary} />
                         ) : (
                           <>
                             <Text style={styles.advanceButtonText}>
                               To {nextStatus.label}
                             </Text>
-                            <MaterialCommunityIcons name="chevron-right" size={16} color="#fff" />
+                            <MaterialCommunityIcons name="chevron-right" size={16} color={colors.onPrimary} />
                           </>
                         )}
                       </Pressable>
@@ -442,40 +442,40 @@ export default function SeatingOrdersScreen() {
 }
 
 // Helpers for Colors
-function getStatusDotColor(status: string) {
+function getStatusDotColor(status: string, colors: AppPalette) {
   switch (status) {
     case 'new':
-      return '#64748b'; // slate-500
+      return colors.textSoft;
     case 'to_cook':
-      return '#f59e0b'; // amber-500
+      return colors.warning;
     case 'ready':
-      return '#10b981'; // emerald-500
+      return colors.success;
     case 'completed':
-      return '#94a3b8'; // slate-400
+      return colors.textSoft;
     default:
-      return '#cbd5e1';
+      return colors.borderStrong;
   }
 }
 
-function getStatusColor(status: string, primary: string) {
+function getStatusColor(status: string, colors: AppPalette) {
   switch (status) {
     case 'to_cook':
-      return '#e97a1d';
+      return colors.warning;
     case 'ready':
-      return '#10b981';
+      return colors.success;
     case 'completed':
-      return '#475569';
+      return colors.textMuted;
     default:
-      return primary;
+      return colors.primary;
   }
 }
 
 const createStyles = (colors: AppPalette) => StyleSheet.create({
   viewModeTabs: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: colors.border,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     gap: spacing.md,
@@ -487,7 +487,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.backgroundAlt,
     gap: spacing.xs,
     minHeight: 48, // Touch target
   },
@@ -527,7 +527,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     borderWidth: 1,
     minHeight: 135, // expanded to prevent cutoff
     justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
   },
   floorBadgeRow: {
     flexDirection: 'row',
@@ -544,12 +544,12 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   tableCardVacant: {
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderStyle: 'dashed',
   },
   tableCardOccupied: {
     borderColor: colors.accentMuted,
-    backgroundColor: '#fdfbf7',
+    backgroundColor: colors.backgroundWarm,
   },
   tableCardHeader: {
     flexDirection: 'row',
@@ -559,7 +559,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   tableLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
+    color: colors.text,
   },
   indicatorDot: {
     width: 10,
@@ -587,17 +587,17 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     marginTop: spacing.sm,
   },
   statusBadgeVacant: {
-    backgroundColor: '#f1f5f9',
-    color: '#475569',
+    backgroundColor: colors.backgroundAlt,
+    color: colors.textMuted,
   },
   statusBadgeOccupied: {
-    backgroundColor: '#fef3c7',
-    color: '#d97706',
+    backgroundColor: colors.warningSoft,
+    color: colors.warning,
   },
   occupiedDetails: {
     marginTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: colors.backgroundAlt,
     paddingTop: spacing.xs,
     gap: 2,
   },
@@ -626,7 +626,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.textMuted,
   },
   emptySubtitle: {
     fontSize: 13,
@@ -646,7 +646,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     paddingHorizontal: spacing.md + 4,
     paddingVertical: spacing.sm - 2,
     borderRadius: radius.pill,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.backgroundAlt,
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: 36,
@@ -661,7 +661,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     lineHeight: 18,
   },
   filterChipLabelActive: {
-    color: '#ffffff',
+    color: colors.surface,
     fontWeight: '700',
   },
   ordersList: {
@@ -686,7 +686,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   orderTable: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: colors.text,
     marginTop: 2,
   },
   badgeRow: {
@@ -702,22 +702,22 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     borderRadius: radius.sm,
   },
   badgePaid: {
-    backgroundColor: '#d1fae5',
-    color: '#065f46',
+    backgroundColor: colors.successSoft,
+    color: colors.success,
   },
   badgeUnpaid: {
-    backgroundColor: '#fee2e2',
-    color: '#991b1b',
+    backgroundColor: colors.dangerSoft,
+    color: colors.danger,
   },
   itemsSummary: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.backgroundAlt,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: 4,
   },
   itemLine: {
     fontSize: 13,
-    color: '#475569',
+    color: colors.textMuted,
   },
   orderActions: {
     flexDirection: 'row',
@@ -754,6 +754,6 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   advanceButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#ffffff',
+    color: colors.surface,
   },
 });

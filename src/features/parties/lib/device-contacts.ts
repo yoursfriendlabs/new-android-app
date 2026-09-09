@@ -1,5 +1,5 @@
 import { Alert, Platform } from 'react-native';
-import * as Contacts from 'expo-contacts';
+import * as Contacts from 'expo-contacts/legacy';
 
 export interface DeviceContactDraft {
   name: string;
@@ -7,7 +7,7 @@ export interface DeviceContactDraft {
   email?: string;
 }
 
-function contactName(contact: Contacts.Contact) {
+function contactName(contact: Contacts.ExistingContact | Contacts.Contact) {
   return (
     String(contact.name || '').trim() ||
     [contact.firstName, contact.middleName, contact.lastName].filter(Boolean).join(' ').trim() ||
@@ -15,7 +15,9 @@ function contactName(contact: Contacts.Contact) {
   );
 }
 
-export function toDeviceContactDraft(contact: Contacts.Contact | null | undefined): DeviceContactDraft | null {
+export function toDeviceContactDraft(
+  contact: Contacts.ExistingContact | Contacts.Contact | null | undefined,
+): DeviceContactDraft | null {
   if (!contact) return null;
   const name = contactName(contact);
   if (!name) return null;
@@ -41,14 +43,10 @@ export async function pickNativeDeviceContact(): Promise<DeviceContactDraft | nu
   const allowed = await requestContactsAccess();
   if (!allowed) return null;
 
-  const picker = (Contacts as typeof Contacts & {
-    presentContactPickerAsync?: () => Promise<Contacts.Contact | null>;
-  }).presentContactPickerAsync;
-
-  if (typeof picker !== 'function') return undefined;
+  if (typeof Contacts.presentContactPickerAsync !== 'function') return undefined;
 
   try {
-    const selected = await picker();
+    const selected = await Contacts.presentContactPickerAsync();
     return selected ? toDeviceContactDraft(selected) : null;
   } catch {
     return undefined;

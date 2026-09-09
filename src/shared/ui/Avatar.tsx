@@ -66,7 +66,7 @@ export function Avatar({
           : 0;
 
   const bg = backgroundColor || colors.primary;
-  const fg = textColor || colors.onPrimary || '#ffffff';
+  const fg = textColor || colors.onPrimary;
   const fontSize = Math.max(10, Math.round(size * 0.38));
 
   const validUri = uri && typeof uri === 'string' && uri.trim().length > 0;

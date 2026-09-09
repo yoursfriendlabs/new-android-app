@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -460,7 +460,7 @@ export function PersonalNotesInbox() {
   );
 }
 
-const createStyles = (_colors: AppPalette) =>
+const createStyles = (colors: AppPalette) =>
   StyleSheet.create({
     list: {
       padding: spacing.lg,
@@ -500,7 +500,7 @@ const createStyles = (_colors: AppPalette) =>
       borderRadius: radius.pill,
     },
     statusPillText: {
-      color: '#FFFFFF',
+      color: colors.onPrimary,
       fontSize: 9,
       fontWeight: '800',
       letterSpacing: 0.4,

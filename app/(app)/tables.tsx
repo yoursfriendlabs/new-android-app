@@ -272,10 +272,10 @@ export default function TableManagementScreen() {
                         <View
                           style={[
                             styles.statusDot,
-                            { backgroundColor: occupied ? '#f59e0b' : '#10b981' },
+                            { backgroundColor: occupied ? colors.warning : colors.success },
                           ]}
                         />
-                        <Text style={[styles.statusText, { color: occupied ? '#d97706' : '#10b981' }]}>
+                        <Text style={[styles.statusText, { color: occupied ? colors.warning : colors.success }]}>
                           {occupied ? 'Occupied' : 'Vacant'}
                         </Text>
                       </View>
@@ -426,7 +426,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.backgroundAlt,
     gap: spacing.md,
   },
   info: {
@@ -531,9 +531,9 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   floorSelectChipActive: {
     backgroundColor: colors.primary,
@@ -556,9 +556,9 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
   },
   filterChipActive: {
     backgroundColor: colors.primary,

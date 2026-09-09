@@ -65,14 +65,14 @@ async function loadSessionMeta() {
 
 function applySessionGlobals(session: SessionData | null) {
   if (session?.token) {
-    (global as any).apiToken = session.token;
+    (globalThis as any).apiToken = session.token;
   } else {
-    delete (global as any).apiToken;
+    delete (globalThis as any).apiToken;
   }
   if (session?.businessId) {
-    (global as any).apiBusinessId = session.businessId;
+    (globalThis as any).apiBusinessId = session.businessId;
   } else {
-    delete (global as any).apiBusinessId;
+    delete (globalThis as any).apiBusinessId;
   }
 }
 

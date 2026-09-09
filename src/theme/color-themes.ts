@@ -1,4 +1,5 @@
 export const COLOR_THEME_STORAGE_KEY = 'pasalmanager.color_theme';
+export const THEME_MODE_STORAGE_KEY = 'pasalmanager.theme_mode';
 export const CUSTOM_PRIMARY_STORAGE_KEY = 'pasalmanager.custom_primary';
 export const THEME_BRAND_MIGRATION_KEY = 'pasalmanager.theme_brand_forest_0a2e20';
 export const DEFAULT_COLOR_THEME_ID = 'forest';
@@ -390,6 +391,17 @@ function contrastAgainstWhite(hex: string) {
   return 1.05 / (relativeLuminance(rgb) + 0.05);
 }
 
+function contrastBetween(a: string, b: string) {
+  const first = hexToRgb(a);
+  const second = hexToRgb(b);
+  if (!first || !second) return 1;
+  const one = relativeLuminance(first);
+  const two = relativeLuminance(second);
+  const lighter = Math.max(one, two);
+  const darker = Math.min(one, two);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 function shade(hsl: Hsl, lightness: number, saturation = hsl.s) {
   return rgbToHex(
     hslToRgb({
@@ -404,6 +416,16 @@ export function onPrimaryColor(primaryHex: string, ink: string, light = '#ffffff
   return contrastAgainstWhite(primaryHex) >= 3.2 ? light : ink;
 }
 
+/**
+ * Picks whichever of two candidates reads better on `background` — use for text
+ * and icons that sit on a filled colour (buttons, snackbars, badges).
+ */
+export function bestForeground(background: string, darkOption: string, lightOption = '#ffffff') {
+  return contrastBetween(background, lightOption) >= contrastBetween(background, darkOption)
+    ? lightOption
+    : darkOption;
+}
+
 export function ensureReadablePrimary(hex: string) {
   const parsed = parseHexColor(hex);
   if (!parsed) return '';
@@ -415,6 +437,104 @@ export function ensureReadablePrimary(hex: string) {
     current = shade(hsl, hsl.l);
   }
   return current;
+}
+
+/**
+ * Adapts a fixed category colour (expense categories, chart series) to the
+ * current mode: same hue, but a readable text tone and a matching soft fill.
+ */
+export function categoryTone(hex: string, mode: 'light' | 'dark') {
+  const parsed = parseHexColor(hex);
+  const rgb = hexToRgb(parsed);
+  if (!parsed || !rgb) return { background: 'transparent', color: hex };
+
+  const hsl = rgbToHsl(rgb);
+  if (mode === 'dark') {
+    return {
+      background: shade(hsl, 17, Math.min(hsl.s, 42)),
+      color: shade(hsl, Math.min(76, Math.max(62, hsl.l + 22)), Math.min(hsl.s, 80)),
+    };
+  }
+  return {
+    background: shade(hsl, 93, Math.min(hsl.s, 66)),
+    color: shade(hsl, Math.min(hsl.l, 42), hsl.s),
+  };
+}
+
+/** Dark-mode surfaces, kept here so contrast checks and the palette agree. */
+const DARK_LIGHTNESS = {
+  background: 7,
+  surface: 11,
+  chip: 15,
+  input: 18,
+  border: 24,
+  ink: 96,
+  inkLight: 72,
+} as const;
+
+/** Lightens a colour until it is readable on the dark surface (WCAG 4.5:1). */
+export function ensureReadableOnDark(hex: string, background: string) {
+  const parsed = parseHexColor(hex);
+  const rgb = hexToRgb(parsed);
+  if (!parsed || !rgb) return '';
+
+  let hsl = rgbToHsl(rgb);
+  let current = parsed;
+  while (contrastBetween(current, background) < 4.5 && hsl.l < 88) {
+    hsl = { ...hsl, l: hsl.l + 2 };
+    current = shade(hsl, hsl.l);
+  }
+  return current;
+}
+
+/**
+ * Builds the dark counterpart of a colour theme by re-toning its hue against
+ * dark surfaces. Deriving rather than hand-authoring means the custom-hex theme
+ * gets a dark mode too, not just the six presets.
+ */
+export function deriveDarkTheme(theme: ColorThemeDefinition): ColorThemeDefinition {
+  const sourceHex =
+    parseHexColor(theme.sourceHex || '') ||
+    parseHexColor(theme.swatch) ||
+    parseHexColor(theme.colors.primary.DEFAULT);
+  const rgb = hexToRgb(sourceHex);
+  if (!sourceHex || !rgb) return theme;
+
+  const base = rgbToHsl(rgb);
+  const hue = base.h;
+  const sat = Math.min(82, Math.max(18, base.s));
+  const tint = (lightness: number, saturation: number) =>
+    shade({ h: hue, l: lightness, s: saturation }, lightness, saturation);
+
+  const background = tint(DARK_LIGHTNESS.background, Math.min(sat, 16));
+  const surface = tint(DARK_LIGHTNESS.surface, Math.min(sat, 14));
+  const accent = ensureReadableOnDark(sourceHex, surface) || sourceHex;
+  const accentHsl = rgbToHsl(hexToRgb(accent)!);
+
+  return {
+    ...theme,
+    id: theme.id,
+    colors: {
+      primary: {
+        DEFAULT: accent,
+        50: tint(DARK_LIGHTNESS.chip, Math.min(sat, 24)),
+        100: tint(DARK_LIGHTNESS.input, Math.min(sat, 26)),
+        200: tint(DARK_LIGHTNESS.border, Math.min(sat, 28)),
+        300: tint(34, Math.min(sat, 36)),
+        400: tint(46, Math.min(sat, 48)),
+        500: accent,
+        600: shade(accentHsl, Math.max(24, accentHsl.l - 8)),
+        700: shade(accentHsl, Math.max(20, accentHsl.l - 16)),
+        800: shade(accentHsl, Math.max(16, accentHsl.l - 24)),
+        900: shade(accentHsl, Math.max(12, accentHsl.l - 32)),
+      },
+      secondary: theme.colors.secondary,
+      ink: tint(DARK_LIGHTNESS.ink, 8),
+      inkLight: tint(DARK_LIGHTNESS.inkLight, 10),
+      mist: background,
+      surface,
+    },
+  };
 }
 
 export function buildPaletteFromHex(value: string): ColorThemeDefinition | null {

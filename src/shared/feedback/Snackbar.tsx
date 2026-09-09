@@ -74,6 +74,7 @@ export function Snackbar({
   const isSuccess = tone === 'success';
   const isDanger = tone === 'danger';
   const bg = isSuccess ? colors.success : isDanger ? colors.danger : colors.text;
+  const foreground = isSuccess ? colors.onSuccess : isDanger ? colors.onDanger : colors.surface;
   const icon = isSuccess ? 'check-circle' : isDanger ? 'alert-circle' : 'information';
 
   return (
@@ -88,10 +89,10 @@ export function Snackbar({
         },
       ]}>
       <View style={[styles.snack, { backgroundColor: bg }]}>
-        <MaterialCommunityIcons name={icon} size={20} color={colors.white} />
-        <Text style={[styles.text, { color: colors.white }]}>{message}</Text>
+        <MaterialCommunityIcons name={icon} size={20} color={foreground} />
+        <Text style={[styles.text, { color: foreground }]}>{message}</Text>
         <Pressable onPress={handleClose} hitSlop={8} style={styles.close}>
-          <MaterialCommunityIcons name="close" size={16} color="rgba(255, 255, 255, 0.8)" />
+          <MaterialCommunityIcons name="close" size={16} color={foreground} style={styles.closeIcon} />
         </Pressable>
       </View>
     </Animated.View>
@@ -123,5 +124,8 @@ const styles = StyleSheet.create({
   },
   close: {
     padding: 2,
+  },
+  closeIcon: {
+    opacity: 0.8,
   },
 });

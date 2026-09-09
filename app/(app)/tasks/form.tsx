@@ -326,7 +326,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   },
   staffRowActive: {
     borderColor: colors.accent,
-    backgroundColor: '#f6fbff',
+    backgroundColor: colors.infoSoft,
   },
   avatar: {
     width: 38,

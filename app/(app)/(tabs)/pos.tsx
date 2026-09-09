@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { FlashList } from '@shopify/flash-list';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -1656,9 +1656,9 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    backgroundColor: '#ffffff',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.backgroundAlt,
   },
   sessionInfo: {
     flexDirection: 'row',
@@ -1759,8 +1759,8 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     minHeight: 64,
   },
   modalTableCardOccupied: {
-    borderColor: '#eeddc8',
-    backgroundColor: '#fffbeb',
+    borderColor: colors.accentMuted,
+    backgroundColor: colors.warningSoft,
   },
   modalTableCardName: {
     fontSize: 13,

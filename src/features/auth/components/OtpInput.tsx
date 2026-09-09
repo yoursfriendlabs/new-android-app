@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   hiddenInput: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.02,
     fontSize: typography.body,
   },

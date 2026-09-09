@@ -580,6 +580,6 @@ const createStyles = (colors: AppPalette) =>
     saveButtonText: {
       fontSize: typography.body,
       fontWeight: '800',
-      color: '#FFFFFF',
+      color: colors.onPrimary,
     },
   });

@@ -123,8 +123,8 @@ export async function apiRequest<TResponse, TBody = undefined>({
   }
 
   if (auth) {
-    const token = session?.token || (global as any).apiToken;
-    const businessId = session?.businessId || (global as any).apiBusinessId;
+    const token = session?.token || (globalThis as any).apiToken;
+    const businessId = session?.businessId || (globalThis as any).apiBusinessId;
 
     if (!token) {
       throw new ApiError('Missing session token');

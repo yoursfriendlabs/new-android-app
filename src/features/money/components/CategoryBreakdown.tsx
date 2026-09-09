@@ -3,44 +3,11 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 
 import { formatCurrency } from '@/src/shared/lib/format';
-import { usePalette } from '@/src/stores/theme-store';
+import { CATEGORY_ICONS, getSeriesTone } from '@/src/features/money/lib/category-visuals';
+import { usePalette, useThemeMode } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
-
-const PALETTE_COLORS = [
-  '#059669', // Emerald
-  '#d97706', // Amber
-  '#e11d48', // Rose
-  '#2563eb', // Blue
-  '#7c3aed', // Purple
-  '#0284c7', // Sky
-  '#ea580c', // Orange
-  '#0d9488', // Teal
-  '#4f46e5', // Indigo
-  '#64748b', // Slate
-];
-
-const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  'Food': 'food-fork-drink',
-  'Shopping': 'shopping',
-  'Transport': 'car',
-  'Housing': 'home',
-  'Rent': 'home-city',
-  'Entertainment': 'movie-open',
-  'Education': 'school',
-  'Salary': 'briefcase',
-  'Investments': 'chart-line',
-  'Allowance': 'wallet-giftcard',
-  'Gift': 'gift',
-  'Bonus': 'trophy',
-  'Health': 'heart-pulse',
-  'Bills': 'receipt',
-  'Freelance': 'laptop',
-  'Family': 'account-child',
-  'Refund': 'cash-refund',
-  'Other': 'dots-horizontal-circle-outline',
-};
 
 export interface CategoryBreakdownItem {
   id: string;
@@ -56,6 +23,7 @@ interface CategoryBreakdownProps {
 
 export function CategoryBreakdown({ items, currency = 'NPR' }: CategoryBreakdownProps) {
   const colors = usePalette();
+  const mode = useThemeMode();
   const styles = useThemedStyles(createStyles);
   const [tab, setTab] = useState<'out' | 'in'>('out');
 
@@ -112,7 +80,7 @@ export function CategoryBreakdown({ items, currency = 'NPR' }: CategoryBreakdown
         <View style={[styles.barTrack, { backgroundColor: colors.backgroundAlt }]}>
           {groups.map((group, idx) => {
             const pct = Math.max(group.total / total, 0.02);
-            const color = PALETTE_COLORS[idx % PALETTE_COLORS.length];
+            const { color } = getSeriesTone(idx, mode);
             return (
               <View
                 key={group.title}
@@ -135,13 +103,13 @@ export function CategoryBreakdown({ items, currency = 'NPR' }: CategoryBreakdown
       ) : (
         <View style={styles.list}>
           {groups.map((group, idx) => {
-            const color = PALETTE_COLORS[idx % PALETTE_COLORS.length];
+            const { background, color } = getSeriesTone(idx, mode);
             const icon = CATEGORY_ICONS[group.title] || 'tag-outline';
             const pct = total > 0 ? ((group.total / total) * 100).toFixed(1) : '0';
 
             return (
               <View key={group.title} style={[styles.row, { borderColor: colors.border }]}>
-                <View style={[styles.iconBox, { backgroundColor: `${color}15` }]}>
+                <View style={[styles.iconBox, { backgroundColor: background }]}>
                   <MaterialCommunityIcons name={icon} size={18} color={color} />
                 </View>
 

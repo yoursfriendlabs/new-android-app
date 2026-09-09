@@ -533,7 +533,7 @@ const createStyles = (colors: AppPalette) =>
       alignItems: 'center',
     },
     heroMetaLabel: {
-      color: '#ffffff',
+      color: colors.surface,
       fontSize: typography.caption,
       fontWeight: '700',
     },

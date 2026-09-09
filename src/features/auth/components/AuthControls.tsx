@@ -64,7 +64,7 @@ export function AuthNotice({ message, tone = 'info' }: AuthNoticeProps) {
   const textColor = tone === 'error' ? colors.danger : tone === 'success' ? colors.success : colors.textMuted;
   const backgroundColor =
     tone === 'error' ? colors.dangerSoft : tone === 'success' ? colors.successSoft : colors.backgroundWarm;
-  const borderColor = tone === 'error' ? '#f1c0c0' : tone === 'success' ? '#b7e0c8' : colors.border;
+  const borderColor = tone === 'error' ? colors.dangerSoft : tone === 'success' ? colors.successSoft : colors.border;
 
   return (
     <View style={[styles.notice, { backgroundColor, borderColor }]}>
@@ -134,7 +134,7 @@ export function PasswordHints({ password }: { password: string }) {
               styles.hintChip,
               {
                 backgroundColor: ok ? colors.successSoft : colors.backgroundWarm,
-                borderColor: ok ? '#b7e0c8' : colors.border,
+                borderColor: ok ? colors.successSoft : colors.border,
               },
             ]}>
             <MaterialCommunityIcons

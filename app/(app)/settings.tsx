@@ -8,6 +8,7 @@ import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
+import { ThemeModeSelector } from '@/src/shared/ui/ThemeModeSelector';
 import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
 import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
 import { DateFormatSelector } from '@/src/shared/ui/DateFormatSelector';
@@ -174,6 +175,7 @@ export default function SettingsScreen() {
       <SurfaceCard
         title={t('settings.appearance')}
         subtitle={t('settings.themeSubtitle')}>
+        <ThemeModeSelector />
         <ThemeSelector />
       </SurfaceCard>
 

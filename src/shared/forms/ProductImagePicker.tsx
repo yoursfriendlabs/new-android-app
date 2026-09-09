@@ -186,7 +186,7 @@ export function ProductImagePicker({
 
         {uploading ? (
           <View style={styles.overlay}>
-            <ActivityIndicator size="small" color="#ffffff" />
+            <ActivityIndicator size="small" color={colors.onPrimary} />
           </View>
         ) : (
           <View
@@ -203,7 +203,7 @@ export function ProductImagePicker({
             <MaterialCommunityIcons
               name={validUri ? 'camera-flip-outline' : 'camera-plus-outline'}
               size={badgeIconSize}
-              color={colors.onPrimary || '#ffffff'}
+              color={colors.onPrimary}
             />
           </View>
         )}
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',

@@ -329,11 +329,11 @@ export default function CashierScreen() {
               <Text style={styles.summaryLabel}>Total Tables</Text>
             </View>
             <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: '#10b981' }]}>{counters.vacant}</Text>
+              <Text style={[styles.summaryValue, { color: colors.success }]}>{counters.vacant}</Text>
               <Text style={styles.summaryLabel}>Vacant</Text>
             </View>
             <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: '#f59e0b' }]}>{counters.occupied}</Text>
+              <Text style={[styles.summaryValue, { color: colors.warning }]}>{counters.occupied}</Text>
               <Text style={styles.summaryLabel}>Occupied</Text>
             </View>
             <View style={[styles.summaryCard, { flexBasis: '100%' }]}>
@@ -440,7 +440,7 @@ export default function CashierScreen() {
                       <View
                         style={[
                           styles.tableStatusDot,
-                          { backgroundColor: isOccupied ? '#f59e0b' : '#10b981' },
+                          { backgroundColor: isOccupied ? colors.warning : colors.success },
                         ]}
                       />
                     </View>
@@ -695,9 +695,9 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.sm,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.backgroundAlt,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     minHeight: 32,
     justifyContent: 'center',
     alignItems: 'center',
@@ -712,17 +712,17 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textSoft,
   },
   filterChipLabelActive: {
-    color: '#ffffff',
+    color: colors.surface,
     fontWeight: '700',
   },
   tableBtnVacant: {
-    borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
+    borderColor: colors.border,
+    backgroundColor: colors.backgroundAlt,
     borderStyle: 'dashed',
   },
   tableBtnOccupied: {
-    borderColor: colors.accentMuted || '#eeddc8',
-    backgroundColor: '#fffbeb',
+    borderColor: colors.accentMuted || colors.accentMuted,
+    backgroundColor: colors.warningSoft,
   },
   tableCardHeader: {
     flexDirection: 'row',
@@ -742,7 +742,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   tableCardInfo: {
     marginTop: spacing.xs,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: colors.backgroundAlt,
     paddingTop: spacing.xs,
   },
   tableBillDueLabel: {
@@ -826,7 +826,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: spacing.xs,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.backgroundAlt,
   },
   itemMeta: {
     flex: 1,

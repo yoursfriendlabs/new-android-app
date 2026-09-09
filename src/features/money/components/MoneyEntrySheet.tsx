@@ -39,7 +39,8 @@ import { workspaceAccessMessage, firstNonEmptyId } from '@/src/shared/lib/worksp
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { invalidatePartyQueries, useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { usePalette } from '@/src/stores/theme-store';
+import { getCategoryVisual } from '@/src/features/money/lib/category-visuals';
+import { usePalette, useThemeMode } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -50,27 +51,6 @@ type PaidMode = 'full' | 'due';
 
 const INCOME_CATEGORIES = ['Salary', 'Investments', 'Allowance', 'Bonus', 'Freelance', 'Family', 'Refund', 'Other'];
 const PERSONAL_EXPENSE_CATEGORIES = ['Food', 'Shopping', 'Transport', 'Housing', 'Bills', 'Entertainment', 'Education', 'Health', 'Other'];
-
-const CATEGORY_VISUALS: Record<string, { icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string; bg: string }> = {
-  'Food': { icon: 'food-fork-drink', color: '#d97706', bg: '#fef3c7' },
-  'Shopping': { icon: 'shopping', color: '#e11d48', bg: '#ffe4e6' },
-  'Transport': { icon: 'car', color: '#059669', bg: '#d1fae5' },
-  'Housing': { icon: 'home', color: '#0284c7', bg: '#e0f2fe' },
-  'Rent': { icon: 'home-city', color: '#0284c7', bg: '#e0f2fe' },
-  'Entertainment': { icon: 'movie-open', color: '#7c3aed', bg: '#ede9fe' },
-  'Education': { icon: 'school', color: '#2563eb', bg: '#dbeafe' },
-  'Salary': { icon: 'briefcase', color: '#b45309', bg: '#fef3c7' },
-  'Investments': { icon: 'chart-line', color: '#ca8a04', bg: '#fef9c3' },
-  'Allowance': { icon: 'wallet-giftcard', color: '#059669', bg: '#d1fae5' },
-  'Gift': { icon: 'gift', color: '#db2777', bg: '#fce7f3' },
-  'Bonus': { icon: 'trophy', color: '#ea580c', bg: '#ffedd5' },
-  'Health': { icon: 'heart-pulse', color: '#dc2626', bg: '#fee2e2' },
-  'Bills': { icon: 'receipt', color: '#4f46e5', bg: '#e0e7ff' },
-  'Freelance': { icon: 'laptop', color: '#0891b2', bg: '#cffafe' },
-  'Family': { icon: 'account-child', color: '#0d9488', bg: '#ccfbf1' },
-  'Refund': { icon: 'cash-refund', color: '#65a30d', bg: '#ecfccb' },
-  'Other': { icon: 'dots-horizontal-circle-outline', color: '#475569', bg: '#f1f5f9' },
-};
 
 const MONEY_KIND_OPTIONS = [
   { value: 'expense' as const, label: 'Expense', icon: 'arrow-up-bold-circle-outline' as const },
@@ -110,6 +90,7 @@ export function MoneyEntrySheet({
   visible,
 }: MoneyEntrySheetProps) {
   const colors = usePalette();
+  const mode = useThemeMode();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm(kind));
@@ -391,11 +372,7 @@ export function MoneyEntrySheet({
         <View style={styles.categoryGrid}>
           {categoryOptions.map((name) => {
             const active = form.category === name;
-            const visual = CATEGORY_VISUALS[name] || {
-              icon: isIncome ? 'cash-plus' : 'tag-outline',
-              color: colors.primary,
-              bg: colors.accentSoft,
-            };
+            const visual = getCategoryVisual(name, mode);
 
             return (
               <Pressable
@@ -406,7 +383,7 @@ export function MoneyEntrySheet({
                   active && { borderWidth: 1.5, backgroundColor: colors.accentSoft },
                 ]}
                 onPress={() => setForm((current) => ({ ...current, category: name }))}>
-                <View style={[styles.categoryIconBox, { backgroundColor: visual.bg }]}>
+                <View style={[styles.categoryIconBox, { backgroundColor: visual.background }]}>
                   <MaterialCommunityIcons name={visual.icon} size={16} color={visual.color} />
                 </View>
                 <Text

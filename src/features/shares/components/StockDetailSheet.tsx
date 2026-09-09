@@ -180,7 +180,7 @@ export function StockDetailSheet({
                   pressed && { opacity: 0.85 },
                 ]}
               >
-                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="#FFFFFF" />
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color={colors.onPrimary} />
                 <Text style={styles.tradeActionBtnText}>Buy Shares</Text>
               </Pressable>
 
@@ -195,7 +195,7 @@ export function StockDetailSheet({
                   pressed && { opacity: 0.85 },
                 ]}
               >
-                <MaterialCommunityIcons name="minus-circle-outline" size={18} color="#FFFFFF" />
+                <MaterialCommunityIcons name="minus-circle-outline" size={18} color={colors.onPrimary} />
                 <Text style={styles.tradeActionBtnText}>Sell Shares</Text>
               </Pressable>
             </View>
@@ -371,6 +371,6 @@ const createStyles = (colors: AppPalette) =>
     tradeActionBtnText: {
       fontSize: typography.body,
       fontWeight: '800',
-      color: '#FFFFFF',
+      color: colors.onPrimary,
     },
   });
