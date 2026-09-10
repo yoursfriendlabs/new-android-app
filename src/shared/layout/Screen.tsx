@@ -1,7 +1,7 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { useSegments } from 'expo-router';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TopAppBar } from '@/src/shared/layout/TopAppBar';
 import { usePalette } from '@/src/stores/theme-store';
@@ -30,6 +30,7 @@ export function Screen({
   topBarTitle,
 }: ScreenProps) {
   const colors = usePalette();
+  const insets = useSafeAreaInsets();
   const segments = useSegments() as string[];
   const isAppRoute = segments[0] === '(app)';
   const isRootTabScreen = segments[1] === '(tabs)' && segments.length === 3;
@@ -62,7 +63,12 @@ export function Screen({
             automaticallyAdjustKeyboardInsets={true}
             keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}>
+            contentContainerStyle={[
+              styles.scrollContent,
+              // Clear the tab bar, and on gesture-navigation phones the home
+              // indicator too, instead of trusting one fixed number.
+              { paddingBottom: Math.max(layout.stickyBarOffset, spacing.xxl + insets.bottom) },
+            ]}>
             {content}
           </ScrollView>
         ) : (
@@ -82,7 +88,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: layout.stickyBarOffset,
+    flexGrow: 1,
   },
   content: {
     flex: 1,

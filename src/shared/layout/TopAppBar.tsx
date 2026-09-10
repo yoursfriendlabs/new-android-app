@@ -29,7 +29,20 @@ const segmentTitleKeyMap: Record<string, string> = {
   'expense-categories': 'money.categories',
   invoice: 'pos.shareInvoice',
   'print-preview': 'pos.printReceipt',
+  orders: 'nav.orders',
+  tasks: 'nav.tasks',
+  staff: 'nav.staff',
+  'staff-salary': 'nav.salaries',
+  attendance: 'nav.attendance',
+  tables: 'nav.tables',
+  coins: 'nav.coins',
 };
+
+/** "money-insights" -> "Money insights", so an unmapped route never shows a raw slug. */
+function prettifySegment(segment: string) {
+  const words = segment.replace(/[-_]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : '';
+}
 
 interface TopAppBarProps {
   currentSegment?: string;
@@ -53,7 +66,7 @@ export function TopAppBar({
     (currentSegment && segmentTitleKeyMap[currentSegment]
       ? t(segmentTitleKeyMap[currentSegment])
       : currentSegment
-        ? currentSegment
+        ? prettifySegment(currentSegment)
         : 'PM');
   const resolvedLeadingMode =
     leadingMode === 'auto' ? (showBack ? 'back' : 'brand') : leadingMode;
