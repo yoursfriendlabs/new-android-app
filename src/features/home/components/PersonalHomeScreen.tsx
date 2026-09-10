@@ -10,7 +10,6 @@ import { formatClockTime } from '@/src/features/habits/lib/daily-money-reminder'
 import { uniqueLogDays } from '@/src/features/habits/lib/habits';
 import { MoneyCharts } from '@/src/features/home/components/MoneyCharts';
 import { PersonalPulseStrip } from '@/src/features/home/components/PersonalPulseStrip';
-import { PersonalShareWidget } from '@/src/features/shares/components/PersonalShareWidget';
 import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
 import { buildPersonalPulse } from '@/src/features/home/lib/personal-pulse';
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
@@ -224,13 +223,6 @@ export function PersonalHomeScreen() {
         segment: 'tasks',
         onPress: () => router.push('/(app)/tasks/inbox'),
       },
-      {
-        key: 'shares',
-        label: t('home.stocks'),
-        icon: 'chart-areaspline',
-        segment: 'shares',
-        onPress: () => router.push('/(app)/shares'),
-      },
     ] satisfies Shortcut[]
   ).filter((item) => canAccessSegment(accessContext, item.segment));
 
@@ -314,8 +306,6 @@ export function PersonalHomeScreen() {
           onPressReceive={() => router.push('/(app)/(tabs)/parties')}
           onPressPay={() => router.push('/(app)/(tabs)/parties')}
         />
-
-        <PersonalShareWidget hideAmounts={!balanceVisible} />
 
         <Pressable style={styles.logButton} onPress={() => openLog('expense')}>
           <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />

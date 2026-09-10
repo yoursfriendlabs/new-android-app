@@ -74,7 +74,6 @@ export default function AppLayout() {
       <Stack.Screen name="staff" />
       <Stack.Screen name="staff-salary" />
       <Stack.Screen name="attendance" />
-      <Stack.Screen name="shares" />
       <Stack.Screen name="money-insights" />
       <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
       <Stack.Screen name="cashier" />

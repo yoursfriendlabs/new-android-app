@@ -156,15 +156,6 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/banks',
       },
       {
-        id: 'shares',
-        segment: 'shares',
-        label: 'NEPSE & Stocks',
-        subtitle: 'Live share market & portfolio tracker',
-        icon: 'chart-areaspline',
-        tone: 'success',
-        route: '/(app)/shares',
-      },
-      {
         id: 'expense-categories',
         segment: 'expenses',
         label: 'Expense categories',
