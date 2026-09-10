@@ -5,6 +5,10 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonMetricGrid } from '@/src/shared/ui/Skeleton';
+import { Money, Text as AppText } from '@/src/shared/ui/Text';
+import { haptics } from '@/src/shared/lib/haptics';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
@@ -248,8 +252,13 @@ export function ShopHomeScreen() {
           </Pressable>
           <View style={styles.headerActions}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={balanceVisible ? 'Hide amounts' : 'Show amounts'}
               style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={() => setBalanceVisible((current) => !current)}>
+              onPress={() => {
+                haptics.tapLight();
+                setBalanceVisible((current) => !current);
+              }}>
               <MaterialCommunityIcons
                 name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
                 size={20}
@@ -258,6 +267,8 @@ export function ShopHomeScreen() {
             </Pressable>
             {canAccessSegment(accessContext, 'tasks') ? (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
                 style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
                 onPress={() => router.push('/(app)/tasks/notifications')}>
                 <MaterialCommunityIcons name="bell-outline" size={20} color={colors.text} />
@@ -275,7 +286,13 @@ export function ShopHomeScreen() {
             return (
               <Pressable
                 key={period.value}
-                onPress={() => setSelectedPeriod(period.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={period.label}
+                onPress={() => {
+                  haptics.selection();
+                  setSelectedPeriod(period.value);
+                }}
                 style={[
                   styles.periodChip,
                   {
@@ -291,6 +308,9 @@ export function ShopHomeScreen() {
           })}
         </ScrollView>
 
+        {summaryQuery.isLoading && !summary ? (
+          <SkeletonMetricGrid count={6} />
+        ) : (
         <View style={styles.metricGrid}>
           {metrics.map((metric) => {
             const backgroundColor =
@@ -304,32 +324,58 @@ export function ShopHomeScreen() {
             return (
               <Pressable
                 key={metric.key}
-                onPress={metric.onPress}
-                style={[styles.metricCard, { backgroundColor, borderColor: colors.border }]}>
+                accessibilityRole="button"
+                accessibilityLabel={`${metric.label}: ${money(metric.value, balanceVisible, currency)}`}
+                onPress={() => {
+                  haptics.tapLight();
+                  metric.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.metricCard,
+                  { backgroundColor, borderColor: colors.border },
+                  pressed && { opacity: 0.85 },
+                ]}>
                 <View style={styles.metricTop}>
-                  <Text style={[styles.metricLabel, { color: colors.textMuted }]}>{metric.label}</Text>
+                  <AppText variant="overline" tone="muted">
+                    {metric.label}
+                  </AppText>
                   <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textSoft} />
                 </View>
-                <Text numberOfLines={1} style={[styles.metricValue, { color: valueColor }]}>
-                  {money(metric.value, balanceVisible, currency)}
-                </Text>
-                <Text style={[styles.metricHint, { color: colors.textSoft }]}>{metric.hint}</Text>
+                <Money
+                  value={metric.value}
+                  currency={currency}
+                  hidden={!balanceVisible}
+                  color={valueColor}
+                  numberOfLines={1}
+                />
+                <AppText variant="caption" tone="soft">
+                  {metric.hint}
+                </AppText>
               </Pressable>
             );
           })}
         </View>
+        )}
 
         {shortcuts.length ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.quickActions')}</Text>
               <Pressable onPress={() => router.push('/(app)/(tabs)/more')}>
-                <Text style={[styles.sectionLink, { color: colors.primary }]}>{t('common.viewAll')}</Text>
+                <Text style={[styles.sectionLink, { color: colors.primaryText }]}>{t('common.viewAll')}</Text>
               </Pressable>
             </View>
             <View style={styles.shortcutRow}>
               {shortcuts.map((item) => (
-                <Pressable key={item.key} style={styles.shortcut} onPress={() => router.push(item.route as never)}>
+                <Pressable
+                  key={item.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(item.labelKey) || item.fallbackLabel}
+                  style={styles.shortcut}
+                  onPress={() => {
+                    haptics.tapLight();
+                    router.push(item.route as never);
+                  }}>
                   <View style={[styles.shortcutIcon, { backgroundColor: colors.primary }]}>
                     <MaterialCommunityIcons name={item.icon} size={20} color={colors.onPrimary} />
                   </View>
@@ -346,7 +392,7 @@ export function ShopHomeScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('home.recentActivity')}</Text>
             <Pressable onPress={() => router.push('/(app)/ledger')}>
-              <Text style={[styles.sectionLink, { color: colors.primary }]}>{t('money.ledger')}</Text>
+              <Text style={[styles.sectionLink, { color: colors.primaryText }]}>{t('money.ledger')}</Text>
             </Pressable>
           </View>
           <View style={[styles.listCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -354,7 +400,14 @@ export function ShopHomeScreen() {
               recentTransactions.map((item, index) => (
                 <View key={item.id}>
                   {index > 0 ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
-                  <Pressable style={styles.row} onPress={() => router.push(item.route as never)}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.kind}: ${item.title}`}
+                    style={styles.row}
+                    onPress={() => {
+                      haptics.tapLight();
+                      router.push(item.route as never);
+                    }}>
                     <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
                       <MaterialCommunityIcons name={item.icon} size={18} color={colors.primary} />
                     </View>
@@ -366,24 +419,23 @@ export function ShopHomeScreen() {
                         {item.kind} · {item.subtitle}
                       </Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.rowAmount,
-                        { color: item.positive ? colors.success : colors.danger },
-                      ]}>
-                      {item.positive ? '+' : '-'}
-                      {money(item.amount, balanceVisible, currency)}
-                    </Text>
+                    <Money
+                      value={item.positive ? item.amount : -item.amount}
+                      currency={currency}
+                      hidden={!balanceVisible}
+                      signed
+                      variant="numeric"
+                      style={styles.rowAmountBox}
+                    />
                   </Pressable>
                 </View>
               ))
             ) : (
-              <View style={styles.empty}>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('common.noData')}</Text>
-                <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-                  {t('home.recentActivity')}
-                </Text>
-              </View>
+              <EmptyState
+                icon="timeline-text-outline"
+                title={t('common.noData')}
+                message="Sales, purchases and services you record will show up here."
+              />
             )}
           </View>
         </View>
@@ -415,17 +467,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     flex: 1,
     paddingRight: spacing.xs,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: '800',
   },
   profileCopy: {
     flex: 1,
@@ -492,26 +533,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.md,
     gap: 6,
-    ...shadows.card,
+    ...shadows.raised,
   },
   metricTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  metricLabel: {
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  metricValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  metricHint: {
-    fontSize: 11,
   },
   section: {
     gap: spacing.sm,
@@ -581,23 +608,10 @@ const styles = StyleSheet.create({
   rowSubtitle: {
     fontSize: typography.caption,
   },
-  rowAmount: {
-    fontSize: typography.body,
-    fontWeight: '700',
+  rowAmountBox: {
+    textAlign: 'right',
   },
   divider: {
     height: StyleSheet.hairlineWidth,
-  },
-  empty: {
-    paddingVertical: spacing.xl,
-    gap: spacing.xs,
-  },
-  emptyTitle: {
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  emptyCopy: {
-    fontSize: typography.caption,
-    lineHeight: 18,
   },
 });

@@ -18,6 +18,7 @@ import { expenseCategory } from '@/src/features/money/lib/expense';
 import { moneyCategoryFromPurchase, moneyPersonLabel } from '@/src/features/money/lib/money';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
@@ -402,12 +403,11 @@ export function PersonalHomeScreen() {
                 </View>
               ))
             ) : (
-              <View style={styles.empty}>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('home.noActivityYet')}</Text>
-                <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-                  {t('home.noActivityHint')}
-                </Text>
-              </View>
+              <EmptyState
+                icon="notebook-outline"
+                title={t('home.noActivityYet')}
+                message={t('home.noActivityHint')}
+              />
             )}
           </View>
         </View>
@@ -634,17 +634,5 @@ const createStyles = (colors: AppPalette) =>
     },
     divider: {
       height: StyleSheet.hairlineWidth,
-    },
-    empty: {
-      paddingVertical: spacing.xl,
-      gap: spacing.xs,
-    },
-    emptyTitle: {
-      fontSize: typography.body,
-      fontWeight: '700',
-    },
-    emptyCopy: {
-      fontSize: typography.caption,
-      lineHeight: 18,
     },
   });
