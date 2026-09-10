@@ -1,4 +1,7 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { haptics } from '@/src/shared/lib/haptics';
 
 import { formatCurrency, pluralize } from '@/src/shared/lib/format';
 import { usePalette } from '@/src/stores/theme-store';
@@ -21,7 +24,11 @@ export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProp
     : `${itemCount} ${pluralize('item', itemCount)}`;
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.primary }]}>
+    <LinearGradient
+      colors={[colors.primary, colors.primaryPressed]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.wrap}>
       <View style={styles.meta}>
         <Text style={[styles.kicker, { color: colors.onPrimary }]}>
           {hasItems ? itemText : t('pos.cartEmpty')}
@@ -29,14 +36,20 @@ export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProp
         <Text style={[styles.total, { color: colors.onPrimary }]}>{formatCurrency(total)}</Text>
       </View>
       <Pressable
-        style={[styles.button, { backgroundColor: colors.white }]}
-        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${t('pos.payNow')}, ${formatCurrency(total)}`}
+        accessibilityState={{ disabled: !hasItems }}
+        style={[styles.button, { backgroundColor: colors.surface }]}
+        onPress={() => {
+          haptics.tapMedium();
+          onPress();
+        }}
         disabled={!hasItems}>
         <Text style={[styles.buttonLabel, { color: hasItems ? colors.text : colors.textSoft }]}>
           {hasItems ? t('pos.payNow') : t('pos.cartEmpty')}
         </Text>
       </Pressable>
-    </View>
+    </LinearGradient>
   );
 }
 

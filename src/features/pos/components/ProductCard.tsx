@@ -1,7 +1,9 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatCurrency } from '@/src/shared/lib/format';
+import { haptics } from '@/src/shared/lib/haptics';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
 import { radius, spacing, typography } from '@/src/theme';
@@ -29,7 +31,16 @@ function getStockTone(stockOnHand: number | undefined, colors: AppPalette, t: (k
 }
 
 export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: ProductCardProps) {
+  const add = () => {
+    haptics.selection();
+    onAdd();
+  };
+  const subtract = () => {
+    haptics.selection();
+    onSubtract();
+  };
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
   const totalStock = Number(product.stockOnHand ?? 0);
@@ -45,18 +56,15 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
       return;
     }
 
-    Alert.alert(
-      product.name,
+    toast.info(
       [
-        product.categoryName ? `${t('common.category')}: ${product.categoryName}` : null,
-        product.primaryUnit ? `${t('inventory.unit')}: ${product.primaryUnit}` : null,
-        `${t('inventory.currentStock')}: ${sellableStock} ${product.primaryUnit || ''} sellable${
-          hasExpired ? ` (${expiredQty} expired)` : ''
-        }`,
-        `${t('common.price')}: ${formatCurrency(product.salePrice)}`,
+        product.categoryName,
+        `${sellableStock} ${product.primaryUnit || ''} in stock${hasExpired ? ` · ${expiredQty} expired` : ''}`,
+        formatCurrency(product.salePrice),
       ]
         .filter(Boolean)
-        .join('\n'),
+        .join(' · '),
+      { duration: 4000 },
     );
   }
 
@@ -69,7 +77,7 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
       ]}>
       
       {/* Product Image or Icon Banner */}
-      <Pressable style={styles.imageContainer} onPress={onAdd} onLongPress={showInfo}>
+      <Pressable style={styles.imageContainer} onPress={add} onLongPress={showInfo}>
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.productImg} resizeMode="cover" />
         ) : (
@@ -104,7 +112,7 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
       </Pressable>
 
       {/* Product Details */}
-      <Pressable style={styles.bodyPressable} onPress={onAdd} onLongPress={showInfo}>
+      <Pressable style={styles.bodyPressable} onPress={add} onLongPress={showInfo}>
         <Text numberOfLines={2} style={[styles.cleanTitle, { color: colors.text }]}>
           {product.name}
         </Text>
@@ -114,7 +122,7 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
           </Text>
         ) : null}
         <View style={styles.priceRow}>
-          <Text style={[styles.cleanPrice, { color: colors.primary }]}>
+          <Text style={[styles.cleanPrice, { color: colors.primaryText }]}>
             {formatCurrency(product.salePrice)}
           </Text>
           <Text style={[styles.cleanUnit, { color: colors.textMuted }]}>
@@ -126,20 +134,30 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
       {/* Quantity / Add Controls */}
       {quantity > 0 ? (
         <View style={styles.counter}>
-          <Pressable style={[styles.counterButton, { backgroundColor: colors.backgroundAlt }]} onPress={onSubtract}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Remove one ${product.name}`}
+            style={[styles.counterButton, { backgroundColor: colors.backgroundAlt }]}
+            onPress={subtract}>
             <MaterialCommunityIcons color={colors.text} name="minus" size={16} />
           </Pressable>
-          <Text style={[styles.counterValue, { color: colors.primary }]}>{quantity}</Text>
+          <Text style={[styles.counterValue, { color: colors.primaryText }]}>{quantity}</Text>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Add one ${product.name}`}
             style={[styles.counterButton, { backgroundColor: colors.primary }]}
-            onPress={onAdd}>
-            <MaterialCommunityIcons color={colors.white} name="plus" size={16} />
+            onPress={add}>
+            <MaterialCommunityIcons color={colors.onPrimary} name="plus" size={16} />
           </Pressable>
         </View>
       ) : (
-        <Pressable style={[styles.addButton, { backgroundColor: colors.primary }]} onPress={onAdd}>
-          <MaterialCommunityIcons color={colors.white} name="plus" size={15} />
-          <Text style={[styles.addLabel, { color: colors.white }]}>{t('common.add')}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${product.name}`}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
+          onPress={add}>
+          <MaterialCommunityIcons color={colors.onPrimary} name="plus" size={15} />
+          <Text style={[styles.addLabel, { color: colors.onPrimary }]}>{t('common.add')}</Text>
         </Pressable>
       )}
     </View>
@@ -183,7 +201,8 @@ const createStyles = (colors: AppPalette) =>
       maxWidth: '75%',
     },
     floatingCategoryText: {
-      color: colors.onPrimary,
+      // Sits on a fixed black scrim over the photo, so it stays white in both modes.
+      color: '#ffffff',
       fontSize: 9,
       fontWeight: '700',
     },
