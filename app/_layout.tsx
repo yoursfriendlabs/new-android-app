@@ -11,6 +11,8 @@ import { usePalette, useThemeStore } from '@/src/stores/theme-store';
 export { ErrorBoundary } from 'expo-router';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+// Dissolve into the app instead of cutting to it.
+SplashScreen.setOptions({ duration: 320, fade: true });
 
 function RootNavigator() {
   const colors = usePalette();

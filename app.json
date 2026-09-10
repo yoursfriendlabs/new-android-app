@@ -44,7 +44,13 @@
           "backgroundColor": "#0A2E20",
           "image": "./assets/images/logo-mark.png",
           "imageWidth": 200,
-          "resizeMode": "contain"
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#0f1512",
+            "image": "./assets/images/logo-mark.png",
+            "imageWidth": 200,
+            "resizeMode": "contain"
+          }
         }
       ],
       [
