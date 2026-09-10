@@ -19,6 +19,7 @@ import { useLanguageStore } from '@/src/stores/language-store';
 import { useDateFormatStore } from '@/src/stores/date-format-store';
 import { usePalette, useThemeMode, useThemeStore } from '@/src/stores/theme-store';
 import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
+import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 
 const queryClient = new QueryClient({
@@ -36,6 +37,7 @@ function BootstrapRuntime() {
     void useLanguageStore.getState().hydrate();
     void useDateFormatStore.getState().hydrate();
     void useThemeStore.getState().hydrate();
+    void useOnboardingStore.getState().hydrate();
     if (nativeRemindersAvailable()) {
       void import('@/src/features/habits/lib/interval-reminders')
         .then((mod) => {
@@ -138,8 +140,9 @@ export function AppProviders({ children }: PropsWithChildren) {
           <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <BootstrapRuntime />
           <SessionStateBridge />
-          <ReminderWatch />
           <ToastProvider>
+            {/* Inside the toast provider: reminders surface as toasts. */}
+            <ReminderWatch />
             <ConfirmProvider>{children}</ConfirmProvider>
           </ToastProvider>
         </QueryClientProvider>

@@ -1,5 +1,6 @@
 import { Redirect, Stack, useSegments } from 'expo-router';
 
+import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
 import { canAccessSegment, isGeneralStaffUser } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 
@@ -10,12 +11,18 @@ export default function AppLayout() {
   const accessControl = useAuthStore((state) => state.accessControl);
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const segments = useSegments();
+  const onboardingStatus = useOnboardingStore((state) => state.status);
 
   if (status === 'signed-out') {
     return <Redirect href="/(auth)/login" />;
   }
 
   const currentLeafSegment = segments[segments.length - 1];
+
+  // First run: show the tour once before the app shell.
+  if (onboardingStatus === 'pending' && currentLeafSegment !== 'welcome') {
+    return <Redirect href="/(app)/welcome" />;
+  }
   const accessContext = {
     role: session?.role ?? user?.role ?? null,
     permissions: accessControl?.permissions ?? user?.permissions,
@@ -69,6 +76,9 @@ export default function AppLayout() {
       <Stack.Screen name="attendance" />
       <Stack.Screen name="shares" />
       <Stack.Screen name="money-insights" />
+      <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="cashier" />
+      <Stack.Screen name="tables" />
     </Stack>
   );
 }

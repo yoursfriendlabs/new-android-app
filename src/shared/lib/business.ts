@@ -358,6 +358,9 @@ export function getCapabilitySummary(user: PermissionCarrier) {
 }
 
 export function canAccessSegment(user: PermissionCarrier, segment?: string) {
+  // The first-run tour is open to every role, otherwise the gate loops.
+  if (segment === 'welcome') return true;
+
   if (isGeneralStaffUser(user)) {
     return (
       segment === 'attendance-tab' ||
