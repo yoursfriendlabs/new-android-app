@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { formatCurrency } from '@/src/shared/lib/format';
+import { FlowLineChart } from '@/src/shared/ui/charts/FlowLineChart';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -15,10 +16,12 @@ interface MoneyChartsProps {
   hideAmounts?: boolean;
 }
 
+/** Screen padding + card padding + card border, so the chart lines up with the card. */
+const CHART_INSET = spacing.lg + spacing.md + 1;
+
 export function MoneyCharts({ currency, expenseTotal, hideAmounts, incomeTotal, series }: MoneyChartsProps) {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
-  const peak = Math.max(...series.flatMap((point) => [point.income, point.expense]), 1);
   const combined = incomeTotal + expenseTotal;
   const saved = incomeTotal - expenseTotal;
 
@@ -46,35 +49,7 @@ export function MoneyCharts({ currency, expenseTotal, hideAmounts, incomeTotal, 
         </View>
       </View>
 
-      <View style={styles.bars}>
-        {series.map((point) => (
-          <View key={point.key} style={styles.day}>
-            <View style={styles.pair}>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    height: Math.max(4, (point.income / peak) * 88),
-                    backgroundColor: point.income ? colors.success : colors.border,
-                    opacity: point.income ? 1 : 0.45,
-                  },
-                ]}
-              />
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    height: Math.max(4, (point.expense / peak) * 88),
-                    backgroundColor: point.expense ? colors.danger : colors.border,
-                    opacity: point.expense ? 1 : 0.45,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={[styles.dayLabel, { color: colors.textSoft }]}>{point.label}</Text>
-          </View>
-        ))}
-      </View>
+      <FlowLineChart points={series} horizontalInset={CHART_INSET} />
 
       <View style={[styles.splitTrack, { backgroundColor: colors.background }]}>
         {combined > 0 ? (
@@ -144,32 +119,6 @@ const createStyles = (_colors: AppPalette) =>
     },
     legendLabel: {
       fontSize: typography.caption,
-      fontWeight: '700',
-    },
-    bars: {
-      height: 118,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-      gap: 4,
-    },
-    day: {
-      flex: 1,
-      alignItems: 'center',
-      gap: 6,
-    },
-    pair: {
-      height: 88,
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      gap: 3,
-    },
-    bar: {
-      width: 8,
-      borderRadius: 5,
-    },
-    dayLabel: {
-      fontSize: 10,
       fontWeight: '700',
     },
     splitTrack: {

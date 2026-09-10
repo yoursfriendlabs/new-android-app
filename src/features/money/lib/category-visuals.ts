@@ -48,19 +48,39 @@ const CATEGORY_HUES: Record<string, string> = {
   Other: '#475569',
 };
 
-/** Chart series order — distinct hues that stay apart in both light and dark. */
-export const CATEGORY_SERIES = [
-  '#059669',
-  '#d97706',
-  '#e11d48',
-  '#2563eb',
-  '#7c3aed',
-  '#0284c7',
-  '#ea580c',
-  '#0d9488',
-  '#4f46e5',
-  '#64748b',
+/**
+ * Chart series order — eight fixed slots, assigned in order and never cycled.
+ * Validated for colour-blind separation and contrast against both the light and
+ * the dark card surface; anything past slot 8 folds into "Other".
+ */
+const CATEGORY_SERIES_LIGHT = [
+  '#2a78d6', // blue
+  '#eb6834', // orange
+  '#1baf7a', // aqua
+  '#eda100', // yellow
+  '#e87ba4', // magenta
+  '#008300', // green
+  '#4a3aa7', // violet
+  '#e34948', // red
 ];
+
+const CATEGORY_SERIES_DARK = [
+  '#3987e5',
+  '#d95926',
+  '#199e70',
+  '#c98500',
+  '#d55181',
+  '#008300',
+  '#9085e9',
+  '#e66767',
+];
+
+/** The tail of a long category list is one grey slot, not a ninth hue. */
+const OTHER_SLOT = { dark: '#a3adbd', light: '#5a687d' };
+
+export const SERIES_SLOT_COUNT = CATEGORY_SERIES_LIGHT.length;
+
+export const CATEGORY_SERIES = CATEGORY_SERIES_LIGHT;
 
 const FALLBACK_ICON: IconName = 'tag-outline';
 
@@ -81,7 +101,12 @@ export function getCategoryVisual(name: string, mode: ThemeMode): CategoryVisual
   };
 }
 
-/** Colour for the nth slice/bar of a chart, adapted to the current mode. */
+/**
+ * Colour for the nth series of a chart. Slots are fixed, so a category keeps its
+ * colour when the list is filtered; index 8 and beyond is the grey "Other" slot.
+ */
 export function getSeriesTone(index: number, mode: ThemeMode) {
-  return categoryTone(CATEGORY_SERIES[index % CATEGORY_SERIES.length], mode);
+  const slots = mode === 'dark' ? CATEGORY_SERIES_DARK : CATEGORY_SERIES_LIGHT;
+  const color = index < slots.length ? slots[index] : OTHER_SLOT[mode];
+  return { background: categoryTone(color, mode).background, color };
 }

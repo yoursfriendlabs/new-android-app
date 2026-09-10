@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 
 import { formatCurrency } from '@/src/shared/lib/format';
-import { CATEGORY_ICONS, getSeriesTone } from '@/src/features/money/lib/category-visuals';
+import { CATEGORY_ICONS, SERIES_SLOT_COUNT, getSeriesTone } from '@/src/features/money/lib/category-visuals';
 import { usePalette, useThemeMode } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -43,7 +43,20 @@ export function CategoryBreakdown({ items, currency = 'NPR' }: CategoryBreakdown
     }
 
     const sorted = Array.from(map.values()).sort((a, b) => b.total - a.total);
-    return { groups: sorted, total: sum };
+    if (sorted.length <= SERIES_SLOT_COUNT) {
+      return { groups: sorted, total: sum };
+    }
+
+    // Past the eight fixed colour slots the tail becomes one "Other" row rather
+    // than a ninth hue nobody can tell apart.
+    const head = sorted.slice(0, SERIES_SLOT_COUNT - 1);
+    const tail = sorted.slice(SERIES_SLOT_COUNT - 1);
+    head.push({
+      title: 'Other',
+      total: tail.reduce((acc, group) => acc + group.total, 0),
+      count: tail.reduce((acc, group) => acc + group.count, 0),
+    });
+    return { groups: head, total: sum };
   }, [filteredItems]);
 
   return (
@@ -203,6 +216,7 @@ const createStyles = (_colors: AppPalette) =>
       borderRadius: radius.pill,
       overflow: 'hidden',
       flexDirection: 'row',
+      // 2px of track showing between segments does the separating, not borders.
       gap: 2,
     },
     list: {
