@@ -156,6 +156,15 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/banks',
       },
       {
+        id: 'budgets',
+        segment: 'budgets',
+        label: 'Budgets',
+        subtitle: 'Spending limits and early warnings',
+        icon: 'target',
+        tone: 'success',
+        route: '/(app)/budgets',
+      },
+      {
         id: 'expense-categories',
         segment: 'expenses',
         label: 'Expense categories',

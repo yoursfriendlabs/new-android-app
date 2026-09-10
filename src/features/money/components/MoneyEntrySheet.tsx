@@ -29,7 +29,7 @@ import { useHabitStore } from '@/src/stores/habit-store';
 import { buildMoneyPurchasePayload } from '@/src/features/money/lib/money';
 import { workspaceAccessMessage, firstNonEmptyId } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
-import { useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
+import { invalidateMoneyQueries, useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { getCategoryVisual } from '@/src/features/money/lib/category-visuals';
 import { usePalette, useThemeMode } from '@/src/stores/theme-store';
@@ -186,10 +186,7 @@ export function MoneyEntrySheet({
           // Duplicate or offline is fine; the money entry still saved.
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      await queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
-      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      await queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      await invalidateMoneyQueries(queryClient);
       await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
 
       const storedDates = await useHabitStore.getState().recordLog(form.date);

@@ -15,7 +15,7 @@ import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
+import { invalidateMoneyQueries, useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { usePalette } from '@/src/stores/theme-store';
@@ -165,8 +165,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
           body: payload,
         }),
       );
-      await queryClient.invalidateQueries({ queryKey: ['purchases'] });
-      await queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
+      await invalidateMoneyQueries(queryClient);
       setSuccess({
         visible: true,
         queued: result.queued,

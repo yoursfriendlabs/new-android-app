@@ -1,6 +1,8 @@
 import type {
   AccessControl,
   BankAccount,
+  Budget,
+  BudgetSummary,
   BusinessProfile,
   BusinessTypeOption,
   Category,
@@ -358,6 +360,59 @@ export function normalizeQuickExpense(raw: unknown): QuickExpense {
     businessId: asString(record.businessId, ''),
     name: asString(firstDefined(record.name, record.label), 'Expense Category'),
     kind: asString(firstDefined(record.kind, record.type), 'expense') as QuickExpense['kind'],
+  };
+}
+
+export function normalizeBudget(raw: unknown): Budget {
+  const record = asRecord(raw) ?? {};
+  const scope = asString(record.scope, 'category') === 'total' ? 'total' : 'category';
+  const periodValue = asString(record.period, 'monthly');
+  const period = ['weekly', 'monthly', 'yearly'].includes(periodValue)
+    ? periodValue as Budget['period']
+    : 'monthly';
+  const statusValue = asString(record.status, 'ok');
+
+  return {
+    ...(record as Budget),
+    id: asString(firstDefined(record.id, record._id), ''),
+    name: asString(record.name, scope === 'total' ? 'Overall spending' : 'Budget'),
+    scope,
+    categoryKey: asString(record.categoryKey, '') || null,
+    categoryName: asString(record.categoryName, '') || null,
+    amount: asNumber(record.amount),
+    period,
+    isActive: Boolean(firstDefined(record.isActive, true)),
+    notes: asString(record.notes, '') || null,
+    spent: asNumber(record.spent),
+    remaining: asNumber(record.remaining),
+    percentUsed: asNumber(record.percentUsed),
+    status: ['ok', 'warning', 'over'].includes(statusValue) ? statusValue as Budget['status'] : 'ok',
+    pacePerDay: asNumber(record.pacePerDay),
+    projectedSpend: asNumber(record.projectedSpend),
+    projectedStatus: asString(record.projectedStatus, 'ok') === 'over' ? 'over' : 'ok',
+    daysTotal: asNumber(record.daysTotal),
+    daysElapsed: asNumber(record.daysElapsed),
+    daysLeft: asNumber(record.daysLeft),
+    periodStart: asString(record.periodStart, ''),
+    periodEnd: asString(record.periodEnd, ''),
+    periodLabel: asString(record.periodLabel, ''),
+  };
+}
+
+export function normalizeBudgetSummary(raw: unknown): BudgetSummary {
+  const record = asRecord(unwrapEntity<unknown>(raw)) ?? {};
+  const attention = asRecord(record.attention);
+  return {
+    budgetCount: asNumber(record.budgetCount),
+    totalBudgeted: asNumber(record.totalBudgeted),
+    totalSpent: asNumber(record.totalSpent),
+    totalRemaining: asNumber(record.totalRemaining),
+    percentUsed: asNumber(record.percentUsed),
+    okCount: asNumber(record.okCount),
+    warningCount: asNumber(record.warningCount),
+    overCount: asNumber(record.overCount),
+    projectedOverCount: asNumber(record.projectedOverCount),
+    attention: attention ? normalizeBudget(attention) : null,
   };
 }
 
@@ -1041,4 +1096,3 @@ export function normalizeTaskNotificationSummary(raw: unknown): TaskNotification
     recentActivities,
   };
 }
-

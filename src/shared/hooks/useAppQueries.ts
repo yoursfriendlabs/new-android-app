@@ -6,6 +6,7 @@ import {
   authApi,
   analyticsApi,
   banksApi,
+  budgetsApi,
   categoriesApi,
   metaApi,
   orderAttributesApi,
@@ -25,6 +26,8 @@ import {
 import {
   extractListItems,
   normalizeBank,
+  normalizeBudget,
+  normalizeBudgetSummary,
   normalizeBusinessProfile,
   normalizeBusinessTypeOption,
   normalizeCategory,
@@ -70,6 +73,8 @@ import { todayIso } from '@/src/shared/lib/format';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import type {
   BankAccount,
+  Budget,
+  BudgetSummary,
   BusinessProfile,
   BusinessSettings,
   BusinessTypeOption,
@@ -116,6 +121,11 @@ async function withFallback<T>(loader: () => Promise<T>, fallback: () => Promise
     }
     throw error;
   }
+}
+
+export interface BudgetListData {
+  items: Budget[];
+  summary: BudgetSummary;
 }
 
 function filterProducts(items: Product[], search: string) {
@@ -428,6 +438,43 @@ export function invalidatePartyQueries(queryClient: QueryClient, partyIds: strin
   });
 
   return Promise.all(jobs);
+}
+
+/** Expense writes affect every budget's current spend, so keep the two in step. */
+export function invalidateMoneyQueries(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+    queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
+    queryClient.invalidateQueries({ queryKey: ['analytics-expenses'] }),
+    queryClient.invalidateQueries({ queryKey: ['budgets'] }),
+    queryClient.invalidateQueries({ queryKey: ['budget-summary'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+  ]);
+}
+
+export function useBudgets(query: { isActive?: boolean; period?: string } = {}) {
+  return useQuery<BudgetListData>({
+    queryKey: ['budgets', query.isActive ?? 'all', query.period ?? 'all'],
+    queryFn: async () => {
+      const response = await budgetsApi.list({ limit: 100, ...query });
+      const raw = unwrapEntity<Record<string, unknown>>(response);
+      const items = extractListItems<Budget>(raw).map(normalizeBudget).filter((item) => item.id);
+      return {
+        items,
+        summary: normalizeBudgetSummary(raw.summary),
+      };
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useBudgetSummary() {
+  return useQuery<BudgetSummary>({
+    queryKey: ['budget-summary'],
+    queryFn: async () => normalizeBudgetSummary(await budgetsApi.summary()),
+    staleTime: 30_000,
+  });
 }
 
 export function usePartyById(partyId?: string) {
@@ -937,4 +984,3 @@ export function useSalesList(query = {}) {
     staleTime: 10_000,
   });
 }
-

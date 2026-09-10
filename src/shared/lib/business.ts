@@ -11,6 +11,7 @@ export type AppCapability =
   | 'quick-entry'
   | 'services'
   | 'purchases'
+  | 'budgets'
   | 'parties'
   | 'banks'
   | 'ledger'
@@ -77,6 +78,13 @@ export const capabilityDefinitions: CapabilityDefinition[] = [
     description: 'Supplier purchases, expenses, and full purchase flow',
     aliases: ['purchase', 'purchases', 'supplier-purchases'],
     featureKey: 'purchases',
+  },
+  {
+    key: 'budgets',
+    label: 'Budgets',
+    description: 'Spending caps, progress, and early warnings',
+    aliases: ['budget', 'budgets', 'spending-plan'],
+    featureKey: 'reports',
   },
   {
     key: 'parties',
@@ -398,6 +406,8 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
     case 'purchases':
     case 'purchase-create':
       return hasAppCapability(user, 'purchases');
+    case 'budgets':
+      return hasAppCapability(user, 'budgets');
     case 'parties':
       return hasAppCapability(user, 'parties');
     case 'banks':

@@ -3,6 +3,8 @@ import type {
   AuthResponseShape,
   BankCreatePayload,
   BankUpdatePayload,
+  BudgetCreatePayload,
+  BudgetUpdatePayload,
   CategoryCreatePayload,
   CategoryUpdatePayload,
   ChangePasswordPayload,
@@ -68,6 +70,8 @@ import type {
 } from '@/src/types/contracts';
 import type {
   BankAccount,
+  Budget,
+  BudgetSummary,
   BusinessProfile,
   BusinessSettings,
   BusinessTypeOption,
@@ -452,6 +456,18 @@ export const banksApi = {
   remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/banks/${id}` }),
 };
 
+export const budgetsApi = {
+  list: (query: ListQuery = {}) =>
+    apiRequest<PaginatedResponse<Budget> & { summary?: BudgetSummary }>({ path: '/api/budgets', query }),
+  summary: () => apiRequest<BudgetSummary>({ path: '/api/budgets/summary' }),
+  get: (id: string) => apiRequest<Budget>({ path: `/api/budgets/${id}` }),
+  create: (payload: BudgetCreatePayload) =>
+    apiRequest<Budget, BudgetCreatePayload>({ method: 'POST', path: '/api/budgets', body: payload }),
+  update: (id: string, payload: BudgetUpdatePayload) =>
+    apiRequest<Budget, BudgetUpdatePayload>({ method: 'PATCH', path: `/api/budgets/${id}`, body: payload }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/budgets/${id}` }),
+};
+
 export const orderAttributesApi = {
   list: (entityType: string) =>
     apiRequest<OrderAttributeListResponse | PaginatedResponse<OrderAttribute>>({
@@ -582,7 +598,6 @@ export const coinsApi = {
       body: payload,
     }),
 };
-
 
 
 

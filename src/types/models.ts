@@ -646,6 +646,49 @@ export interface QuickExpense {
   kind?: 'expense' | 'income' | string;
 }
 
+export type BudgetScope = 'category' | 'total';
+export type BudgetPeriod = 'weekly' | 'monthly' | 'yearly';
+export type BudgetStatus = 'ok' | 'warning' | 'over';
+
+export interface Budget {
+  id: string;
+  name: string;
+  scope: BudgetScope;
+  categoryKey?: string | null;
+  categoryName?: string | null;
+  amount: number;
+  period: BudgetPeriod;
+  isActive: boolean;
+  notes?: string | null;
+  periodStart?: string;
+  periodEnd?: string;
+  periodLabel?: string;
+  daysTotal?: number;
+  daysElapsed?: number;
+  daysLeft?: number;
+  spent?: number;
+  remaining?: number;
+  percentUsed?: number;
+  status?: BudgetStatus;
+  pacePerDay?: number;
+  projectedSpend?: number;
+  projectedStatus?: 'ok' | 'over';
+  [key: string]: unknown;
+}
+
+export interface BudgetSummary {
+  budgetCount: number;
+  totalBudgeted: number;
+  totalSpent: number;
+  totalRemaining: number;
+  percentUsed: number;
+  okCount: number;
+  warningCount: number;
+  overCount: number;
+  projectedOverCount: number;
+  attention?: Budget | null;
+}
+
 export interface TaskAssignment {
   id: string;
   taskId: string;
@@ -752,5 +795,4 @@ export interface Attendance {
   status: 'present' | 'absent' | string;
   BusinessUser?: StaffMember;
 }
-
 

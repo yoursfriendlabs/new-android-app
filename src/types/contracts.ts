@@ -255,6 +255,7 @@ export interface ListQuery {
   entityType?: string;
   productId?: string;
   kind?: 'expense' | 'income' | string;
+  period?: 'weekly' | 'monthly' | 'yearly' | string;
 }
 
 export interface AuthResponseShape {
@@ -352,6 +353,19 @@ export interface QuickExpenseCreatePayload {
 }
 
 export type QuickExpenseUpdatePayload = Partial<QuickExpenseCreatePayload>;
+
+export interface BudgetCreatePayload {
+  name: string;
+  scope: 'category' | 'total';
+  amount: number;
+  period: 'weekly' | 'monthly' | 'yearly';
+  categoryKey?: string | null;
+  categoryName?: string | null;
+  notes?: string | null;
+  isActive?: boolean;
+}
+
+export type BudgetUpdatePayload = Partial<BudgetCreatePayload>;
 
 export interface TaskCreatePayload {
   title: string;
@@ -468,6 +482,5 @@ export interface CoinRedeemResponse {
     at?: string;
   };
 }
-
 
 

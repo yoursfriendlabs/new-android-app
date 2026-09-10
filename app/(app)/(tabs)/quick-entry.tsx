@@ -20,7 +20,7 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency, prettyDate, todayIso } from '@/src/shared/lib/format';
-import { useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
+import { invalidateMoneyQueries, useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { radius, spacing, typography } from '@/src/theme';
@@ -240,6 +240,7 @@ export default function QuickEntryScreen() {
 
       const savedAmount = expenseDraft.value.amount;
       const savedCategory = expenseDraft.value.category;
+      await invalidateMoneyQueries(queryClient);
       await expenseDraft.reset(createQuickExpenseDraft());
       setSuccessState({
         visible: true,
