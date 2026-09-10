@@ -15,7 +15,7 @@ import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
 import { buildPersonalPulse } from '@/src/features/home/lib/personal-pulse';
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
 import { expenseCategory } from '@/src/features/money/lib/expense';
-import { moneyCategoryFromPurchase, moneyPersonLabel } from '@/src/features/money/lib/money';
+import { moneyCategoryFromPurchase, moneyPersonLabel, moneyRemarkFromNote } from '@/src/features/money/lib/money';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -156,7 +156,7 @@ export function PersonalHomeScreen() {
         kind: t('home.expense'),
         icon: 'wallet-outline' as Shortcut['icon'],
         title: expenseCategory(item),
-        subtitle: `${prettyDate(item.purchaseDate)}  ·  ${moneyPersonLabel(null, item.partyName)}`,
+        subtitle: [prettyDate(item.purchaseDate), moneyRemarkFromNote(item.notes)].filter(Boolean).join('  ·  '),
         amount: Number(item.grandTotal ?? 0),
         positive: false,
         route: '/(app)/(tabs)/expenses',
@@ -167,7 +167,7 @@ export function PersonalHomeScreen() {
         kind: t('home.income'),
         icon: 'arrow-down-bold-circle-outline' as Shortcut['icon'],
         title: moneyCategoryFromPurchase(item),
-        subtitle: `${prettyDate(item.purchaseDate)}  ·  ${moneyPersonLabel(item.partyId ? partyById.get(item.partyId) ?? null : null, item.partyName)}`,
+        subtitle: [prettyDate(item.purchaseDate), moneyRemarkFromNote(item.notes)].filter(Boolean).join('  ·  '),
         amount: Number(item.grandTotal ?? 0),
         positive: true,
         route: '/(app)/(tabs)/expenses',

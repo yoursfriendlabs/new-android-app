@@ -49,6 +49,18 @@ export function moneyCategoryFromNote(note?: string | null) {
   return value.split(' · ')[0]?.trim() || 'Income';
 }
 
+/**
+ * The free-text half of a money note. `moneyNote` stores "Food · lunch for staff",
+ * where the first part is the category the row already shows as its title, so the
+ * list only wants what the user actually typed.
+ */
+export function moneyRemarkFromNote(note?: string | null) {
+  const value = String(note ?? '').trim();
+  if (!value) return '';
+  const separator = value.indexOf(' · ');
+  return separator === -1 ? '' : value.slice(separator + 3).trim();
+}
+
 export function moneyPersonLabel(party?: Party | null, fallbackName?: string | null) {
   if (party && !isHiddenMoneyParty(party)) return party.name;
   const name = String(fallbackName ?? '').trim();

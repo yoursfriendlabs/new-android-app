@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 
 import { buildSevenDayFlow } from '../src/features/home/lib/flow-series.ts';
 import { buildPersonalPulse } from '../src/features/home/lib/personal-pulse.ts';
-import { buildMoneyPurchasePayload, moneyCategoryFromPurchase } from '../src/features/money/lib/money.ts';
+import {
+  buildMoneyPurchasePayload,
+  moneyCategoryFromPurchase,
+  moneyRemarkFromNote,
+} from '../src/features/money/lib/money.ts';
 
 test('income payload is a purchase entry that does not require a party', () => {
   const payload = buildMoneyPurchasePayload({
@@ -38,6 +42,16 @@ test('expense payload carries no party either', () => {
   assert.equal(payload.partyId, undefined);
   assert.equal(payload.partyName, undefined);
   assert.equal(payload.entryType, 'expense');
+});
+
+test('money list shows what was typed, not the category again', () => {
+  assert.equal(moneyRemarkFromNote('Food · lunch for the staff'), 'lunch for the staff');
+  // No remark typed: the note is just the category, which the row already titles.
+  assert.equal(moneyRemarkFromNote('Food'), '');
+  assert.equal(moneyRemarkFromNote(''), '');
+  assert.equal(moneyRemarkFromNote(null), '');
+  // A remark containing the separator keeps all of itself.
+  assert.equal(moneyRemarkFromNote('Bills · wifi · office'), 'wifi · office');
 });
 
 test('personal pulse uses income purchases, not party payments', () => {

@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import type MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { parseISO } from 'date-fns';
 
+import { WALK_IN_LABEL } from '@/src/features/money/lib/money';
 import type { Purchase } from '@/src/types/models';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -27,6 +28,9 @@ export function expenseCategory(item: Purchase) {
 export function expenseTitle(item: Purchase) {
   const category = expenseCategory(item);
   const party = String(item.partyName ?? '').trim();
+  // Older rows can still carry a "Walk-in" party. That is not a name worth
+  // showing, so fall back to the category.
+  if (party && party.toLowerCase() === WALK_IN_LABEL.toLowerCase()) return category;
   if (party && party.toLowerCase() !== category.toLowerCase()) return party;
   return category;
 }

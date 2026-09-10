@@ -10,7 +10,7 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { expenseCategory, expenseDue, isInCurrentMonth } from '@/src/features/money/lib/expense';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-import { moneyCategoryFromPurchase, moneyPersonLabel } from '@/src/features/money/lib/money';
+import { moneyCategoryFromPurchase, moneyRemarkFromNote } from '@/src/features/money/lib/money';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties, usePurchases } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -65,7 +65,8 @@ export function PersonalMoneyScreen() {
         id: `out-${item.id}`,
         kind: 'out' as const,
         title: expenseCategory(item),
-        person: moneyPersonLabel(item.partyId ? partyById.get(item.partyId) ?? null : null, item.partyName),
+        note: moneyRemarkFromNote(item.notes),
+        method: item.paymentMethod === 'bank' ? 'Bank' : 'Cash',
         date: item.purchaseDate,
         amount: Number(item.grandTotal || 0),
         due: expenseDue(item),
@@ -77,7 +78,8 @@ export function PersonalMoneyScreen() {
         id: `in-${item.id}`,
         kind: 'in' as const,
         title: moneyCategoryFromPurchase(item),
-        person: moneyPersonLabel(item.partyId ? partyById.get(item.partyId) ?? null : null, item.partyName),
+        note: moneyRemarkFromNote(item.notes),
+        method: item.paymentMethod === 'bank' ? 'Bank' : 'Cash',
         date: item.purchaseDate,
         amount: Number(item.grandTotal || 0),
         due: 0,
@@ -96,7 +98,7 @@ export function PersonalMoneyScreen() {
     return rows.filter((row) => {
       if (filter !== 'all' && row.kind !== filter) return false;
       if (!query) return true;
-      return [row.title, row.person].some((value) => value.toLowerCase().includes(query));
+      return [row.title, row.note].some((value) => value.toLowerCase().includes(query));
     });
   }, [debouncedSearch, filter, rows]);
 
@@ -205,8 +207,12 @@ export function PersonalMoneyScreen() {
                   <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
                     {row.title}
                   </Text>
-                  <Text style={[styles.rowMeta, { color: colors.textMuted }]}>
-                    {[prettyDate(row.date), row.person].filter(Boolean).join('  ·  ')}
+                  <Text
+                    style={[styles.rowMeta, { color: colors.textMuted }]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail">
+                    {/* The note is the point; without one the line falls back to how it was paid. */}
+                    {[prettyDate(row.date), row.note || row.method].filter(Boolean).join('  ·  ')}
                   </Text>
                 </View>
                 <View style={styles.rowSide}>
@@ -322,6 +328,8 @@ const createStyles = (_colors: AppPalette) =>
     },
     rowSide: {
       alignItems: 'flex-end',
+      // Never squeezed by a long note — the note truncates instead.
+      flexShrink: 0,
     },
     rowAmount: {
       fontSize: typography.body,
