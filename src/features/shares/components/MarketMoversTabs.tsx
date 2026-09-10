@@ -56,7 +56,7 @@ export function MarketMoversTabs({
               <Text
                 style={[
                   styles.tabLabel,
-                  { color: isActive ? colors.white : colors.textMuted },
+                  { color: isActive ? colors.onPrimary : colors.textMuted },
                 ]}
               >
                 {tab.label}
@@ -73,7 +73,7 @@ export function MarketMoversTabs({
                   <Text
                     style={[
                       styles.tabBadgeText,
-                      { color: isActive ? colors.white : colors.text },
+                      { color: isActive ? colors.onPrimary : colors.text },
                     ]}
                   >
                     {tab.badge}

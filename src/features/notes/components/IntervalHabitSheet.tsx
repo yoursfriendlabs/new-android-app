@@ -119,9 +119,9 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
             onPress={() => void handleSave()}
             style={[styles.save, { backgroundColor: colors.primary }]}>
             {saving ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
-              <Text style={[styles.saveLabel, { color: colors.white }]}>
+              <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
                 {habit ? 'Save interval ping' : `Start · ${plusCoins(COIN_REWARDS.intervalCheckIn)} per check-in`}
               </Text>
             )}
@@ -194,7 +194,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
                 setUnit(item);
               }}
               style={[styles.unit, { backgroundColor: active ? colors.primary : colors.backgroundAlt }]}>
-              <Text style={[styles.unitLabel, { color: active ? colors.white : colors.text }]}>
+              <Text style={[styles.unitLabel, { color: active ? colors.onPrimary : colors.text }]}>
                 {item === 'min' ? 'Minutes' : 'Hours'}
               </Text>
             </Pressable>

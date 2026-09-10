@@ -51,7 +51,7 @@ export function WinMoment({ onAgain, onClose, win }: WinMomentProps) {
           ) : null}
           <Text style={[styles.message, { color: colors.textMuted }]}>{win.message}</Text>
           <Pressable style={[styles.primary, { backgroundColor: colors.primary }]} onPress={onClose}>
-            <Text style={[styles.primaryLabel, { color: colors.white }]}>Nice</Text>
+            <Text style={[styles.primaryLabel, { color: colors.onPrimary }]}>Nice</Text>
           </Pressable>
           {onAgain ? (
             <Pressable style={styles.again} onPress={onAgain}>

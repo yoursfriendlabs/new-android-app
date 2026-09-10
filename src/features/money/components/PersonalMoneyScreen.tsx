@@ -198,7 +198,7 @@ export function PersonalMoneyScreen() {
                   <MaterialCommunityIcons
                     name={row.kind === 'in' ? 'arrow-down' : 'arrow-up'}
                     size={18}
-                    color={colors.white}
+                    color={colors.onPrimary}
                   />
                 </View>
                 <View style={styles.rowCopy}>

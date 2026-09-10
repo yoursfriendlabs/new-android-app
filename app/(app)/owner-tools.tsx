@@ -605,7 +605,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontWeight: '700',
   },
   permissionChipTextActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   secondaryButton: {
     minHeight: 44,
@@ -626,7 +626,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '800',
     fontSize: typography.body,
   },

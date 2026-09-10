@@ -41,7 +41,7 @@ export function OtpInput({ autoFocus = true, error = false, onChange, onComplete
                   backgroundColor: error
                     ? colors.dangerSoft
                     : active
-                      ? colors.white
+                      ? colors.onPrimary
                       : filled
                         ? colors.backgroundWarm
                         : colors.surface,

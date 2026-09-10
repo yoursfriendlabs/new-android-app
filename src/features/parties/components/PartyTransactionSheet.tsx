@@ -127,7 +127,7 @@ export function PartyTransactionSheet({
           style={[styles.saveButton, { backgroundColor: colors.primary }]}
           onPress={() => void handleSave()}
           disabled={saving}>
-          <Text style={[styles.saveLabel, { color: colors.white }]}>
+          <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
             {saving ? 'Saving…' : isEditing ? 'Save payment' : 'Record payment'}
           </Text>
         </Pressable>

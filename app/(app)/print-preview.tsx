@@ -225,10 +225,10 @@ export default function PrintPreviewScreen() {
           onPress={printNow}
           disabled={busy || !html}>
           {busy ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <>
-              <MaterialCommunityIcons name="printer" size={20} color={colors.white} />
+              <MaterialCommunityIcons name="printer" size={20} color={colors.onPrimary} />
               <Text style={styles.primaryLabel}>Print Bill Now</Text>
             </>
           )}
@@ -477,7 +477,7 @@ const createStyles = (colors: AppPalette) =>
       gap: spacing.sm,
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

@@ -289,7 +289,7 @@ export default function SettingsScreen() {
                 value={toggle.value}
                 onValueChange={(value) => void handleToggle(toggle.key, value)}
                 trackColor={{ false: colors.border, true: colors.primary }}
-                thumbColor={colors.white}
+                thumbColor={'#ffffff'}
               />
             </View>
           ))}
@@ -387,7 +387,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },

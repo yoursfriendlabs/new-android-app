@@ -113,7 +113,7 @@ export function StreakHero({
           <Text style={[styles.actionLabel, { color: colors.success }]}>Income</Text>
         </Pressable>
         <Pressable style={[styles.action, { backgroundColor: colors.primary }]} onPress={onLogExpense}>
-          <Text style={[styles.actionLabel, { color: colors.white }]}>Expense</Text>
+          <Text style={[styles.actionLabel, { color: colors.onPrimary }]}>Expense</Text>
         </Pressable>
       </View>
     </View>

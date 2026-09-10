@@ -43,8 +43,8 @@ export function PortfolioSummaryCard({
             pressed && { opacity: 0.85 },
           ]}
         >
-          <MaterialCommunityIcons name="plus" size={16} color={colors.white} />
-          <Text style={[styles.addStockText, { color: colors.white }]}>Add Stock</Text>
+          <MaterialCommunityIcons name="plus" size={16} color={colors.onPrimary} />
+          <Text style={[styles.addStockText, { color: colors.onPrimary }]}>Add Stock</Text>
         </Pressable>
       </View>
 

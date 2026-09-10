@@ -154,7 +154,7 @@ export function AccountKindPicker({ onChange, value }: AccountKindPickerProps) {
               <MaterialCommunityIcons
                 name={option.icon}
                 size={22}
-                color={active ? colors.white : colors.textMuted}
+                color={active ? colors.onPrimary : colors.textMuted}
               />
             </View>
             <View style={styles.kindCopy}>

@@ -133,7 +133,7 @@ export function AmountKeypad({ onChange, value }: AmountKeypadProps) {
                   pressed && { backgroundColor: colors.backgroundAlt },
                 ]}
                 onPress={() => handleKeyPress(key)}>
-                <Text style={[styles.keyLabel, { color: key === '=' ? colors.white : colors.text }]}>{key}</Text>
+                <Text style={[styles.keyLabel, { color: key === '=' ? colors.onPrimary : colors.text }]}>{key}</Text>
               </Pressable>
             ))}
           </View>

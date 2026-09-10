@@ -41,7 +41,7 @@ export function SaveGoalSheet({ currency, onClose, onSave, value, visible }: Sav
                 onSave(amount);
                 onClose();
               }}>
-              <Text style={[styles.chipLabel, { color: active ? colors.white : colors.text }]}>
+              <Text style={[styles.chipLabel, { color: active ? colors.onPrimary : colors.text }]}>
                 {formatCurrency(amount, currency)}
               </Text>
             </Pressable>

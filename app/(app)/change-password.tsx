@@ -85,7 +85,7 @@ export default function ChangePasswordScreen() {
         ) : null}
         <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
           {submitting ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.primaryButtonLabel}>Save new password</Text>
           )}
@@ -119,7 +119,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },

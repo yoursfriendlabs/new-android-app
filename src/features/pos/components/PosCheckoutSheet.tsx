@@ -580,7 +580,7 @@ const createStyles = (colors: AppPalette) =>
       color: colors.text,
     },
     taxPresetLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     taxRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing.xs },
     taxLabel: { color: colors.textMuted, fontWeight: '700' },

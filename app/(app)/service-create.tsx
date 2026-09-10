@@ -418,7 +418,7 @@ export default function ServiceCreateScreen() {
                       isActive && styles.stepCircleActive,
                     ]}>
                     {isCompleted ? (
-                      <MaterialCommunityIcons name="check" size={14} color={colors.white} />
+                      <MaterialCommunityIcons name="check" size={14} color={colors.onPrimary} />
                     ) : (
                       <Text
                         style={[
@@ -769,7 +769,7 @@ export default function ServiceCreateScreen() {
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === grandTotal && { color: colors.white },
+                  draft.value.receivedTotal === grandTotal && { color: colors.onPrimary },
                 ]}>
                 Full ({formatCurrency(grandTotal)})
               </Text>
@@ -788,7 +788,7 @@ export default function ServiceCreateScreen() {
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === Math.round(grandTotal / 2) && { color: colors.white },
+                  draft.value.receivedTotal === Math.round(grandTotal / 2) && { color: colors.onPrimary },
                 ]}>
                 50% Advance
               </Text>
@@ -804,7 +804,7 @@ export default function ServiceCreateScreen() {
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === 0 && { color: colors.white },
+                  draft.value.receivedTotal === 0 && { color: colors.onPrimary },
                 ]}>
                 Pay Later (0)
               </Text>
@@ -1252,7 +1252,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   customerAvatarText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '800',
     fontSize: typography.subheading,
   },
@@ -1491,7 +1491,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     top: 6,
     right: 6,
     borderRadius: radius.pill,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -1537,7 +1537,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   emptyBankInfo: {
     flex: 1,
@@ -1747,7 +1747,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   modalPrimaryBtnLabel: {
     fontSize: typography.body,
     fontWeight: '800',
-    color: colors.white,
+    color: colors.onPrimary,
   },
   totalsOverviewCard: {
     backgroundColor: colors.surfaceMuted,

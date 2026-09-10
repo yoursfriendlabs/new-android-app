@@ -74,7 +74,7 @@ export function DeviceContactSheet({ onClose, onPick, visible }: DeviceContactSh
             onClose();
           }}>
           <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.avatarText, { color: colors.white }]}>{partyInitials(item.name)}</Text>
+            <Text style={[styles.avatarText, { color: colors.onPrimary }]}>{partyInitials(item.name)}</Text>
           </View>
           <View style={styles.copy}>
             <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>

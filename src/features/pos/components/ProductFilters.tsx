@@ -31,14 +31,14 @@ export function ProductFilters({
             placeholder="Search products"
             value={search}
             onChangeText={setSearch}
-            containerStyle={[styles.posSearchField, { backgroundColor: colors.white, borderColor: colors.border }]}
+            containerStyle={[styles.posSearchField, { backgroundColor: colors.surface, borderColor: colors.border }]}
             inputStyle={styles.posSearchInput}
           />
         </View>
         <Pressable
           style={[styles.addItemBtn, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/(app)/inventory')}>
-          <MaterialCommunityIcons color={colors.white} name="plus" size={22} />
+          <MaterialCommunityIcons color={colors.onPrimary} name="plus" size={22} />
         </Pressable>
       </View>
 
@@ -57,7 +57,7 @@ export function ProductFilters({
                 isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
               onPress={() => setCategory(opt)}>
-              <Text style={[styles.catChipLabel, { color: isSelected ? colors.white : colors.text }]}>{opt}</Text>
+              <Text style={[styles.catChipLabel, { color: isSelected ? colors.onPrimary : colors.text }]}>{opt}</Text>
             </Pressable>
           );
         })}

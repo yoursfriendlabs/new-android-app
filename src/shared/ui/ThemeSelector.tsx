@@ -135,7 +135,7 @@ export function CompactThemeRow() {
             }}
             style={[
               styles.dot,
-              { backgroundColor: theme.swatch, borderColor: selected ? colors.text : colors.white },
+              { backgroundColor: theme.swatch, borderColor: selected ? colors.text : colors.surface },
               selected && styles.dotSelected,
             ]}
             accessibilityLabel={theme.label}
@@ -149,7 +149,7 @@ export function CompactThemeRow() {
             styles.dot,
             {
               backgroundColor: colors.primary,
-              borderColor: themeId === CUSTOM_COLOR_THEME_ID ? colors.text : colors.white,
+              borderColor: themeId === CUSTOM_COLOR_THEME_ID ? colors.text : colors.surface,
             },
             themeId === CUSTOM_COLOR_THEME_ID && styles.dotSelected,
           ]}

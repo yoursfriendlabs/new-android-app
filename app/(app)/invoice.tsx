@@ -63,7 +63,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },

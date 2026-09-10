@@ -67,7 +67,7 @@ export function PartyPickerSheet({
       {onCreatePress ? (
         <Pressable style={[styles.walkInRow, { borderBottomColor: colors.border }]} onPress={onCreatePress}>
           <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons color={colors.white} name="account-plus-outline" size={22} />
+            <MaterialCommunityIcons color={colors.onPrimary} name="account-plus-outline" size={22} />
           </View>
           <View style={styles.partyMeta}>
             <Text style={[styles.partyName, { color: colors.text }]}>{createLabel ?? 'New contact'}</Text>
@@ -78,7 +78,7 @@ export function PartyPickerSheet({
       {onPhoneImportPress ? (
         <Pressable style={[styles.walkInRow, { borderBottomColor: colors.border }]} onPress={onPhoneImportPress}>
           <View style={[styles.avatar, { backgroundColor: colors.info }]}>
-            <MaterialCommunityIcons color={colors.white} name="cellphone" size={22} />
+            <MaterialCommunityIcons color={colors.onPrimary} name="cellphone" size={22} />
           </View>
           <View style={styles.partyMeta}>
             <Text style={[styles.partyName, { color: colors.text }]}>{phoneImportLabel ?? 'From phone contacts'}</Text>
@@ -89,7 +89,7 @@ export function PartyPickerSheet({
       {allowWalkIn ? (
         <Pressable style={[styles.walkInRow, { borderBottomColor: colors.border }]} onPress={() => onPick(null)}>
           <View style={[styles.avatar, { backgroundColor: colors.success }]}>
-            <MaterialCommunityIcons color={colors.white} name="cash" size={22} />
+            <MaterialCommunityIcons color={colors.onPrimary} name="cash" size={22} />
           </View>
           <View style={styles.partyMeta}>
             <Text style={[styles.partyName, { color: colors.text }]}>{walkInLabel ?? 'Cash Sale'}</Text>

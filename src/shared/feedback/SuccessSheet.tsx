@@ -35,7 +35,7 @@ export function SuccessSheet({ actions, message, onClose, queued, title, visible
                   { backgroundColor: queued ? colors.warning : colors.success },
                 ]}>
                 <MaterialCommunityIcons
-                  color={colors.white}
+                  color={colors.onPrimary}
                   name={queued ? 'cloud-upload-outline' : 'check'}
                   size={54}
                 />
