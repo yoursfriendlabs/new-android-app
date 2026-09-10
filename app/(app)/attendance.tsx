@@ -5,7 +5,6 @@ import * as Location from 'expo-location';
 import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import { staffApi, metaApi } from '@/src/api';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -27,6 +27,7 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function AttendanceScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
   const { businessUserId: searchUserId } = useLocalSearchParams<{ businessUserId?: string }>();
@@ -118,7 +119,7 @@ export default function AttendanceScreen() {
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       setActionSuccessMessage(res.message || t('staff.checkIn'));
-      Alert.alert(t('common.success'), res.message || t('staff.checkIn'));
+      toast.error(res.message || t('staff.checkIn'));
     },
     onError: (error: any) => {
       setErrorMessage(error?.message || t('common.error'));
@@ -131,7 +132,7 @@ export default function AttendanceScreen() {
       queryClient.invalidateQueries({ queryKey: ['attendance-today'] });
       queryClient.invalidateQueries({ queryKey: ['attendance-history'] });
       setActionSuccessMessage(res.message || t('staff.checkOut'));
-      Alert.alert(t('common.success'), res.message || t('staff.checkOut'));
+      toast.error(res.message || t('staff.checkOut'));
     },
     onError: (error: any) => {
       setErrorMessage(error?.message || t('common.error'));
@@ -240,7 +241,7 @@ export default function AttendanceScreen() {
                 </View>
               ) : !today ? (
                 <Pressable style={styles.bigCircleCheckIn} onPress={handlePunchIn}>
-                  <MaterialCommunityIcons name="fingerprint" size={54} color={colors.white} />
+                  <MaterialCommunityIcons name="fingerprint" size={54} color={colors.onPrimary} />
                   <Text style={styles.bigCircleText}>{t('staff.checkIn').toUpperCase()}</Text>
                 </Pressable>
               ) : today.punchOutTime ? (
@@ -250,7 +251,7 @@ export default function AttendanceScreen() {
                 </View>
               ) : (
                 <Pressable style={styles.bigCircleCheckOut} onPress={handlePunchOut}>
-                  <MaterialCommunityIcons name="logout" size={54} color={colors.white} />
+                  <MaterialCommunityIcons name="logout" size={54} color={colors.onPrimary} />
                   <Text style={styles.bigCircleText}>{t('staff.checkOut').toUpperCase()}</Text>
                 </Pressable>
               )}
@@ -524,7 +525,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 6,
@@ -544,7 +545,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   bigCircleText: {
     fontSize: 16,
     fontWeight: '800',
-    color: colors.white,
+    color: colors.onPrimary,
     letterSpacing: 1,
   },
   timeline: {
@@ -608,7 +609,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textMuted,
   },
   presetChipTextSelected: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   historyList: {

@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -15,6 +14,9 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { purchasesApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -97,6 +99,8 @@ function resolvePurchaseSupplier(item: Purchase, partyMap?: Map<string, Party>) 
 
 export default function PurchasesScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ filter?: string | string[]; openId?: string | string[] }>();
   const queryClient = useQueryClient();
@@ -225,21 +229,20 @@ export default function PurchasesScreen() {
       ]);
       setSelectedPurchaseId(null);
     } catch (error) {
-      Alert.alert('Unable to update', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
   }
 
-  function confirmRemovePurchase() {
-    Alert.alert('Delete this purchase bill?', 'This will remove the bill and all associated records.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete Bill',
-        style: 'destructive',
-        onPress: () => void removePurchase(),
-      },
-    ]);
+  async function confirmRemovePurchase() {
+    const confirmed = await confirm({
+      title: 'Delete this purchase bill?',
+      message: 'The bill and everything recorded against it will go.',
+      confirmLabel: 'Delete bill',
+      destructive: true,
+    });
+    if (confirmed) await removePurchase();
   }
 
   async function removePurchase() {
@@ -252,7 +255,7 @@ export default function PurchasesScreen() {
       ]);
       setSelectedPurchaseId(null);
     } catch (error) {
-      Alert.alert('Unable to delete', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
@@ -280,7 +283,7 @@ export default function PurchasesScreen() {
         'Share purchase report',
       );
     } catch (error) {
-      Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setExporting(false);
     }
@@ -426,7 +429,7 @@ export default function PurchasesScreen() {
                 <View style={styles.cardHeader}>
                   <View style={styles.customerWrap}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.avatarText, { color: colors.white }]}>
+                      <Text style={[styles.avatarText, { color: colors.onPrimary }]}>
                         {partyInitials(supplier.name)}
                       </Text>
                     </View>
@@ -534,7 +537,7 @@ export default function PurchasesScreen() {
         fullHeight
         footer={
           <View style={styles.footerActions}>
-            <Pressable style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]} onPress={confirmRemovePurchase}>
+            <Pressable style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]} onPress={() => void confirmRemovePurchase()}>
               <Text style={[styles.secondaryLabel, { color: colors.danger }]}>Delete</Text>
             </Pressable>
             <Pressable
@@ -542,7 +545,7 @@ export default function PurchasesScreen() {
               style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={() => void savePurchaseUpdate()}>
               {saving ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.primaryLabel}>Save Updates</Text>
               )}
@@ -551,8 +554,7 @@ export default function PurchasesScreen() {
         }>
         {isDetailLoading || !purchaseDetail ? (
           <View style={styles.detailLoadingWrap}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.helperText, { marginTop: spacing.sm }]}>Loading purchase details...</Text>
+            <SkeletonList count={4} avatar={false} />
           </View>
         ) : (
           <View style={styles.sheetContent}>
@@ -561,7 +563,7 @@ export default function PurchasesScreen() {
             <SurfaceCard title="Supplier Information">
               <View style={styles.customerDetailRow}>
                 <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.avatarLargeText, { color: colors.white }]}>
+                  <Text style={[styles.avatarLargeText, { color: colors.onPrimary }]}>
                     {partyInitials(selectedSupplier?.name || 'Supplier')}
                   </Text>
                 </View>
@@ -873,7 +875,7 @@ const createStyles = (colors: AppPalette) =>
       marginTop: spacing.sm,
     },
     emptyActionBtnText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
       fontSize: typography.body,
     },
@@ -952,7 +954,7 @@ const createStyles = (colors: AppPalette) =>
       fontSize: 12,
     },
     bankChipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     emptyBankInfo: {
       flex: 1,
@@ -1024,7 +1026,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

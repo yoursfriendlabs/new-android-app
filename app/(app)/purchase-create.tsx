@@ -1,8 +1,9 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { normalizePurchase, unwrapEntity } from '@/src/api/normalize';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { cacheRecentPurchases } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
@@ -65,6 +66,7 @@ function createPurchaseLine(): DraftPurchaseLine {
 
 export default function PurchaseCreateScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
   const [partySearch, setPartySearch] = useState('');
@@ -122,12 +124,12 @@ export default function PurchaseCreateScreen() {
 
   async function savePurchase() {
     if (!draft.value.supplier?.id) {
-      Alert.alert('Supplier required', 'Select a supplier before saving the purchase.');
+      toast.error('Select a supplier before saving the purchase.');
       return;
     }
 
     if (draft.value.paymentMethod === 'bank' && draft.value.amountPaid > 0 && !draft.value.bankId) {
-      Alert.alert('Bank required', 'Choose a bank account for bank payment.');
+      toast.error('Choose a bank account for bank payment.');
       return;
     }
 
@@ -136,7 +138,7 @@ export default function PurchaseCreateScreen() {
     );
 
     if (invalidSecondaryLine) {
-      Alert.alert('Secondary unit missing rate', 'This product is missing a secondary unit conversion rate.');
+      toast.error('This product is missing a secondary unit conversion rate.');
       return;
     }
 
@@ -212,10 +214,7 @@ export default function PurchaseCreateScreen() {
       await draft.reset(createPurchaseDraft());
       setSuccessState({ visible: true, queued: result.queued });
     } catch (error) {
-      Alert.alert(
-        'Unable to save purchase',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
@@ -408,7 +407,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   selectorAvatarText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -480,7 +479,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   emptyBankInfo: {
     flex: 1,

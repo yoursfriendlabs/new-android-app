@@ -1,11 +1,13 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi, reportsApi } from '@/src/api';
 import { extractListItems, normalizeStockLedgerEntry } from '@/src/api/normalize';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
@@ -49,6 +51,8 @@ export function ProductDetailSheet({
   visible,
 }: ProductDetailSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<DetailTab>(initialTab);
@@ -109,7 +113,7 @@ export function ProductDetailSheet({
       await invalidateInventoryQueries(queryClient);
       setEditLot(null);
     } catch (error) {
-      Alert.alert('Unable to update lot', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSavingEdit(false);
     }
@@ -120,13 +124,13 @@ export function ProductDetailSheet({
     const batchNumber = exchangeBatchNumber.trim();
     const expiry = exchangeExpiry.trim();
     if (!batchNumber || !expiry) {
-      Alert.alert('Exchange details required', 'Enter a new batch number and a future expiry date.');
+      toast.error('Enter a new batch number and a future expiry date.');
       return;
     }
 
     const today = new Date().toISOString().slice(0, 10);
     if (expiry < today) {
-      Alert.alert('Invalid expiry date', 'Replacement expiry must be today or in the future.');
+      toast.error('Replacement expiry must be today or in the future.');
       return;
     }
 
@@ -141,36 +145,31 @@ export function ProductDetailSheet({
       await invalidateInventoryQueries(queryClient);
       setExchangeLot(null);
     } catch (error) {
-      Alert.alert('Unable to exchange lot', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSavingExchange(false);
     }
   }
 
-  function confirmDestroyLot(batch: InventoryBatch) {
-    Alert.alert(
-      'Destroy expired lot?',
-      `Write off ${batch.quantityOnHand} ${unit} from batch "${batch.batchNumber || 'Unassigned'}". This will permanently reduce stock on hand.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Destroy lot',
-          style: 'destructive',
-          onPress: async () => {
-            if (!productId) return;
-            try {
-              await productsApi.destroyBatch(productId, batch.id, {
-                quantity: batch.quantityOnHand,
-                note: 'Destroyed expired lot from mobile',
-              });
-              await invalidateInventoryQueries(queryClient);
-            } catch (error) {
-              Alert.alert('Unable to destroy lot', error instanceof Error ? error.message : 'Please try again.');
-            }
-          },
-        },
-      ],
-    );
+  async function confirmDestroyLot(batch: InventoryBatch) {
+    const confirmed = await confirm({
+      title: 'Destroy expired lot?',
+      message: `Write off ${batch.quantityOnHand} ${unit} from batch "${batch.batchNumber || 'Unassigned'}". Stock on hand drops for good.`,
+      confirmLabel: 'Destroy lot',
+      destructive: true,
+    });
+    if (!confirmed || !productId) return;
+
+    try {
+      await productsApi.destroyBatch(productId, batch.id, {
+        quantity: batch.quantityOnHand,
+        note: 'Destroyed expired lot from mobile',
+      });
+      await invalidateInventoryQueries(queryClient);
+      toast.success('Expired lot written off');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not destroy this lot.');
+    }
   }
 
   return (
@@ -194,7 +193,7 @@ export function ProductDetailSheet({
             ) : null}
             {onEdit ? (
               <Pressable style={styles.primaryButton} onPress={() => onEdit(product)}>
-                <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.white} />
+                <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.onPrimary} />
                 <Text style={styles.primaryLabel}>Edit product</Text>
               </Pressable>
             ) : null}
@@ -375,7 +374,7 @@ export function ProductDetailSheet({
                         }}>
                         <MaterialCommunityIcons color={colors.primary} name="swap-horizontal" size={20} />
                       </Pressable>
-                      <Pressable style={styles.iconBtn} onPress={() => confirmDestroyLot(batch)}>
+                      <Pressable style={styles.iconBtn} onPress={() => void confirmDestroyLot(batch)}>
                         <MaterialCommunityIcons color={colors.danger} name="trash-can-outline" size={18} />
                       </Pressable>
                     </>
@@ -415,7 +414,7 @@ export function ProductDetailSheet({
                   onPress={() => void saveLotEdit()}
                   disabled={savingEdit}>
                   {savingEdit ? (
-                    <ActivityIndicator color={colors.white} />
+                    <ActivityIndicator color={colors.onPrimary} />
                   ) : (
                     <Text style={styles.primaryLabel}>Save lot</Text>
                   )}
@@ -465,7 +464,7 @@ export function ProductDetailSheet({
                   onPress={() => void saveLotExchange()}
                   disabled={savingExchange}>
                   {savingExchange ? (
-                    <ActivityIndicator color={colors.white} />
+                    <ActivityIndicator color={colors.onPrimary} />
                   ) : (
                     <Text style={styles.primaryLabel}>Complete exchange</Text>
                   )}
@@ -701,7 +700,7 @@ const createStyles = (colors: AppPalette) =>
       gap: 6,
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
     },
   });

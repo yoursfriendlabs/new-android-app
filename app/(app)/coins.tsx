@@ -1,8 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import {
   coinLabel,
@@ -31,6 +33,8 @@ function stamp(iso: string) {
 
 export default function CoinsScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const coins = useHabitStore((state) => state.coins);
   const history = useHabitStore((state) => state.history);
@@ -42,31 +46,25 @@ export default function CoinsScreen() {
 
   const redeem = (item: CoinMerch) => {
     if (coins < item.cost) {
-      Alert.alert('Need more coins', `This is ${coinLabel(item.cost)}. You have ${coinLabel(coins)}.`);
+      toast.error(`This is ${coinLabel(item.cost)}. You have ${coinLabel(coins)}.`);
       return;
     }
-    Alert.alert(
-      `Redeem ${item.title}?`,
-      `${minusCoins(item.cost)}. We'll mark it requested and follow up on merch.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Redeem',
-          onPress: () => {
-            void useHabitStore
-              .getState()
-              .spendCoins(item.cost, item.title, item.id)
-              .then((result) => {
-                if (!result.ok) {
-                  Alert.alert('Need more coins', `You have ${coinLabel(result.remaining)}.`);
-                  return;
-                }
-                Alert.alert('Requested', `${item.title} is in your redeem list. ${coinLabel(result.remaining)} left.`);
-              });
-          },
-        },
-      ],
-    );
+    void (async () => {
+      const confirmed = await confirm({
+        title: `Redeem ${item.title}?`,
+        message: `${minusCoins(item.cost)}. We'll mark it requested and follow up on merch.`,
+        confirmLabel: 'Redeem',
+        icon: 'gift-outline',
+      });
+      if (!confirmed) return;
+
+      const result = await useHabitStore.getState().spendCoins(item.cost, item.title, item.id);
+      if (!result.ok) {
+        toast.error(`You have ${coinLabel(result.remaining)}.`);
+        return;
+      }
+      toast.success(`${item.title} is in your redeem list. ${coinLabel(result.remaining)} left.`);
+    })();
   };
 
   const renderHistory = ({ item }: { item: CoinEvent }) => {

@@ -1,10 +1,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { categoriesApi, productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { ProductImagePicker } from '@/src/shared/forms/ProductImagePicker';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -63,6 +64,7 @@ function formFromProduct(product?: Product | null) {
 
 export function ProductFormSheet({ onClose, onOpenDetail, product, visible }: ProductFormSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const isJewellery = useAuthStore((state) => {
@@ -96,21 +98,21 @@ export function ProductFormSheet({ onClose, onOpenDetail, product, visible }: Pr
       setNewCategory('');
       setAddingCategory(false);
     } catch (error) {
-      Alert.alert('Unable to add category', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
   async function handleSave() {
     if (!form.name.trim()) {
-      Alert.alert('Name required', 'Enter a product name.');
+      toast.error('Enter a product name.');
       return;
     }
     if (!form.salePrice.trim()) {
-      Alert.alert('Sale price required', 'Enter a selling price.');
+      toast.error('Enter a selling price.');
       return;
     }
     if (!form.primaryUnit.trim() && !form.unitId) {
-      Alert.alert('Unit required', 'Pick or enter a primary unit.');
+      toast.error('Pick or enter a primary unit.');
       return;
     }
 
@@ -161,10 +163,7 @@ export function ProductFormSheet({ onClose, onOpenDetail, product, visible }: Pr
       await invalidateInventoryQueries(queryClient);
       onClose();
     } catch (error) {
-      Alert.alert(
-        isEditing ? 'Unable to update product' : 'Unable to create product',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -180,7 +179,7 @@ export function ProductFormSheet({ onClose, onOpenDetail, product, visible }: Pr
       footer={
         <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>
           {saving ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.saveLabel}>{isEditing ? 'Save changes' : 'Create product'}</Text>
           )}
@@ -502,7 +501,7 @@ const createStyles = (colors: AppPalette) =>
       color: colors.text,
     },
     chipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     chipAdd: {
       flexDirection: 'row',
@@ -535,7 +534,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     inlineButtonLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
     },
     formRow: {
@@ -607,7 +606,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     saveLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

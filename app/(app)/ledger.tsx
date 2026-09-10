@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -16,6 +15,8 @@ import {
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { Screen } from '@/src/shared/layout/Screen';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { Avatar } from '@/src/shared/ui/Avatar';
@@ -120,6 +121,7 @@ function mapPartyTxToLedger(
 
 export default function LedgerScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
@@ -281,7 +283,7 @@ export default function LedgerScreen() {
       setExporting(true);
       await printHtmlDocument(reportHtml());
     } catch (error) {
-      Alert.alert('Unable to print', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not print this report.');
     } finally {
       setExporting(false);
     }
@@ -292,7 +294,7 @@ export default function LedgerScreen() {
       setExporting(true);
       await shareHtmlAsPdf(reportHtml(), personal ? 'Share history PDF' : 'Share ledger PDF');
     } catch (error) {
-      Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not share this report.');
     } finally {
       setExporting(false);
     }
@@ -537,14 +539,11 @@ export default function LedgerScreen() {
           </View>
         </View>
 
-        {isLoading ? (
-          <View style={styles.empty}>
-            <ActivityIndicator color={colors.primary} size="large" />
-          </View>
-        ) : null}
+        {isLoading ? <SkeletonList count={6} avatar={false} /> : null}
 
         {!isLoading && !entries.length ? (
           <EmptyState
+            icon="file-document-outline"
             title="No records found"
             message={
               selectedParty

@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 
 import { tasksApi } from '@/src/api';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
 import { CoinChip } from '@/src/features/habits/components/CoinChip';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
@@ -47,6 +47,7 @@ type InboxTab = 'open' | 'notes' | 'done';
 
 export function PersonalNotesInbox() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const coins = useHabitStore((state) => state.coins);
@@ -105,7 +106,7 @@ export function PersonalNotesInbox() {
         }),
       );
     } catch (error) {
-      Alert.alert('Could not complete', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setBusyId(null);
     }
@@ -114,7 +115,7 @@ export function PersonalNotesInbox() {
   const checkIn = async (habit: IntervalHabit) => {
     const statusInfo = getIntervalClaimStatus(habit);
     if (statusInfo.status === 'waiting') {
-      Alert.alert('Ping not due yet', statusInfo.message);
+      toast.error(statusInfo.message);
       return;
     }
 
@@ -123,10 +124,9 @@ export function PersonalNotesInbox() {
       await useHabitStore.getState().checkInInterval(habit.id);
 
       if (statusInfo.status === 'missed') {
-        Alert.alert(
-          'Interval Timer Reset',
-          'You missed the previous interval notification window, so coins could not be claimed for that interval. Your interval timer has been reset — check in when your next ping arrives to claim your coins!',
-          [{ text: 'Got it' }],
+        toast.info(
+          'You missed that interval, so no coins this time. The timer is reset — check in on the next ping.',
+          { duration: 6000 },
         );
         return;
       }
@@ -374,7 +374,7 @@ export function PersonalNotesInbox() {
                         style={[
                           styles.customCheckBtnText,
                           {
-                            color: isReady || isMissed ? colors.white : colors.textMuted,
+                            color: isReady || isMissed ? colors.onPrimary : colors.textMuted,
                           },
                         ]}>
                         {isReady ? `+${COIN_REWARDS.intervalCheckIn} 🪙` : isMissed ? 'Reset' : 'Waiting'}
@@ -414,7 +414,7 @@ export function PersonalNotesInbox() {
       />
 
       <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => setComposerOpen(true)}>
-        <MaterialCommunityIcons color={colors.white} name="plus" size={26} />
+        <MaterialCommunityIcons color={colors.onPrimary} name="plus" size={26} />
       </Pressable>
 
       <ActionSheet

@@ -1,9 +1,13 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { quickExpensesApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -25,6 +29,8 @@ type CategoryKind = 'expense' | 'income';
 
 export default function ExpenseCategoriesScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const businessProfile = useAuthStore((state) => state.businessProfile);
@@ -53,7 +59,7 @@ export default function ExpenseCategoriesScreen() {
   async function handleAddCategory() {
     const name = createName.trim();
     if (!name) {
-      Alert.alert('Name required', 'Enter a category name.');
+      toast.error('Enter a category name.');
       return;
     }
 
@@ -64,7 +70,7 @@ export default function ExpenseCategoriesScreen() {
       setCreateName('');
       setCreateVisible(false);
     } catch (error) {
-      Alert.alert('Unable to create', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setAdding(false);
     }
@@ -79,7 +85,7 @@ export default function ExpenseCategoriesScreen() {
     if (!editingCategory) return;
     const name = editName.trim();
     if (!name) {
-      Alert.alert('Name required', 'Category name cannot be empty.');
+      toast.error('Category name cannot be empty.');
       return;
     }
 
@@ -89,28 +95,28 @@ export default function ExpenseCategoriesScreen() {
       await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
       setEditingCategory(null);
     } catch (error) {
-      Alert.alert('Unable to update', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSavingEdit(false);
     }
   }
 
-  function confirmDelete(category: QuickExpense) {
-    Alert.alert('Delete this category?', `"${category.name}" will be removed from quick labels.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await quickExpensesApi.remove(category.id);
-            await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
-          } catch (error) {
-            Alert.alert('Unable to delete', error instanceof Error ? error.message : 'Please try again.');
-          }
-        },
-      },
-    ]);
+  async function confirmDelete(category: QuickExpense) {
+    const confirmed = await confirm({
+      title: 'Delete this category?',
+      message: `"${category.name}" will be removed from quick labels.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await quickExpensesApi.remove(category.id);
+      await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
+      toast.success('Category deleted');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete this category.');
+    }
   }
 
   return (
@@ -149,23 +155,19 @@ export default function ExpenseCategoriesScreen() {
 
         <SearchField placeholder="Search categories" value={search} onChangeText={setSearch} />
 
-        {categoriesQuery.isLoading && !categories.length ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
-        ) : null}
+        {categoriesQuery.isLoading && !categories.length ? <SkeletonList count={5} /> : null}
 
         {!categoriesQuery.isLoading && !visibleCategories.length ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
-              <MaterialCommunityIcons name="shape-outline" size={28} color={colors.primary} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {categories.length ? 'No matching categories' : 'No categories yet'}
-            </Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {categories.length
-                ? 'Try a different search.'
-                : `Add a few labels so recording ${activeKind === 'income' ? 'income' : 'expenses'} is a one-tap choice.`}
-            </Text>
+          <View>
+            <EmptyState
+              icon="shape-outline"
+              title={categories.length ? 'No matching categories' : 'No categories yet'}
+              message={
+                categories.length
+                  ? 'Try a different search.'
+                  : `Add a few labels so recording ${activeKind === 'income' ? 'income' : 'expenses'} is one tap.`
+              }
+            />
           </View>
         ) : null}
 
@@ -183,7 +185,7 @@ export default function ExpenseCategoriesScreen() {
               <Pressable style={styles.iconBtn} onPress={() => startEdit(category)}>
                 <MaterialCommunityIcons color={colors.textMuted} name="pencil-outline" size={20} />
               </Pressable>
-              <Pressable style={styles.iconBtn} onPress={() => confirmDelete(category)}>
+              <Pressable style={styles.iconBtn} onPress={() => void confirmDelete(category)}>
                 <MaterialCommunityIcons color={colors.danger} name="trash-can-outline" size={20} />
               </Pressable>
             </View>
@@ -206,7 +208,7 @@ export default function ExpenseCategoriesScreen() {
             onPress={() => void handleAddCategory()}
             disabled={adding || !createName.trim()}>
             {adding ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.primaryLabel}>Create category</Text>
             )}
@@ -232,7 +234,7 @@ export default function ExpenseCategoriesScreen() {
             </Pressable>
             <Pressable style={styles.primaryButton} onPress={() => void handleSaveEdit()} disabled={savingEdit}>
               {savingEdit ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.primaryLabel}>Save</Text>
               )}
@@ -346,7 +348,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

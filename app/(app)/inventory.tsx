@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
@@ -9,6 +9,10 @@ import { ProductDetailSheet } from '@/src/features/inventory/components/ProductD
 import { ProductFormSheet } from '@/src/features/inventory/components/ProductFormSheet';
 import { ProductRestockSheet } from '@/src/features/inventory/components/ProductRestockSheet';
 import { Screen } from '@/src/shared/layout/Screen';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -45,6 +49,8 @@ type DetailTab = 'overview' | 'lots' | 'history';
 
 export default function InventoryScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
@@ -135,27 +141,27 @@ export default function InventoryScreen() {
         label: 'Delete',
         icon: 'trash-can-outline',
         tone: 'danger',
-        onPress: () => confirmDelete(product),
+        onPress: () => void confirmDelete(product),
       },
     ];
   }
 
-  function confirmDelete(product: Product) {
-    Alert.alert('Delete this product?', `"${product.name}" will be removed from the catalog.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await productsApi.remove(product.id);
-            await invalidateInventoryQueries(queryClient);
-          } catch (error) {
-            Alert.alert('Unable to delete', error instanceof Error ? error.message : 'Please try again.');
-          }
-        },
-      },
-    ]);
+  async function confirmDelete(product: Product) {
+    const confirmed = await confirm({
+      title: 'Delete this product?',
+      message: `"${product.name}" will be removed from the catalog.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await productsApi.remove(product.id);
+      await invalidateInventoryQueries(queryClient);
+      toast.success(`${product.name} deleted`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete this product.');
+    }
   }
 
   async function handleRefresh() {
@@ -290,29 +296,20 @@ export default function InventoryScreen() {
           />
         ) : null}
 
-        {/* LOADING INDICATOR */}
-        {productsQuery.isLoading && !products.length ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading inventory...</Text>
-          </View>
-        ) : null}
+        {productsQuery.isLoading && !products.length ? <SkeletonList count={6} /> : null}
 
-        {/* EMPTY STATE */}
         {!productsQuery.isLoading && !visibleProducts.length ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
-              <MaterialCommunityIcons name="package-variant-closed" size={28} color={colors.primary} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {products.length ? 'No matching products' : 'No products yet'}
-            </Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {products.length
+          <EmptyState
+            icon="package-variant-closed"
+            title={products.length ? 'No matching products' : 'No products yet'}
+            message={
+              products.length
                 ? 'Try a different search or stock filter.'
-                : 'Add your first item with photo, unit, opening stock, and price.'}
-            </Text>
-          </View>
+                : 'Add your first item with photo, unit, opening stock, and price.'
+            }
+            actionLabel={products.length ? undefined : 'New product'}
+            onAction={products.length ? undefined : () => setCreateVisible(true)}
+          />
         ) : null}
 
         {/* PRODUCT LIST */}
@@ -540,16 +537,6 @@ const createStyles = (_colors: AppPalette) =>
       fontSize: typography.body,
       fontWeight: '800',
     },
-    loadingWrap: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: spacing.xl,
-      gap: spacing.sm,
-    },
-    loadingText: {
-      fontSize: typography.caption,
-      fontWeight: '600',
-    },
     list: {
       gap: spacing.sm,
     },
@@ -634,28 +621,5 @@ const createStyles = (_colors: AppPalette) =>
     actionLabel: {
       fontSize: 12,
       fontWeight: '800',
-    },
-    emptyCard: {
-      alignItems: 'center',
-      borderRadius: radius.lg,
-      borderWidth: 1,
-      padding: spacing.xl,
-      gap: spacing.sm,
-    },
-    emptyIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    emptyTitle: {
-      fontSize: typography.subheading,
-      fontWeight: '800',
-    },
-    emptyCopy: {
-      fontSize: typography.body,
-      textAlign: 'center',
-      lineHeight: 22,
     },
   });

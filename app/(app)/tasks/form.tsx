@@ -3,7 +3,6 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
 } from 'react-native';
 
 import { PersonalComposer } from '@/src/features/notes/components/PersonalComposer';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
@@ -41,6 +41,7 @@ export default function TaskFormScreen() {
 
 function BusinessTaskFormScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEdit = Boolean(id);
@@ -85,7 +86,7 @@ function BusinessTaskFormScreen() {
 
   const handleSave = async () => {
     if (!title.trim()) {
-      Alert.alert('Required field', 'Please enter a task title.');
+      toast.error('Please enter a task title.');
       return;
     }
 
@@ -101,17 +102,15 @@ function BusinessTaskFormScreen() {
     try {
       if (isEdit) {
         await updateTaskMutation.mutateAsync(payload);
-        Alert.alert('Task updated', 'The task has been updated successfully.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        toast.success('Task updated');
+        router.back();
       } else {
         await createTaskMutation.mutateAsync(payload);
-        Alert.alert('Task created', 'The task has been created successfully.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        toast.success('Task created');
+        router.back();
       }
     } catch (error) {
-      Alert.alert('Unable to save', error instanceof Error ? error.message : 'Please check your input and try again.');
+      toast.error(error instanceof Error ? error.message : 'Please check your input and try again.');
     }
   };
 
@@ -245,7 +244,7 @@ function BusinessTaskFormScreen() {
           style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
           onPress={() => void handleSave()}>
           {isSaving ? (
-            <ActivityIndicator color={colors.white} size="small" />
+            <ActivityIndicator color={colors.onPrimary} size="small" />
           ) : (
             <Text style={styles.saveButtonLabel}>
               {isEdit ? 'Save Changes' : 'Create Task'}
@@ -368,7 +367,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
   },
   saveButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },

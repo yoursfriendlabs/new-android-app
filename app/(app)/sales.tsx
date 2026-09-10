@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -15,6 +14,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { salesApi } from '@/src/api';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -99,6 +100,7 @@ function resolveSaleCustomer(item: Sale, partyMap?: Map<string, Party>) {
 
 export default function DetailedSalesScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
@@ -198,7 +200,7 @@ export default function DetailedSalesScreen() {
       ]);
       setSelectedSale(null);
     } catch (error) {
-      Alert.alert('Unable to update payment', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -258,7 +260,7 @@ export default function DetailedSalesScreen() {
 
       await shareHtmlAsPdf(html, `Invoice-${sale.invoiceNo}`);
     } catch (error) {
-      Alert.alert('Unable to export receipt', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSharing(false);
     }
@@ -356,24 +358,17 @@ export default function DetailedSalesScreen() {
 
         {/* Empty State */}
         {!salesQuery.isLoading && !visibleSales.length ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
-              <MaterialCommunityIcons name="cash-register" size={32} color={colors.accent} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {sales.length ? 'No matching sales records' : 'No sales recorded yet'}
-            </Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {sales.length
-                ? 'Try a different search term or filter.'
-                : 'Create sales quickly from the Quick POS register.'}
-            </Text>
-            <Pressable
-              style={[styles.emptyActionBtn, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/(app)/(tabs)/pos')}>
-              <Text style={styles.emptyActionBtnText}>Open Quick POS</Text>
-            </Pressable>
-          </View>
+          <EmptyState
+            icon="cash-register"
+            title={sales.length ? 'No matching sales' : 'No sales recorded yet'}
+            message={
+              sales.length
+                ? 'Try a different search or filter.'
+                : 'Bills you ring up on the POS register show up here.'
+            }
+            actionLabel={sales.length ? undefined : 'Open POS'}
+            onAction={sales.length ? undefined : () => router.push('/(app)/(tabs)/pos')}
+          />
         ) : null}
 
         {/* Sales List */}
@@ -398,7 +393,7 @@ export default function DetailedSalesScreen() {
                 <View style={styles.cardHeader}>
                   <View style={styles.customerWrap}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.avatarText, { color: colors.white }]}>
+                      <Text style={[styles.avatarText, { color: colors.onPrimary }]}>
                         {partyInitials(customer.name)}
                       </Text>
                     </View>
@@ -530,7 +525,7 @@ export default function DetailedSalesScreen() {
               style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={() => void saveSalePayment()}>
               {saving ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.primaryLabel}>Save Settlement</Text>
               )}
@@ -544,7 +539,7 @@ export default function DetailedSalesScreen() {
             <SurfaceCard title="Customer Information">
               <View style={styles.customerDetailRow}>
                 <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.avatarLargeText, { color: colors.white }]}>
+                  <Text style={[styles.avatarLargeText, { color: colors.onPrimary }]}>
                     {partyInitials(selectedCustomer?.name || 'Customer')}
                   </Text>
                 </View>
@@ -852,7 +847,7 @@ const createStyles = (colors: AppPalette) =>
       marginTop: spacing.sm,
     },
     emptyActionBtnText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
       fontSize: typography.body,
     },
@@ -931,7 +926,7 @@ const createStyles = (colors: AppPalette) =>
       fontSize: 12,
     },
     bankChipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     emptyBankInfo: {
       flex: 1,
@@ -1003,7 +998,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

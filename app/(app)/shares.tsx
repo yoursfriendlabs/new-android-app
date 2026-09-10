@@ -7,12 +7,12 @@ import {
   Pressable,
   TextInput,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -44,6 +44,7 @@ type MainTab = 'portfolio' | 'market';
 export default function SharesScreen() {
   const router = useRouter();
   const colors = usePalette();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
 
   const [activeTab, setActiveTab] = useState<MainTab>('portfolio');
@@ -148,19 +149,14 @@ export default function SharesScreen() {
     setTransactionModalVisible(true);
   };
 
-  const handleDeleteTransaction = (tx: StockTransaction) => {
-    Alert.alert(
-      'Delete Trade Log',
-      `Delete trade of ${tx.units} units of ${tx.symbol}? This will update your holding calculations.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => deleteTransaction(tx.id),
-        },
-      ]
-    );
+  const handleDeleteTransaction = async (tx: StockTransaction) => {
+    const confirmed = await confirm({
+      title: 'Delete trade log',
+      message: `Delete the trade of ${tx.units} units of ${tx.symbol}? Your holding figures will be recalculated.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (confirmed) deleteTransaction(tx.id);
   };
 
   const mainTabs = useMemo(
@@ -309,7 +305,7 @@ export default function SharesScreen() {
                     </View>
 
                     <Pressable
-                      onPress={() => handleDeleteTransaction(tx)}
+                      onPress={() => void handleDeleteTransaction(tx)}
                       hitSlop={8}
                       style={styles.txDeleteBtn}
                     >

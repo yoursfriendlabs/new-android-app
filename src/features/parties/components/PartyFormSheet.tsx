@@ -1,9 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { isInvalidSessionError } from '@/src/api/client';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { partiesApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
@@ -46,6 +47,7 @@ interface PartyFormSheetProps {
 
 export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visible }: PartyFormSheetProps) {
   const colors = usePalette();
+  const confirm = useConfirm();
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const personal = isPersonalWorkspace({
     businessType: String(businessProfile?.businessType ?? ''),
@@ -109,30 +111,27 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
 
   async function handleDelete() {
     if (!party?.id) return;
-    Alert.alert(personal ? 'Delete contact' : 'Delete party', `Remove ${party.name}? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setSaving(true);
-            setError('');
-            try {
-              await partiesApi.remove(party.id);
-              await invalidatePartyQueries(queryClient, [party.id]);
-              onDeleted?.(party.id);
-              onClose();
-            } catch (nextError) {
-              if (isInvalidSessionError(nextError)) return;
-              setError(nextError instanceof Error ? nextError.message : 'Unable to remove this contact.');
-            } finally {
-              setSaving(false);
-            }
-          })();
-        },
-      },
-    ]);
+    const confirmed = await confirm({
+      title: personal ? 'Delete contact' : 'Delete party',
+      message: `Remove ${party.name}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setSaving(true);
+    setError('');
+    try {
+      await partiesApi.remove(party.id);
+      await invalidatePartyQueries(queryClient, [party.id]);
+      onDeleted?.(party.id);
+      onClose();
+    } catch (nextError) {
+      if (isInvalidSessionError(nextError)) return;
+      setError(nextError instanceof Error ? nextError.message : 'Unable to remove this contact.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function applyDeviceContact(draft: DeviceContactDraft) {
@@ -184,7 +183,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
             style={[styles.button, { backgroundColor: colors.primary, flex: 1.4 }]}
             onPress={() => void handleSave()}
             disabled={saving}>
-            <Text style={[styles.buttonLabel, { color: colors.white }]}>
+            <Text style={[styles.buttonLabel, { color: colors.onPrimary }]}>
               {saving ? 'Saving…' : isEditing ? (personal ? 'Save contact' : 'Save party') : personal ? 'Save contact' : 'Create party'}
             </Text>
           </Pressable>

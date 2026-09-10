@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { purchasesApi, quickExpensesApi } from '@/src/api';
 import { clearDraft } from '@/src/data/database';
@@ -17,6 +17,7 @@ import { FormField } from '@/src/shared/forms/FormField';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency, prettyDate, todayIso } from '@/src/shared/lib/format';
 import { useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
@@ -72,6 +73,7 @@ function isQuickEntryTab(value?: string): value is QuickEntryTab {
 
 export default function QuickEntryScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<QuickEntryTab>('expense');
@@ -103,9 +105,9 @@ export default function QuickEntryScreen() {
       await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
       expenseDraft.setValue((current) => ({ ...current, category: resName }));
       setNewCategoryName('');
-      Alert.alert('Category added', `"${resName}" is now selected.`);
+      toast.success(`"${resName}" is now selected.`);
     } catch (error) {
-      Alert.alert('Error adding category', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not add that category.');
     } finally {
       addingCategoryRef.current = false;
       setAddingCategory(false);
@@ -188,23 +190,17 @@ export default function QuickEntryScreen() {
 
   async function saveExpense() {
     if (!expenseDraft.value.category.trim()) {
-      Alert.alert(
-        'Category required',
-        'Choose or enter a category before recording the expense.',
-      );
+      toast.error('Choose a category before recording the expense.');
       return;
     }
 
     if (expenseDraft.value.amount <= 0) {
-      Alert.alert('Amount required', 'Enter an amount greater than zero.');
+      toast.error('Enter an amount greater than zero.');
       return;
     }
 
     if (expenseDraft.value.paymentMethod === 'bank' && !expenseDraft.value.bankId) {
-      Alert.alert(
-        'Bank required',
-        'Choose a bank account before recording a bank expense.',
-      );
+      toast.error('Choose a bank account for a bank expense.');
       return;
     }
 
@@ -263,29 +259,23 @@ export default function QuickEntryScreen() {
         return;
       }
 
-      Alert.alert(
-        'Unable to record expense',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      toast.error(error instanceof Error ? error.message : 'Could not record the expense.');
     }
   }
 
   async function savePurchase() {
     if (!purchaseDraft.value.supplier?.id) {
-      Alert.alert('Supplier required', 'Select a supplier first.');
+      toast.error('Select a supplier first.');
       return;
     }
 
     if (purchaseDraft.value.amount <= 0) {
-      Alert.alert('Amount required', 'Enter an amount greater than zero.');
+      toast.error('Enter an amount greater than zero.');
       return;
     }
 
     if (purchaseDraft.value.paymentMethod === 'bank' && !purchaseDraft.value.bankId) {
-      Alert.alert(
-        'Bank required',
-        'Choose a bank account before recording a bank purchase.',
-      );
+      toast.error('Choose a bank account for a bank purchase.');
       return;
     }
 
@@ -346,10 +336,7 @@ export default function QuickEntryScreen() {
         return;
       }
 
-      Alert.alert(
-        'Unable to record purchase',
-        error instanceof Error ? error.message : 'Please try again.',
-      );
+      toast.error(error instanceof Error ? error.message : 'Could not record the purchase.');
     }
   }
 
@@ -358,10 +345,7 @@ export default function QuickEntryScreen() {
       <Pressable
         style={styles.topBarIcon}
         onPress={() =>
-          Alert.alert(
-            'Quick entry',
-            'This screen is intentionally simple for launch week: quick expense and quick purchase only.',
-          )
+          toast.info('Quick entry keeps it to two things: a quick expense and a quick purchase.')
         }>
         <MaterialCommunityIcons
           color={colors.textSoft}
@@ -465,7 +449,7 @@ export default function QuickEntryScreen() {
                   <View style={styles.selectorLead}>
                     <View style={[styles.partyAvatar, { backgroundColor: colors.primary }]}>
                       <MaterialCommunityIcons
-                        color={colors.white}
+                        color={colors.onPrimary}
                         name="account-outline"
                         size={22}
                       />
@@ -519,7 +503,7 @@ export default function QuickEntryScreen() {
                   <View style={styles.selectorLead}>
                     <View style={styles.partyAvatar}>
                       <MaterialCommunityIcons
-                        color={colors.white}
+                        color={colors.onPrimary}
                         name="truck-delivery-outline"
                         size={22}
                       />
@@ -608,7 +592,7 @@ export default function QuickEntryScreen() {
               onPress={() => void handleAddCategory()}
               disabled={!newCategoryName.trim() || addingCategory}>
               {addingCategory ? (
-                <ActivityIndicator color={colors.white} size="small" />
+                <ActivityIndicator color={colors.onPrimary} size="small" />
               ) : (
                 <Text style={styles.addCategoryBtnText}>Add</Text>
               )}
@@ -876,7 +860,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryActionLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.heading,
     fontWeight: '800',
   },
@@ -902,7 +886,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   sheetPrimaryLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -925,7 +909,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontWeight: '700',
   },
   bankChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   emptyBankText: {
     flex: 1,
@@ -972,7 +956,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     backgroundColor: colors.backgroundAlt,
   },
   addCategoryBtnText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '800',
   },
   categoryChipWrap: {
@@ -995,7 +979,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontWeight: '700',
   },
   categoryChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   emptyCategoriesText: {
     fontSize: typography.body,

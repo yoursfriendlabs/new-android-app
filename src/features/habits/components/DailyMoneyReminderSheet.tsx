@@ -1,8 +1,9 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import {
   DAILY_REMINDER_CHIPS,
   formatClockTime,
@@ -23,6 +24,7 @@ interface DailyMoneyReminderSheetProps {
 
 export function DailyMoneyReminderSheet({ onClose, onSave, value, visible }: DailyMoneyReminderSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const [enabled, setEnabled] = useState(value.enabled);
   const [hour, setHour] = useState(value.hour);
@@ -50,7 +52,7 @@ export function DailyMoneyReminderSheet({ onClose, onSave, value, visible }: Dai
       await onSave({ enabled, hour, minute });
       onClose();
     } catch {
-      Alert.alert('Could not save reminder', 'Try again in a moment.');
+      toast.error('Try again in a moment.');
     } finally {
       setSaving(false);
     }
@@ -81,7 +83,7 @@ export function DailyMoneyReminderSheet({ onClose, onSave, value, visible }: Dai
           value={enabled}
           onValueChange={setEnabled}
           trackColor={{ false: colors.border, true: colors.primary }}
-          thumbColor={colors.white}
+          thumbColor={'#ffffff'}
         />
       </View>
 
@@ -222,7 +224,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     saveLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
       fontSize: typography.body,
     },

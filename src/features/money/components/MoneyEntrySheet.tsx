@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
@@ -11,6 +11,7 @@ import { DeviceContactSheet } from '@/src/features/parties/components/DeviceCont
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
@@ -90,6 +91,7 @@ export function MoneyEntrySheet({
   visible,
 }: MoneyEntrySheetProps) {
   const colors = usePalette();
+  const toast = useToast();
   const mode = useThemeMode();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
@@ -173,19 +175,19 @@ export function MoneyEntrySheet({
         : form.category.trim() || 'Other';
 
     if (!effectiveCategory) {
-      Alert.alert('Category required', 'Pick what this money is for.');
+      toast.error('Pick what this money is for.');
       return;
     }
     if (amount <= 0) {
-      Alert.alert('Amount required', 'Enter an amount greater than zero.');
+      toast.error('Enter an amount greater than zero.');
       return;
     }
     if (form.paymentMethod === 'bank' && !form.bankId) {
-      Alert.alert('Account required', 'Choose a bank account for this payment.');
+      toast.error('Choose a bank account for this payment.');
       return;
     }
     if (!isIncome && (amountPaid < 0 || amountPaid > amount)) {
-      Alert.alert('Paid amount', 'Amount paid cannot be more than the total.');
+      toast.error('Amount paid cannot be more than the total.');
       return;
     }
 
@@ -277,10 +279,7 @@ export function MoneyEntrySheet({
       }
     } catch (error) {
       if (isInvalidSessionError(error)) return;
-      Alert.alert(
-        isIncome ? 'Unable to save income' : 'Unable to save expense',
-        workspaceAccessMessage(error, 'Please try again.'),
-      );
+      toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -312,7 +311,7 @@ export function MoneyEntrySheet({
               onPress={() => void handleSave(false)}
               disabled={saving}>
               {saving ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.saveBtnText}>SAVE</Text>
               )}
@@ -661,7 +660,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     selectorAvatarText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
     },
     selectorCopy: {
@@ -747,7 +746,7 @@ const createStyles = (colors: AppPalette) =>
     saveBtnText: {
       fontSize: typography.body,
       fontWeight: '800',
-      color: colors.white,
+      color: colors.onPrimary,
       letterSpacing: 0.5,
     },
   });

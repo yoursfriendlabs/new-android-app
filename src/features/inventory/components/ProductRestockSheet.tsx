@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency } from '@/src/shared/lib/format';
@@ -24,6 +25,7 @@ interface ProductRestockSheetProps {
 
 export function ProductRestockSheet({ onClose, product, visible }: ProductRestockSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [action, setAction] = useState<RestockAction>('add');
@@ -51,11 +53,11 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
   async function handleSave() {
     if (!product?.id) return;
     if (qty <= 0) {
-      Alert.alert('Quantity required', 'Enter how much stock to add or remove.');
+      toast.error('Enter how much stock to add or remove.');
       return;
     }
     if (action === 'remove' && qty > currentStock) {
-      Alert.alert('Not enough stock', `Only ${currentStock} ${unit} on hand.`);
+      toast.error(`Only ${currentStock} ${unit} on hand.`);
       return;
     }
 
@@ -72,7 +74,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
       await invalidateInventoryQueries(queryClient);
       onClose();
     } catch (error) {
-      Alert.alert('Unable to update stock', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -87,7 +89,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
       footer={
         <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving || !product}>
           {saving ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.onPrimary} />
           ) : (
             <Text style={styles.saveLabel}>{action === 'remove' ? 'Remove stock' : 'Add stock'}</Text>
           )}
@@ -173,7 +175,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     saveLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

@@ -3,7 +3,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Pressable,
   RefreshControl,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { PartyTransactionSheet } from '@/src/features/parties/components/PartyTransactionSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -82,6 +82,7 @@ function toEditableTransaction(row: PartyStatementRow, partyId: string): PartyTr
 
 export default function PartyDetailScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
@@ -169,7 +170,7 @@ export default function PartyDetailScreen() {
         'Share party statement',
       );
     } catch (error) {
-      Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setExporting(false);
     }

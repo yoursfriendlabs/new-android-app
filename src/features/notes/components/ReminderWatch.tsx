@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect } from 'react';
-import { Alert } from 'react-native';
 
 import { DAILY_MONEY_REMINDER_COPY, dailyReminderDueNow } from '@/src/features/habits/lib/daily-money-reminder';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -10,6 +10,7 @@ import { useHabitStore } from '@/src/stores/habit-store';
 import { useLanguageStore } from '@/src/stores/language-store';
 
 export function ReminderWatch() {
+  const toast = useToast();
   const pings = useHabitStore((state) => state.scheduledPings);
   const dailyReminder = useHabitStore((state) => state.dailyMoneyReminder);
   const businessType = useAuthStore((state) => state.businessProfile?.businessType ?? state.businessProfile?.type);
@@ -28,14 +29,14 @@ export function ReminderWatch() {
         } catch {
           // Optional.
         }
-        Alert.alert(ping.title, ping.body || 'Time for your reminder.');
+        toast.info(ping.title ? `${ping.title}: ${ping.body}` : ping.body || 'Time for your reminder.');
       }
     };
 
     tick();
     const timer = setInterval(tick, 12_000);
     return () => clearInterval(timer);
-  }, [pings]);
+  }, [pings, toast]);
 
   useEffect(() => {
     if (!personal || !dailyReminder.enabled) return;
@@ -49,9 +50,10 @@ export function ReminderWatch() {
         // Optional.
       }
       const isNe = useLanguageStore.getState().language === 'ne';
-      const title = isNe ? 'दैनिक हिसाब सम्झाउनी' : DAILY_MONEY_REMINDER_COPY.title;
-      const body = isNe ? 'कृपया भविष्यको विवरणका लागि आफ्ना आम्दानी, खर्च र कारोबारहरू दर्ता गर्नुहोस्।' : DAILY_MONEY_REMINDER_COPY.body;
-      Alert.alert(title, body);
+      const body = isNe
+        ? 'कृपया भविष्यको विवरणका लागि आफ्ना आम्दानी, खर्च र कारोबारहरू दर्ता गर्नुहोस्।'
+        : DAILY_MONEY_REMINDER_COPY.body;
+      toast.info(body, { duration: 6000 });
     };
 
     tick();

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
 import {
   useTaskNotificationSummary,
   useMarkNotificationsReadMutation,
@@ -107,11 +108,12 @@ export default function TaskNotificationsScreen() {
               <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} />
             }
             ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons color={colors.textMuted} name="bell-off-outline" size={48} />
-                <Text style={styles.emptyTitle}>All caught up!</Text>
-                <Text style={styles.emptySubtitle}>No recent task activities or updates found.</Text>
-              </View>
+              <EmptyState
+                variant="screen"
+                icon="bell-off-outline"
+                title="All caught up"
+                message="No recent task activity to show."
+              />
             }
           />
         )}

@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { PersonalNotesInbox } from '@/src/features/notes/components/PersonalNotesInbox';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { SearchField } from '@/src/shared/ui/SearchField';
@@ -167,7 +169,7 @@ function BusinessTaskInboxScreen() {
     <Pressable
       style={styles.headerButton}
       onPress={() => router.push('/tasks/form' as any)}>
-      <MaterialCommunityIcons color={colors.white} name="plus" size={24} />
+      <MaterialCommunityIcons color={colors.onPrimary} name="plus" size={24} />
     </Pressable>
   ) : undefined;
 
@@ -253,7 +255,7 @@ function BusinessTaskInboxScreen() {
                     {item.label}
                   </Text>
                   {item.selected ? (
-                    <MaterialCommunityIcons color={colors.white} name="close-circle" size={14} />
+                    <MaterialCommunityIcons color={colors.onPrimary} name="close-circle" size={14} />
                   ) : null}
                 </Pressable>
               );
@@ -263,8 +265,7 @@ function BusinessTaskInboxScreen() {
 
         {isLoading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={colors.accent} size="large" />
-            <Text style={styles.loadingText}>Loading tasks and notes...</Text>
+            <SkeletonList count={6} avatar={false} />
           </View>
         ) : (
           <FlatList
@@ -276,13 +277,12 @@ function BusinessTaskInboxScreen() {
               <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} />
             }
             ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <MaterialCommunityIcons color={colors.textMuted} name="checkbox-marked-circle-outline" size={48} />
-                <Text style={styles.emptyTitle}>No tasks or notes yet</Text>
-                <Text style={styles.emptySubtitle}>
-                  Add a reminder, to-do, or note to get started.
-                </Text>
-              </View>
+              <EmptyState
+                variant="screen"
+                icon="checkbox-marked-circle-outline"
+                title="No tasks or notes yet"
+                message="Add a reminder, a to-do or a note to get started."
+              />
             }
           />
         )}
@@ -345,7 +345,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textSoft,
   },
   filterChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   listContainer: {
     padding: spacing.lg,

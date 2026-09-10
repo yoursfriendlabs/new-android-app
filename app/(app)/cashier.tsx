@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -14,6 +13,8 @@ import {
 } from 'react-native';
 
 import { salesApi, tablesApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { FormField } from '@/src/shared/forms/FormField';
@@ -36,6 +37,8 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function CashierScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const setReceipt = useReceiptStore((state) => state.setReceipt);
@@ -131,7 +134,7 @@ export default function CashierScreen() {
 
   const handleTableTap = async (table: any) => {
     if (!table.matchedSale) {
-      Alert.alert('Vacant Table', `${table.name} is currently vacant. There are no unpaid bills.`);
+      toast.error(`${table.name} is currently vacant. There are no unpaid bills.`);
       return;
     }
 
@@ -151,7 +154,7 @@ export default function CashierScreen() {
       setTaxRate(String(fullSale.items?.[0]?.taxRate || 0));
       setAmountReceived(String(fullSale.grandTotal || 0));
     } catch (err) {
-      Alert.alert('Error', 'Unable to fetch billing details.');
+      toast.error('Unable to fetch billing details.');
       setSelectedTable(null);
     } finally {
       setLoadingSaleDetails(false);
@@ -192,31 +195,26 @@ export default function CashierScreen() {
 
   const handleReleaseTable = async () => {
     if (!selectedTable) return;
-    Alert.alert(
-      'Release Table',
-      `Are you sure you want to release "${selectedTable.name}" and mark it vacant? This does not delete any draft order.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Release',
-          style: 'destructive',
-          onPress: async () => {
-            setReleasingTable(true);
-            try {
-              await tablesApi.update(selectedTable.id, { status: 'vacant' });
-              await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
-              await queryClient.invalidateQueries({ queryKey: ['sales-list'] });
-              Alert.alert('Success', 'Table released successfully.');
-              setSelectedTable(null);
-            } catch (error) {
-              Alert.alert('Error', 'Failed to release table.');
-            } finally {
-              setReleasingTable(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmed = await confirm({
+      title: 'Release this table?',
+      message: `"${selectedTable.name}" goes back to vacant. Any draft order stays put.`,
+      confirmLabel: 'Release',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setReleasingTable(true);
+    try {
+      await tablesApi.update(selectedTable.id, { status: 'vacant' });
+      await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['sales-list'] });
+      toast.success('Table released');
+      setSelectedTable(null);
+    } catch {
+      toast.error('Could not release this table.');
+    } finally {
+      setReleasingTable(false);
+    }
   };
 
   const handleCheckout = async () => {
@@ -226,7 +224,7 @@ export default function CashierScreen() {
     const finalTotal = localTotals.grandTotal;
 
     if (paymentMethod === 'bank' && receivedAmt > 0 && !bankId) {
-      Alert.alert('Required field', 'Please select a bank account.');
+      toast.error('Please select a bank account.');
       return;
     }
 
@@ -305,7 +303,7 @@ export default function CashierScreen() {
       setSelectedTable(null);
       setSuccessVisible(true);
     } catch (error) {
-      Alert.alert('Checkout Failed', error instanceof Error ? error.message : 'Save billing failed.');
+      toast.error(error instanceof Error ? error.message : 'Save billing failed.');
     } finally {
       setSubmittingCheckout(false);
     }
@@ -497,7 +495,7 @@ export default function CashierScreen() {
               disabled={submittingCheckout || loadingSaleDetails}
             >
               {submittingCheckout ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.checkoutSubmitBtnText}>Process Checkout</Text>
               )}
@@ -814,7 +812,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   checkoutSubmitBtnText: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -903,7 +901,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.text,
   },
   bankChipBtnLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   emptyBanksHelp: {
     fontSize: typography.caption,

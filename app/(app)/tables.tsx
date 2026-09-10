@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { useState, useMemo, useEffect } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,8 @@ import {
 } from 'react-native';
 
 import { tablesApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -30,6 +31,8 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TableManagementScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const { data: tables = [], isLoading } = useTables();
@@ -106,7 +109,7 @@ export default function TableManagementScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Required field', 'Table name is required.');
+      toast.error('Table name is required.');
       return;
     }
 
@@ -127,48 +130,42 @@ export default function TableManagementScreen() {
         setLocalTables((prev) =>
           prev.map((t) => (t.id === editingTable.id ? updatedTable : t))
         );
-        Alert.alert('Success', 'Table updated successfully.');
+        toast.success('Table updated');
       } else {
         const newTable = await tablesApi.create(payload);
         setLocalTables((prev) => [...prev, newTable]);
-        Alert.alert('Success', 'Table created successfully.');
+        toast.success('Table created');
       }
 
       void queryClient.invalidateQueries({ queryKey: ['tables-list'] });
       setFormSheetVisible(false);
       resetForm();
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Save table failed.');
+      toast.error(error instanceof Error ? error.message : 'Could not save this table.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = (table: Table) => {
-    Alert.alert(
-      'Remove Table',
-      `Are you sure you want to remove "${table.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await tablesApi.remove(table.id);
-              setLocalTables((prev) => prev.filter((t) => t.id !== table.id));
-              void queryClient.invalidateQueries({ queryKey: ['tables-list'] });
-              Alert.alert('Success', 'Table deleted successfully.');
-            } catch (error) {
-              Alert.alert(
-                'Delete Failed',
-                error instanceof Error ? error.message : 'Cannot delete table with active unpaid orders.'
-              );
-            }
-          },
-        },
-      ]
-    );
+  const handleDelete = async (table: Table) => {
+    const confirmed = await confirm({
+      title: 'Remove table',
+      message: `Remove "${table.name}"? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await tablesApi.remove(table.id);
+      setLocalTables((prev) => prev.filter((t) => t.id !== table.id));
+      void queryClient.invalidateQueries({ queryKey: ['tables-list'] });
+      toast.success('Table deleted');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'A table with unpaid orders cannot be deleted.',
+      );
+    }
   };
 
   const topBarRight = (
@@ -287,7 +284,7 @@ export default function TableManagementScreen() {
                       <Pressable style={styles.actionIconBtn} onPress={() => handleOpenEdit(table)}>
                         <MaterialCommunityIcons color={colors.primary} name="pencil-outline" size={20} />
                       </Pressable>
-                      <Pressable style={styles.actionIconBtn} onPress={() => handleDelete(table)}>
+                      <Pressable style={styles.actionIconBtn} onPress={() => void handleDelete(table)}>
                         <MaterialCommunityIcons color={colors.danger} name="trash-can-outline" size={20} />
                       </Pressable>
                     </View>
@@ -315,7 +312,7 @@ export default function TableManagementScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.primaryButtonLabel}>
                 {editingTable ? 'Save Table' : 'Create Table'}
@@ -397,7 +394,7 @@ export default function TableManagementScreen() {
               value={isActive}
               onValueChange={setIsActive}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.white}
+              thumbColor={'#ffffff'}
             />
           </View>
         </View>
@@ -519,7 +516,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -545,7 +542,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textSoft,
   },
   floorSelectChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   chipsScroll: {
@@ -570,7 +567,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textSoft,
   },
   filterChipLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '700',
   },
 });

@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { SkeletonCardGrid } from '@/src/shared/ui/Skeleton';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { useSalesList, useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
 import { salesApi } from '@/src/api';
@@ -44,11 +46,28 @@ export default function SeatingOrdersScreen() {
   const [statusFilter, setStatusFilter] = useState('all');
 
   // Queries
-  const { data: tables = [], isLoading: loadingTables } = useTables();
-  const { data: sales = [], isLoading: loadingSales } = useSalesList({ limit: 120 });
-  const { data: categories = [] } = useCategories();
+  const tablesQuery = useTables();
+  const salesQuery = useSalesList({ limit: 120 });
+  const categoriesQuery = useCategories();
+  const tables = tablesQuery.data ?? [];
+  const sales = salesQuery.data ?? [];
+  const categories = categoriesQuery.data ?? [];
+  const [refreshing, setRefreshing] = useState(false);
 
-  const isLoading = loadingTables || loadingSales;
+  const isLoading = tablesQuery.isLoading || salesQuery.isLoading;
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([tablesQuery.refetch(), salesQuery.refetch(), categoriesQuery.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const refreshControl = (
+    <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.primary} />
+  );
 
   const floors = useMemo(() => {
     return categories.filter((cat: any) => cat.type === 'table');
@@ -180,8 +199,7 @@ export default function SeatingOrdersScreen() {
 
       {isLoading ? (
         <View style={styles.centerWrap}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Fetching Seating Map...</Text>
+          <SkeletonCardGrid columns={2} count={6} />
         </View>
       ) : viewMode === 'floor' ? (
         /* Floor Map View */
@@ -251,6 +269,7 @@ export default function SeatingOrdersScreen() {
             data={filteredTableMap}
             keyExtractor={(item) => item.id}
             numColumns={2}
+            refreshControl={refreshControl}
             contentContainerStyle={styles.floorGrid}
             renderItem={({ item }) => {
               const currentTable = tables.find(t => t.id === item.id);
@@ -357,6 +376,7 @@ export default function SeatingOrdersScreen() {
           <FlatList
             data={activeGroup.items}
             keyExtractor={(item) => item.id}
+            refreshControl={refreshControl}
             contentContainerStyle={styles.ordersList}
             renderItem={({ item }) => {
               const meta = getCafeOrderAttributes(item);

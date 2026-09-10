@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -17,6 +16,9 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { servicesApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -146,6 +148,8 @@ function matchesFilter(service: Service, filter: ServiceFilter) {
 
 export default function ServicesScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
@@ -255,7 +259,7 @@ export default function ServicesScreen() {
         queryClient.invalidateQueries({ queryKey: ['recent-services'] }),
       ]);
     } catch (error) {
-      Alert.alert('Unable to update status', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
@@ -276,21 +280,20 @@ export default function ServicesScreen() {
       ]);
       setSelectedServiceId(null);
     } catch (error) {
-      Alert.alert('Unable to update', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setUpdatingStatus(false);
     }
   }
 
-  function confirmRemoveService() {
-    Alert.alert('Delete this service job?', 'This will remove the job and all associated records.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete Job',
-        style: 'destructive',
-        onPress: () => void removeService(),
-      },
-    ]);
+  async function confirmRemoveService() {
+    const confirmed = await confirm({
+      title: 'Delete this service job?',
+      message: 'The job and everything recorded against it will go.',
+      confirmLabel: 'Delete job',
+      destructive: true,
+    });
+    if (confirmed) await removeService();
   }
 
   async function removeService() {
@@ -303,7 +306,7 @@ export default function ServicesScreen() {
       ]);
       setSelectedServiceId(null);
     } catch (error) {
-      Alert.alert('Unable to delete', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
@@ -441,7 +444,7 @@ export default function ServicesScreen() {
                 <View style={styles.cardHeader}>
                   <View style={styles.customerWrap}>
                     <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.avatarText, { color: colors.white }]}>
+                      <Text style={[styles.avatarText, { color: colors.onPrimary }]}>
                         {partyInitials(customer.name)}
                       </Text>
                     </View>
@@ -579,7 +582,7 @@ export default function ServicesScreen() {
         fullHeight
         footer={
           <View style={styles.footerActions}>
-            <Pressable style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]} onPress={confirmRemoveService}>
+            <Pressable style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]} onPress={() => void confirmRemoveService()}>
               <Text style={[styles.secondaryLabel, { color: colors.danger }]}>Delete</Text>
             </Pressable>
             <Pressable
@@ -587,7 +590,7 @@ export default function ServicesScreen() {
               style={[styles.primaryButton, { backgroundColor: colors.primary }]}
               onPress={() => void saveServiceUpdate()}>
               {updatingStatus ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
                 <Text style={styles.primaryLabel}>Save Updates</Text>
               )}
@@ -596,8 +599,7 @@ export default function ServicesScreen() {
         }>
         {isDetailLoading || !serviceDetail ? (
           <View style={styles.detailLoadingWrap}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.helperText, { marginTop: spacing.sm }]}>Loading job details...</Text>
+            <SkeletonList count={4} avatar={false} />
           </View>
         ) : (
           <View style={styles.sheetContent}>
@@ -619,7 +621,7 @@ export default function ServicesScreen() {
             <SurfaceCard title="Customer Information">
               <View style={styles.customerDetailRow}>
                 <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.avatarLargeText, { color: colors.white }]}>
+                  <Text style={[styles.avatarLargeText, { color: colors.onPrimary }]}>
                     {partyInitials(selectedCustomer?.name || 'Customer')}
                   </Text>
                 </View>
@@ -983,7 +985,7 @@ const createStyles = (colors: AppPalette) =>
       marginTop: spacing.sm,
     },
     emptyActionBtnText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
       fontSize: typography.body,
     },
@@ -1078,7 +1080,7 @@ const createStyles = (colors: AppPalette) =>
       fontSize: 12,
     },
     bankChipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     emptyBankInfo: {
       flex: 1,
@@ -1150,7 +1152,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

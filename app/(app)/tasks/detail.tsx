@@ -3,7 +3,6 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
 import {
@@ -39,6 +39,7 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskDetailScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((state) => state.user);
@@ -105,9 +106,9 @@ export default function TaskDetailScreen() {
         );
         return;
       }
-      Alert.alert('Status updated', `Task status is now ${newStatus.replace('_', ' ')}.`);
+      toast.error(`Task status is now ${newStatus.replace('_', ' ')}.`);
     } catch (error) {
-      Alert.alert('Failed to update status', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
@@ -117,7 +118,7 @@ export default function TaskDetailScreen() {
       await addCommentMutation.mutateAsync(commentText.trim());
       setCommentText('');
     } catch (error) {
-      Alert.alert('Failed to add comment', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   };
 
@@ -152,7 +153,7 @@ export default function TaskDetailScreen() {
     <Pressable
       style={styles.headerButton}
       onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: task.id } })}>
-      <MaterialCommunityIcons color={colors.white} name="pencil" size={20} />
+      <MaterialCommunityIcons color={colors.onPrimary} name="pencil" size={20} />
     </Pressable>
   ) : undefined;
 
@@ -258,7 +259,7 @@ export default function TaskDetailScreen() {
             <Pressable
               onPress={() => void handleStatusChange('completed')}
               style={[styles.completeBtn, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.completeLabel, { color: colors.white }]}>
+              <Text style={[styles.completeLabel, { color: colors.onPrimary }]}>
                 Mark done · {plusCoins(COIN_REWARDS.complete)}
               </Text>
             </Pressable>
@@ -275,7 +276,7 @@ export default function TaskDetailScreen() {
                     <View style={styles.timelineLeft}>
                       <View style={[styles.timelineIcon, isComment ? styles.commentTimelineIcon : styles.systemTimelineIcon]}>
                         <MaterialCommunityIcons
-                          color={isComment ? colors.white : colors.textSoft}
+                          color={isComment ? colors.onPrimary : colors.textSoft}
                           name={isComment ? 'comment-text-outline' : 'history'}
                           size={14}
                         />
@@ -321,9 +322,9 @@ export default function TaskDetailScreen() {
               style={[styles.sendButton, !commentText.trim() && styles.sendButtonDisabled]}
               onPress={() => void handleAddComment()}>
               {addCommentMutation.isPending ? (
-                <ActivityIndicator color={colors.white} size="small" />
+                <ActivityIndicator color={colors.onPrimary} size="small" />
               ) : (
-                <MaterialCommunityIcons color={colors.white} name="send" size={18} />
+                <MaterialCommunityIcons color={colors.onPrimary} name="send" size={18} />
               )}
             </Pressable>
           </View>
@@ -346,7 +347,7 @@ export default function TaskDetailScreen() {
                   {status.label}
                 </Text>
                 {task.status === status.key ? (
-                  <MaterialCommunityIcons color={colors.white} name="check" size={18} />
+                  <MaterialCommunityIcons color={colors.onPrimary} name="check" size={18} />
                 ) : null}
               </Pressable>
             ))}
@@ -668,6 +669,6 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.text,
   },
   statusSheetLabelActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
 });

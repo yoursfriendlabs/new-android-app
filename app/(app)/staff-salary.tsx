@@ -4,7 +4,6 @@ import { useLocalSearchParams } from 'expo-router';
 import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,9 @@ import {
 } from 'react-native';
 
 import { staffApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -29,6 +31,8 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function StaffSalaryBookScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const { membershipId, name } = useLocalSearchParams<{ membershipId: string; name: string }>();
   const queryClient = useQueryClient();
@@ -73,10 +77,10 @@ export default function StaffSalaryBookScreen() {
       queryClient.invalidateQueries({ queryKey: ['staff-salary', resolvedMembershipId] });
       setFormSheetVisible(false);
       resetForm();
-      Alert.alert('Success', 'Salary record logged successfully');
+      toast.success('Salary record logged');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.message || 'Failed to log salary record');
+      toast.error(error?.message || 'Could not log this salary record.');
     },
   });
 
@@ -84,10 +88,10 @@ export default function StaffSalaryBookScreen() {
     mutationFn: (recordId: string) => staffApi.deleteSalaryRecord(resolvedMembershipId, recordId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-salary', resolvedMembershipId] });
-      Alert.alert('Success', 'Record deleted successfully');
+      toast.success('Record deleted');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.message || 'Failed to delete record');
+      toast.error(error?.message || 'Could not delete this record.');
     },
   });
 
@@ -102,15 +106,15 @@ export default function StaffSalaryBookScreen() {
   const handleSave = async () => {
     const amtNum = Number(amount);
     if (isNaN(amtNum) || amtNum <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a positive numeric amount');
+      toast.error('Please enter a positive numeric amount');
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert('Invalid Date', 'Date must be in YYYY-MM-DD format');
+      toast.error('Date must be in YYYY-MM-DD format');
       return;
     }
     if (!/^\d{4}-\d{2}$/.test(monthYear)) {
-      Alert.alert('Invalid Month', 'Month must be in YYYY-MM format');
+      toast.error('Month must be in YYYY-MM format');
       return;
     }
 
@@ -130,21 +134,14 @@ export default function StaffSalaryBookScreen() {
     }
   };
 
-  const handleDelete = (recordId: string) => {
-    Alert.alert(
-      'Delete Record',
-      'Are you sure you want to delete this salary record?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteRecordMutation.mutate(recordId);
-          },
-        },
-      ]
-    );
+  const handleDelete = async (recordId: string) => {
+    const confirmed = await confirm({
+      title: 'Delete this salary record?',
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (confirmed) deleteRecordMutation.mutate(recordId);
   };
 
   // Summarize statistics
@@ -199,8 +196,7 @@ export default function StaffSalaryBookScreen() {
 
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Fetching salary records...</Text>
+          <SkeletonList count={5} avatar={false} />
         </View>
       ) : (
         <ScrollView
@@ -268,7 +264,7 @@ export default function StaffSalaryBookScreen() {
                   ) : null}
                 </View>
                 {isOwnerOrAdmin ? (
-                  <Pressable style={styles.deleteBtn} onPress={() => handleDelete(record.id)}>
+                  <Pressable style={styles.deleteBtn} onPress={() => void handleDelete(record.id)}>
                     <MaterialCommunityIcons name="delete-outline" size={20} color={colors.textSoft} />
                   </Pressable>
                 ) : null}
@@ -295,7 +291,7 @@ export default function StaffSalaryBookScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.primaryButtonLabel}>Log Record</Text>
             )}
@@ -470,7 +466,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -510,7 +506,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textMuted,
   },
   typeTextActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
   shiftDetailsRow: {
     flexDirection: 'row',

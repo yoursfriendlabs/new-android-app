@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,9 @@ import {
 } from 'react-native';
 
 import { staffApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -39,6 +41,8 @@ interface StaffCategoryPreset {
 
 export default function StaffDirectoryScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -110,10 +114,10 @@ export default function StaffDirectoryScreen() {
       queryClient.invalidateQueries({ queryKey: ['staff-full'] });
       setFormSheetVisible(false);
       resetForm();
-      Alert.alert('Success', 'Staff member added successfully');
+      toast.success('Staff member added');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.message || 'Failed to add staff member');
+      toast.error(error?.message || 'Could not add this staff member.');
     },
   });
 
@@ -123,10 +127,10 @@ export default function StaffDirectoryScreen() {
       queryClient.invalidateQueries({ queryKey: ['staff-full'] });
       setFormSheetVisible(false);
       resetForm();
-      Alert.alert('Success', 'Staff member updated successfully');
+      toast.success('Staff member updated');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.message || 'Failed to update staff member');
+      toast.error(error?.message || 'Could not update this staff member.');
     },
   });
 
@@ -135,10 +139,10 @@ export default function StaffDirectoryScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff-full'] });
       setActionSheetVisible(false);
-      Alert.alert('Success', 'Staff member removed successfully');
+      toast.success('Staff member removed');
     },
     onError: (error: any) => {
-      Alert.alert('Error', error?.message || 'Failed to delete staff member');
+      toast.error(error?.message || 'Could not remove this staff member.');
     },
   });
 
@@ -161,7 +165,7 @@ export default function StaffDirectoryScreen() {
 
   const handleOpenAdd = () => {
     if (staffData?.summary?.isLimitReached) {
-      Alert.alert('Limit Reached', 'You have reached your staff seats limit. Please upgrade your subscription.');
+      toast.error('You have reached your staff seats limit. Please upgrade your subscription.');
       return;
     }
     resetForm();
@@ -231,15 +235,15 @@ export default function StaffDirectoryScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Required', 'Staff Name is required');
+      toast.error('Staff Name is required');
       return;
     }
     if (hasLogin && !email.trim()) {
-      Alert.alert('Required', 'Email is required when App Login is enabled');
+      toast.error('Email is required when App Login is enabled');
       return;
     }
     if (hasLogin && !isEditing && !password.trim()) {
-      Alert.alert('Required', 'Password is required when App Login is enabled');
+      toast.error('Password is required when App Login is enabled');
       return;
     }
 
@@ -280,24 +284,17 @@ export default function StaffDirectoryScreen() {
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedMember) return;
     const name = selectedMember.name;
     const id = selectedMember.membershipId || selectedMember.id;
-    Alert.alert(
-      'Remove Staff',
-      `Are you sure you want to remove ${name}? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            deleteMutation.mutate(id);
-          },
-        },
-      ]
-    );
+    const confirmed = await confirm({
+      title: 'Remove staff member',
+      message: `Remove ${name}? This cannot be undone.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (confirmed) deleteMutation.mutate(id);
   };
 
   const filteredMembers = useMemo(() => {
@@ -328,8 +325,7 @@ export default function StaffDirectoryScreen() {
       
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator color={colors.primary} size="large" />
-          <Text style={styles.loadingText}>Loading staff details...</Text>
+          <SkeletonList count={5} />
         </View>
       ) : (
         <ScrollView
@@ -475,7 +471,7 @@ export default function StaffDirectoryScreen() {
           </Pressable>
 
           {isOwnerOrAdmin && selectedMember?.role !== 'owner' ? (
-            <Pressable style={[styles.actionBtn, styles.actionBtnDanger]} onPress={handleDelete}>
+            <Pressable style={[styles.actionBtn, styles.actionBtnDanger]} onPress={() => void handleDelete()}>
               <MaterialCommunityIcons name="trash-can-outline" size={22} color={colors.danger} />
               <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete Staff Member</Text>
             </Pressable>
@@ -493,7 +489,7 @@ export default function StaffDirectoryScreen() {
         footer={
           <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={submitting}>
             {submitting ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.primaryButtonLabel}>{isEditing ? 'Save Staff' : 'Invite Staff'}</Text>
             )}
@@ -553,7 +549,7 @@ export default function StaffDirectoryScreen() {
               value={hasLogin}
               onValueChange={setHasLogin}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.white}
+              thumbColor={'#ffffff'}
             />
           </View>
 
@@ -586,7 +582,7 @@ export default function StaffDirectoryScreen() {
               value={customPermissionsEnabled}
               onValueChange={toggleCustomPermissions}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor={colors.white}
+              thumbColor={'#ffffff'}
             />
           </View>
 
@@ -836,7 +832,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonLabel: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
   },
@@ -876,7 +872,7 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textMuted,
   },
   presetChipTextSelected: {
-    color: colors.white,
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   toggleRow: {
@@ -958,6 +954,6 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.textMuted,
   },
   permOptionTextActive: {
-    color: colors.white,
+    color: colors.onPrimary,
   },
 });

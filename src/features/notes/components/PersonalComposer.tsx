@@ -5,7 +5,6 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -45,6 +45,7 @@ type ComposerKind = NoteKind | 'interval';
 
 export function PersonalComposer() {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ id?: string; kind?: string }>();
   const isEdit = Boolean(params.id);
@@ -97,12 +98,12 @@ export function PersonalComposer() {
       return;
     }
     if (!title.trim()) {
-      Alert.alert('Add a title', kind === 'note' ? 'What is this note about?' : 'What should we remind you?');
+      toast.error(kind === 'note' ? 'What is this note about?' : 'What should we remind you?');
       return;
     }
 
     if (kind === 'reminder' && dueAt.getTime() <= Date.now() + 4000) {
-      Alert.alert('Pick a future time', 'Choose a date and time ahead of now so we can notify you.');
+      toast.error('Choose a date and time ahead of now so we can notify you.');
       return;
     }
 
@@ -167,7 +168,7 @@ export function PersonalComposer() {
       }
       router.back();
     } catch (error) {
-      Alert.alert('Unable to save', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -219,8 +220,8 @@ export function PersonalComposer() {
                   styles.kindChip,
                   { backgroundColor: active ? colors.primary : colors.surface, borderColor: active ? colors.primary : colors.border },
                 ]}>
-                <MaterialCommunityIcons color={active ? colors.white : colors.textSoft} name={item.icon} size={18} />
-                <Text style={[styles.kindLabel, { color: active ? colors.white : colors.text }]}>{item.label}</Text>
+                <MaterialCommunityIcons color={active ? colors.onPrimary : colors.textSoft} name={item.icon} size={18} />
+                <Text style={[styles.kindLabel, { color: active ? colors.onPrimary : colors.text }]}>{item.label}</Text>
               </Pressable>
             );
           })}

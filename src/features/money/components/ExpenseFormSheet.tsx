@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
@@ -10,6 +10,7 @@ import { submitWithOfflineQueue } from '@/src/data/sync';
 import { workspaceAccessMessage } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
@@ -50,6 +51,7 @@ function emptyForm() {
 
 export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
@@ -108,7 +110,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       setNewCategoryName('');
       setAddingCategory(false);
     } catch (error) {
-      Alert.alert('Unable to add category', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
 
@@ -119,19 +121,19 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         : form.category.trim() || 'Other';
 
     if (!effectiveCategory) {
-      Alert.alert('Category required', 'Pick or add a category first.');
+      toast.error('Pick or add a category first.');
       return;
     }
     if (amount <= 0) {
-      Alert.alert('Amount required', 'Enter an amount greater than zero.');
+      toast.error('Enter an amount greater than zero.');
       return;
     }
     if (form.paymentMethod === 'bank' && !form.bankId) {
-      Alert.alert('Bank required', 'Choose a bank account for this payment.');
+      toast.error('Choose a bank account for this payment.');
       return;
     }
     if (amountPaid < 0 || amountPaid > amount) {
-      Alert.alert('Paid amount', 'Amount paid cannot be more than the expense total.');
+      toast.error('Amount paid cannot be more than the expense total.');
       return;
     }
 
@@ -184,7 +186,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       setCustomCategory('');
     } catch (error) {
       if (isInvalidSessionError(error)) return;
-      Alert.alert('Unable to save expense', workspaceAccessMessage(error, 'Please try again.'));
+      toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -207,7 +209,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         footer={
           <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>
             {saving ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.saveLabel}>Save expense</Text>
             )}
@@ -240,7 +242,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
                 <MaterialCommunityIcons
                   name={expenseCategoryIcon(name)}
                   size={16}
-                  color={active ? colors.white : colors.primary}
+                  color={active ? colors.onPrimary : colors.primary}
                 />
                 <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
               </Pressable>
@@ -462,7 +464,7 @@ const createStyles = (colors: AppPalette) =>
       color: colors.text,
     },
     chipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     chipAdd: {
       flexDirection: 'row',
@@ -498,7 +500,7 @@ const createStyles = (colors: AppPalette) =>
       backgroundColor: colors.backgroundAlt,
     },
     addCategoryBtnLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontWeight: '800',
     },
     selector: {
@@ -519,7 +521,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     selectorAvatarText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: 13,
       fontWeight: '800',
     },
@@ -555,7 +557,7 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '700',
     },
     bankChipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     helper: {
       fontSize: typography.body,
@@ -569,7 +571,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     saveLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },

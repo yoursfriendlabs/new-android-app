@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { purchasesApi } from '@/src/api';
@@ -12,6 +12,8 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -56,6 +58,8 @@ export default function ExpensesScreen() {
 
 function ShopExpensesScreen() {
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const businessProfile = useAuthStore((state) => state.businessProfile);
@@ -143,15 +147,18 @@ function ShopExpensesScreen() {
       ]);
       setSelectedExpenseId(null);
     } catch (error) {
-      Alert.alert('Unable to update', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not update this expense.');
     }
   }
 
-  function confirmRemoveExpense() {
-    Alert.alert('Delete this expense?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => void removeExpense() },
-    ]);
+  async function confirmRemoveExpense() {
+    const confirmed = await confirm({
+      title: 'Delete this expense?',
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (confirmed) await removeExpense();
   }
 
   async function removeExpense() {
@@ -163,8 +170,9 @@ function ShopExpensesScreen() {
         queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
       ]);
       setSelectedExpenseId(null);
+      toast.success('Expense deleted');
     } catch (error) {
-      Alert.alert('Unable to delete', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not delete this expense.');
     }
   }
 
@@ -203,7 +211,7 @@ function ShopExpensesScreen() {
         'Share expense report',
       );
     } catch (error) {
-      Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not share this report.');
     } finally {
       setExporting(false);
     }
@@ -257,7 +265,7 @@ function ShopExpensesScreen() {
 
         <View style={[styles.heroCard, { backgroundColor: colors.primary }]}>
           <Text style={styles.heroKicker}>{period === 'month' ? 'This month' : 'All spending'}</Text>
-          <Text style={[styles.heroValue, { color: colors.white }]}>{formatCurrency(totals.total, currency)}</Text>
+          <Text style={[styles.heroValue, { color: colors.onPrimary }]}>{formatCurrency(totals.total, currency)}</Text>
           <View style={styles.heroMetaRow}>
             <View style={styles.heroMetaChip}>
               <Text style={styles.heroMetaLabel}>Paid {formatCurrency(totals.paid, currency)}</Text>
@@ -423,7 +431,7 @@ function ShopExpensesScreen() {
               <MaterialCommunityIcons name="printer-outline" size={18} color={colors.primary} />
               <Text style={[styles.secondaryLabel, { color: colors.primary }]}>Bill / Print</Text>
             </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={confirmRemoveExpense}>
+            <Pressable style={styles.secondaryButton} onPress={() => void confirmRemoveExpense()}>
               <Text style={styles.secondaryLabel}>Delete</Text>
             </Pressable>
             <Pressable style={styles.primaryButton} onPress={() => void saveExpenseUpdate()}>
@@ -710,7 +718,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     primaryLabel: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
     },
@@ -737,7 +745,7 @@ const createStyles = (colors: AppPalette) =>
       justifyContent: 'center',
     },
     miniAvatarText: {
-      color: colors.white,
+      color: colors.onPrimary,
       fontSize: 11,
       fontWeight: '800',
     },
@@ -767,7 +775,7 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '700',
     },
     bankChipLabelActive: {
-      color: colors.white,
+      color: colors.onPrimary,
     },
     emptyBankInfo: {
       flex: 1,

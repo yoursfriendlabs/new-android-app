@@ -3,7 +3,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleProp,
   StyleSheet,
@@ -12,6 +11,8 @@ import {
   ViewStyle,
 } from 'react-native';
 
+import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { uploadSingleAttachment } from '@/src/shared/lib/uploads';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { usePalette } from '@/src/stores/theme-store';
@@ -42,6 +43,8 @@ export function AvatarPicker({
 }: AvatarPickerProps) {
   const colors = usePalette();
   const [uploading, setUploading] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const toast = useToast();
 
   async function processPickedImage(pickerResult: ImagePicker.ImagePickerResult) {
     if (pickerResult.canceled || !pickerResult.assets?.[0]?.uri) {
@@ -50,7 +53,7 @@ export function AvatarPicker({
 
     const asset = pickerResult.assets[0];
     if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE_BYTES) {
-      Alert.alert('Photo too large', 'Please select an image smaller than 5MB.');
+      toast.error('Pick an image smaller than 5MB.');
       return;
     }
 
@@ -60,7 +63,7 @@ export function AvatarPicker({
       await onChange?.(uploadedUrl);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Please check your connection and try again.';
-      Alert.alert('Unable to upload photo', msg);
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
@@ -70,7 +73,7 @@ export function AvatarPicker({
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission needed', 'Camera access is required to take a photo.');
+        toast.error('Camera access is needed to take a photo.');
         return;
       }
 
@@ -84,7 +87,7 @@ export function AvatarPicker({
       await processPickedImage(result);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Could not open camera.';
-      Alert.alert('Camera error', msg);
+      toast.error(msg);
     }
   }
 
@@ -92,7 +95,7 @@ export function AvatarPicker({
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission needed', 'Photo library access is required to choose a picture.');
+        toast.error('Photo library access is needed to choose a picture.');
         return;
       }
 
@@ -106,7 +109,7 @@ export function AvatarPicker({
       await processPickedImage(result);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Could not open photos.';
-      Alert.alert('Gallery error', msg);
+      toast.error(msg);
     }
   }
 
@@ -116,7 +119,7 @@ export function AvatarPicker({
       await onChange?.(null);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Could not remove photo.';
-      Alert.alert('Error', msg);
+      toast.error(msg);
     } finally {
       setUploading(false);
     }
@@ -124,26 +127,24 @@ export function AvatarPicker({
 
   function handlePress() {
     if (disabled || uploading) return;
-
-    const hasPhoto = Boolean(value && value.trim().length > 0);
-
-    const buttons: Array<{ text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive' }> = [
-      { text: 'Take photo', onPress: () => void handleLaunchCamera() },
-      { text: 'Choose from library', onPress: () => void handleLaunchLibrary() },
-    ];
-
-    if (hasPhoto) {
-      buttons.push({
-        text: 'Remove photo',
-        style: 'destructive',
-        onPress: () => void handleRemove(),
-      });
-    }
-
-    buttons.push({ text: 'Cancel', style: 'cancel' });
-
-    Alert.alert('Profile photo', 'Update or remove picture', buttons);
+    setPickerVisible(true);
   }
+
+  const pickerActions: ActionSheetItem[] = [
+    { id: 'camera', label: 'Take photo', icon: 'camera-outline', onPress: () => void handleLaunchCamera() },
+    { id: 'library', label: 'Choose from library', icon: 'image-outline', onPress: () => void handleLaunchLibrary() },
+    ...(value && value.trim().length > 0
+      ? [
+          {
+            id: 'remove',
+            label: 'Remove photo',
+            icon: 'trash-can-outline' as const,
+            tone: 'danger' as const,
+            onPress: () => void handleRemove(),
+          },
+        ]
+      : []),
+  ];
 
   const badgeSize = Math.max(22, Math.round(size * 0.32));
   const badgeIconSize = Math.max(12, Math.round(badgeSize * 0.58));
@@ -195,6 +196,14 @@ export function AvatarPicker({
           <Text style={[styles.labelText, { color: colors.primary }]}>{label}</Text>
         </Pressable>
       ) : null}
+
+      <ActionSheet
+        visible={pickerVisible}
+        title="Profile photo"
+        subtitle="Update or remove your picture"
+        actions={pickerActions}
+        onClose={() => setPickerVisible(false)}
+      />
     </View>
   );
 }

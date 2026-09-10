@@ -1,9 +1,12 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -35,6 +38,7 @@ type BalanceFilter = 'all' | 'receive' | 'give';
 
 export default function PartiesScreen() {
   const colors = usePalette();
+  const toast = useToast();
   const { t } = useTranslation();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const businessName = useAuthStore((state) => state.businessProfile?.businessName) || 'PM';
@@ -102,7 +106,7 @@ export default function PartiesScreen() {
         t('parties.shareBalances'),
       );
     } catch (error) {
-      Alert.alert('Unable to share', error instanceof Error ? error.message : 'Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Could not share the balances.');
     } finally {
       setExporting(false);
     }
@@ -197,25 +201,20 @@ export default function PartiesScreen() {
         )}
 
         {(partiesQuery.isLoading || (partiesQuery.isFetching && !partiesQuery.data)) && !visibleParties.length ? (
-          <View style={styles.empty}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
+          <SkeletonList count={7} />
         ) : null}
 
         {!partiesQuery.isLoading && !partiesQuery.isFetching && !visibleParties.length ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
-              <MaterialCommunityIcons name="account-plus-outline" size={28} color={colors.primary} />
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {personal ? t('parties.noContactsYet') : t('parties.noPartiesYet')}
-            </Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {personal
-                ? t('parties.noContactsCopy')
-                : t('parties.noPartiesCopy')}
-            </Text>
-          </View>
+          <EmptyState
+            icon="account-plus-outline"
+            title={personal ? t('parties.noContactsYet') : t('parties.noPartiesYet')}
+            message={personal ? t('parties.noContactsCopy') : t('parties.noPartiesCopy')}
+            actionLabel={personal ? t('parties.newContact') : t('parties.newParty')}
+            onAction={() => {
+              setContactSeed(null);
+              setCreateVisible(true);
+            }}
+          />
         ) : null}
 
         <View style={styles.list}>

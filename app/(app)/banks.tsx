@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -16,6 +15,9 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { banksApi } from '@/src/api';
+import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -103,6 +105,8 @@ export interface BankTxItem {
 export default function BanksScreen() {
   const router = useRouter();
   const colors = usePalette();
+  const toast = useToast();
+  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const businessProfile = useAuthStore((state) => state.businessProfile);
@@ -263,7 +267,7 @@ export default function BanksScreen() {
   async function handleSave() {
     const name = form.name.trim();
     if (!name) {
-      Alert.alert('Name required', 'Give this account a short name, like Cash or Nabil.');
+      toast.error('Give this account a short name, like Cash or Nabil.');
       return;
     }
 
@@ -298,38 +302,36 @@ export default function BanksScreen() {
         setSelectedBank({ ...selectedBank, ...body });
       }
     } catch (error) {
-      Alert.alert('Unable to save account', workspaceAccessMessage(error, 'Please try again.'));
+      toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
       setSaving(false);
     }
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!editingBank?.id) return;
-    Alert.alert('Remove account', `Remove ${editingBank.name}? This does not delete past transactions.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setSaving(true);
-            try {
-              await withWorkspaceRetry(() => banksApi.remove(editingBank.id));
-              await queryClient.invalidateQueries({ queryKey: ['banks'] });
-              setSheetVisible(false);
-              if (selectedBank?.id === editingBank.id) {
-                setSelectedBank(null);
-              }
-            } catch (error) {
-              Alert.alert('Unable to remove', workspaceAccessMessage(error, 'Please try again.'));
-            } finally {
-              setSaving(false);
-            }
-          })();
-        },
-      },
-    ]);
+    const confirmed = await confirm({
+      title: 'Remove account',
+      message: `Remove ${editingBank.name}? Past transactions stay where they are.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      await withWorkspaceRetry(() => banksApi.remove(editingBank.id));
+      await queryClient.invalidateQueries({ queryKey: ['banks'] });
+      setSheetVisible(false);
+      if (selectedBank?.id === editingBank.id) {
+        setSelectedBank(null);
+      }
+      toast.success('Account removed');
+    } catch (error) {
+      toast.error(workspaceAccessMessage(error, 'Could not remove this account.'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function saveAdjustedBalance() {
@@ -361,7 +363,7 @@ export default function BanksScreen() {
       }
       setAdjustingBank(null);
     } catch (error) {
-      Alert.alert('Unable to update balance', workspaceAccessMessage(error, 'Please try again.'));
+      toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -402,13 +404,11 @@ export default function BanksScreen() {
         </View>
 
         {!accounts.length ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <MaterialCommunityIcons name="bank-plus" size={40} color={colors.primary} style={{ marginBottom: 8 }} />
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>No accounts added yet</Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              Add Cash in hand, Bank accounts (Nabil, Global IME), or Wallets (eSewa, Khalti).
-            </Text>
-          </View>
+          <EmptyState
+            icon="bank-plus"
+            title="No accounts added yet"
+            message="Add cash in hand, a bank account like Nabil or Global IME, or a wallet like eSewa or Khalti."
+          />
         ) : (
           <View style={styles.list}>
             {accounts.map((bank) => {
@@ -642,7 +642,7 @@ export default function BanksScreen() {
             {editingBank ? (
               <Pressable
                 style={[styles.deleteButton, { backgroundColor: colors.dangerSoft }]}
-                onPress={confirmDelete}
+                onPress={() => void confirmDelete()}
                 disabled={saving}
               >
                 <Text style={[styles.deleteLabel, { color: colors.danger }]}>Remove</Text>
@@ -654,9 +654,9 @@ export default function BanksScreen() {
               disabled={saving}
             >
               {saving ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={colors.onPrimary} />
               ) : (
-                <Text style={[styles.saveLabel, { color: colors.white }]}>
+                <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
                   {editingBank ? 'Save Changes' : 'Add Account'}
                 </Text>
               )}
@@ -680,7 +680,7 @@ export default function BanksScreen() {
                   ]}
                   onPress={() => setForm((current) => ({ ...current, name }))}
                 >
-                  <Text style={[styles.chipLabel, { color: active ? colors.white : colors.text }]}>{name}</Text>
+                  <Text style={[styles.chipLabel, { color: active ? colors.onPrimary : colors.text }]}>{name}</Text>
                 </Pressable>
               );
             })}
@@ -730,9 +730,9 @@ export default function BanksScreen() {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color={colors.white} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
-              <Text style={[styles.saveLabel, { color: colors.white }]}>Save Balance</Text>
+              <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>Save Balance</Text>
             )}
           </Pressable>
         }
