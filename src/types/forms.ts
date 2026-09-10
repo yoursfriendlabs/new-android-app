@@ -42,7 +42,6 @@ export interface QuickExpenseDraft {
   paymentNote: string;
   notes: string;
   date: string;
-  party?: Party | null;
 }
 
 export interface QuickPurchaseDraft {

@@ -7,17 +7,13 @@ import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text,
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
-import { DeviceContactSheet } from '@/src/features/parties/components/DeviceContactSheet';
-import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { submitWithOfflineQueue } from '@/src/data/sync';
-import { pickNativeDeviceContact, type DeviceContactDraft } from '@/src/features/parties/lib/device-contacts';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
 import { COIN_REWARDS, moneyClaimId } from '@/src/features/habits/lib/coins';
@@ -30,22 +26,17 @@ import {
   type HabitWin,
 } from '@/src/features/habits/lib/habits';
 import { useHabitStore } from '@/src/stores/habit-store';
-import {
-  visibleMoneyParties,
-  WALK_IN_LABEL,
-  buildMoneyPurchasePayload,
-} from '@/src/features/money/lib/money';
-import { partyInitials, partyTypeLabel } from '@/src/features/parties/lib/party';
+import { buildMoneyPurchasePayload } from '@/src/features/money/lib/money';
 import { workspaceAccessMessage, firstNonEmptyId } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
-import { invalidatePartyQueries, useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
+import { useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { getCategoryVisual } from '@/src/features/money/lib/category-visuals';
 import { usePalette, useThemeMode } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
-import type { Party, PaymentMethod } from '@/src/types/models';
+import type { PaymentMethod } from '@/src/types/models';
 
 export type MoneyEntryKind = 'income' | 'expense';
 type PaidMode = 'full' | 'due';
@@ -78,7 +69,6 @@ function emptyForm(kind: MoneyEntryKind) {
     bankId: '',
     notes: '',
     date: todayIso(),
-    party: null as Party | null,
   };
 }
 
@@ -97,18 +87,11 @@ export function MoneyEntrySheet({
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm(kind));
   const [customCategory, setCustomCategory] = useState('');
-  const [partySearch, setPartySearch] = useState('');
-  const [partyPickerVisible, setPartyPickerVisible] = useState(false);
-  const [createContactVisible, setCreateContactVisible] = useState(false);
-  const [phoneSheetVisible, setPhoneSheetVisible] = useState(false);
-  const [contactSeed, setContactSeed] = useState<DeviceContactDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [win, setWin] = useState<HabitWin | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(!compact);
-  const debouncedPartySearch = useDebouncedValue(partySearch);
   const { data: expenseCategories } = useQuickExpenses('', 'expense');
   const { data: incomeCategories } = useQuickExpenses('', 'income');
-  const { data: parties } = useParties(debouncedPartySearch, 'both');
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
@@ -121,14 +104,9 @@ export function MoneyEntrySheet({
     if (visible) {
       setForm(emptyForm(kind));
       setCustomCategory('');
-      setPartySearch('');
       setSaving(false);
       setDetailsOpen(!compact);
-      return;
     }
-    setPartyPickerVisible(false);
-    setCreateContactVisible(false);
-    setPhoneSheetVisible(false);
   }, [compact, kind, visible]);
 
   const amount = Number(form.amount || 0);
@@ -137,19 +115,6 @@ export function MoneyEntrySheet({
   const categoryOptions = isIncome
     ? Array.from(new Set([...(incomeCategories ?? []).map((item) => item.name), ...INCOME_CATEGORIES])).filter(Boolean)
     : Array.from(new Set([...(expenseCategories ?? []).map((item) => item.name), ...PERSONAL_EXPENSE_CATEGORIES])).filter(Boolean);
-
-  const pickerParties = visibleMoneyParties(parties);
-
-  async function importFromPhone() {
-    const native = await pickNativeDeviceContact();
-    if (native) {
-      setContactSeed(native);
-      setPartyPickerVisible(false);
-      setCreateContactVisible(true);
-      return;
-    }
-    if (native === undefined) setPhoneSheetVisible(true);
-  }
 
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
 
@@ -201,7 +166,6 @@ export function MoneyEntrySheet({
         amountPaid: isIncome ? amount : amountPaid,
         date: form.date,
         notes: form.notes,
-        party: form.party,
         paymentMethod: form.paymentMethod,
         bankId: form.bankId,
         attachment: receiptImage,
@@ -227,7 +191,6 @@ export function MoneyEntrySheet({
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['quick-expenses'] });
-      if (form.party?.id) await invalidatePartyQueries(queryClient, [form.party.id]);
 
       const storedDates = await useHabitStore.getState().recordLog(form.date);
       const previous = computeStreak(activityDates, form.date, useHabitStore.getState().bestStreak);
@@ -260,7 +223,6 @@ export function MoneyEntrySheet({
           ...current,
           amount: '',
           notes: '',
-          party: null,
         }));
         setReceiptImage(null);
       } else {
@@ -285,18 +247,13 @@ export function MoneyEntrySheet({
     }
   }
 
-  function closeAll() {
-    setPartyPickerVisible(false);
-    onClose();
-  }
-
   return (
     <>
       <BottomSheet
         visible={visible && !win}
         title={compact ? 'New Transaction' : isIncome ? 'New Income' : 'New Expense'}
         subtitle="Quick, clean money logging"
-        onClose={closeAll}
+        onClose={onClose}
         fullHeight
         footer={
           <View style={styles.dualFooter}>
@@ -408,38 +365,6 @@ export function MoneyEntrySheet({
           />
         ) : null}
 
-        <Pressable
-          style={[styles.selector, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => setPartyPickerVisible(true)}>
-          {form.party ? (
-            <Avatar
-              uri={form.party.avatarUrl}
-              name={form.party.name}
-              size={36}
-            />
-          ) : (
-            <View style={[styles.selectorAvatar, { backgroundColor: colors.backgroundAlt }]}>
-              <MaterialCommunityIcons color={colors.textMuted} name="account-outline" size={18} />
-            </View>
-          )}
-          <View style={styles.selectorCopy}>
-            <Text style={[styles.selectorTitle, { color: colors.text }]}>
-              {form.party?.name ?? WALK_IN_LABEL}
-            </Text>
-            <Text style={[styles.selectorSubtitle, { color: colors.textMuted }]}>
-              {form.party?.phone
-                ?? (isIncome ? 'From a contact, or skip' : 'Paid to a contact, or skip')}
-            </Text>
-          </View>
-          {form.party ? (
-            <Pressable hitSlop={8} onPress={() => setForm((current) => ({ ...current, party: null }))}>
-              <MaterialCommunityIcons color={colors.textMuted} name="close-circle" size={20} />
-            </Pressable>
-          ) : (
-            <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
-          )}
-        </Pressable>
-
         {/* Remarks / Notes Field with Camera Icon */}
         <View style={[styles.remarksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <MaterialCommunityIcons name="note-text-outline" size={18} color={colors.textMuted} />
@@ -479,56 +404,6 @@ export function MoneyEntrySheet({
 
         <DatePickerField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
       </BottomSheet>
-
-      <PartyPickerSheet
-        visible={partyPickerVisible}
-        search={partySearch}
-        onSearchChange={setPartySearch}
-        parties={pickerParties}
-        allowWalkIn
-        walkInLabel={WALK_IN_LABEL}
-        walkInSubtitle={isIncome ? 'Income with no contact attached' : 'Paid someone who is not in contacts'}
-        title={isIncome ? 'Who paid you?' : 'Who did you pay?'}
-        subtitle="Contacts stay contacts. Walk-in is fine when there is no person to save."
-        createLabel="New contact"
-        onCreatePress={() => {
-          setContactSeed(null);
-          setPartyPickerVisible(false);
-          setCreateContactVisible(true);
-        }}
-        phoneImportLabel="From phone"
-        onPhoneImportPress={() => void importFromPhone()}
-        typeLabel={(party) => partyTypeLabel(party.type, true)}
-        onPick={(party) => {
-          setForm((current) => ({ ...current, party }));
-          setPartyPickerVisible(false);
-        }}
-        onClose={() => setPartyPickerVisible(false)}
-      />
-
-      <PartyFormSheet
-        visible={createContactVisible}
-        seed={contactSeed}
-        onClose={() => {
-          setCreateContactVisible(false);
-          setContactSeed(null);
-        }}
-        onSaved={(party) => {
-          setForm((current) => ({ ...current, party }));
-          setCreateContactVisible(false);
-          setContactSeed(null);
-        }}
-      />
-
-      <DeviceContactSheet
-        visible={phoneSheetVisible}
-        onClose={() => setPhoneSheetVisible(false)}
-        onPick={(draft) => {
-          setContactSeed(draft);
-          setPhoneSheetVisible(false);
-          setCreateContactVisible(true);
-        }}
-      />
 
       <WinMoment
         win={win}
@@ -641,40 +516,6 @@ const createStyles = (colors: AppPalette) =>
       flex: 1,
       fontSize: 13,
       fontWeight: '600',
-    },
-    selector: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      padding: spacing.md,
-      backgroundColor: colors.surface,
-    },
-    selectorAvatar: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    selectorAvatarText: {
-      color: colors.onPrimary,
-      fontWeight: '800',
-    },
-    selectorCopy: {
-      flex: 1,
-      gap: 2,
-    },
-    selectorTitle: {
-      fontSize: typography.body,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    selectorSubtitle: {
-      fontSize: typography.caption,
-      color: colors.textMuted,
     },
     remarksCard: {
       flexDirection: 'row',

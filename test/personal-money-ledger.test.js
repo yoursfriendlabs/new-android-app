@@ -23,6 +23,23 @@ test('income payload is a purchase entry that does not require a party', () => {
   assert.equal(payload.items[0].categoryType, 'income');
 });
 
+test('expense payload carries no party either', () => {
+  const payload = buildMoneyPurchasePayload({
+    kind: 'expense',
+    category: 'Food',
+    amount: 450,
+    amountPaid: 450,
+    date: '2026-09-10',
+    paymentMethod: 'cash',
+  });
+
+  // Income and expense must never land on a contact's ledger: what a contact
+  // owes or is owed comes only from payment in / payment out.
+  assert.equal(payload.partyId, undefined);
+  assert.equal(payload.partyName, undefined);
+  assert.equal(payload.entryType, 'expense');
+});
+
 test('personal pulse uses income purchases, not party payments', () => {
   const pulse = buildPersonalPulse({
     today: '2026-09-08',

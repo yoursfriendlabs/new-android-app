@@ -77,7 +77,6 @@ export function buildMoneyPurchasePayload(input: {
   amountPaid: number;
   date: string;
   notes?: string;
-  party?: Party | null;
   paymentMethod: PaymentMethod;
   bankId?: string;
   attachment?: string | null;
@@ -87,9 +86,9 @@ export function buildMoneyPurchasePayload(input: {
   const amountPaid = isIncome ? input.amount : input.amountPaid;
   return {
     entryType: input.kind,
-    ...(input.party?.id
-      ? { partyId: input.party.id, partyName: moneyPersonLabel(input.party) }
-      : {}),
+    // Income and expense never carry a party. Money owed either way belongs to
+    // payment in / payment out on the party ledger, and attaching a contact here
+    // would show income as something that contact still has to pay.
     invoiceNo: `${isIncome ? 'INC' : 'EXP'}-${Date.now().toString().slice(-6)}`,
     purchaseDate: input.date,
     status: amountPaid >= input.amount ? 'received' : 'pending',

@@ -12,21 +12,17 @@ import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
-import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { useBanks, useParties, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
-import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
-import { partyInitials } from '@/src/features/parties/lib/party';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
-import type { Party, PaymentMethod } from '@/src/types/models';
+import type { PaymentMethod } from '@/src/types/models';
 
 type PaidMode = 'full' | 'due';
 
@@ -45,7 +41,6 @@ function emptyForm() {
     bankId: '',
     notes: '',
     date: todayIso(),
-    party: null as Party | null,
   };
 }
 
@@ -56,15 +51,11 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
   const [customCategory, setCustomCategory] = useState('');
-  const [partySearch, setPartySearch] = useState('');
-  const [partyPickerVisible, setPartyPickerVisible] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState({ visible: false, queued: false, message: '' });
-  const debouncedPartySearch = useDebouncedValue(partySearch);
   const { data: categories } = useQuickExpenses();
-  const { data: parties } = useParties(debouncedPartySearch, 'both');
   const { data: banks } = useBanks();
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
@@ -82,11 +73,9 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       setCustomCategory('');
       setAddingCategory(false);
       setNewCategoryName('');
-      setPartySearch('');
       setSaving(false);
       return;
     }
-    setPartyPickerVisible(false);
   }, [visible]);
 
   const amount = Number(form.amount || 0);
@@ -140,8 +129,9 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
     setSaving(true);
     const payload = {
       entryType: 'expense' as const,
-      partyId: form.party?.id || null,
-      partyName: form.party?.name || effectiveCategory,
+      // An expense is not owed to anyone — no party is attached.
+      partyId: null,
+      partyName: effectiveCategory,
       invoiceNo: `EXP-${Date.now().toString().slice(-6)}`,
       purchaseDate: form.date,
       status: amountPaid >= amount ? 'received' : 'pending',
@@ -193,7 +183,6 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   }
 
   function closeAll() {
-    setPartyPickerVisible(false);
     setSuccess({ visible: false, queued: false, message: '' });
     onClose();
   }
@@ -280,39 +269,6 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
           </View>
         ) : null}
 
-        <Pressable style={styles.selector} onPress={() => setPartyPickerVisible(true)}>
-          {form.party ? (
-            <Avatar
-              uri={form.party.avatarUrl}
-              name={form.party.name}
-              size={36}
-            />
-          ) : (
-            <View
-              style={[
-                styles.selectorAvatar,
-                { backgroundColor: colors.backgroundAlt },
-              ]}>
-              <MaterialCommunityIcons color={colors.textMuted} name="account-outline" size={18} />
-            </View>
-          )}
-          <View style={styles.selectorCopy}>
-            <Text style={styles.selectorTitle}>{form.party?.name ?? 'Paid to (optional)'}</Text>
-            <Text style={styles.selectorSubtitle}>
-              {form.party?.phone ?? 'Link a supplier or staff member if you want it on their statement'}
-            </Text>
-          </View>
-          {form.party ? (
-            <Pressable
-              hitSlop={8}
-              onPress={() => setForm((current) => ({ ...current, party: null }))}>
-              <MaterialCommunityIcons color={colors.textMuted} name="close-circle" size={20} />
-            </Pressable>
-          ) : (
-            <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={20} />
-          )}
-        </Pressable>
-
         <SegmentedTabs
           value={form.paidMode}
           onChange={(paidMode) => setForm((current) => ({ ...current, paidMode }))}
@@ -352,20 +308,6 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         />
       </BottomSheet>
 
-      <PartyPickerSheet
-        visible={partyPickerVisible}
-        search={partySearch}
-        onSearchChange={setPartySearch}
-        parties={parties ?? []}
-        allowWalkIn={false}
-        title="Paid to"
-        subtitle="Optional. Skip this for a simple cash expense."
-        onPick={(party) => {
-          setForm((current) => ({ ...current, party }));
-          setPartyPickerVisible(false);
-        }}
-        onClose={() => setPartyPickerVisible(false)}
-      />
 
       <SuccessSheet
         visible={success.visible}
@@ -502,41 +444,6 @@ const createStyles = (colors: AppPalette) =>
     addCategoryBtnLabel: {
       color: colors.onPrimary,
       fontWeight: '800',
-    },
-    selector: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.backgroundAlt,
-      padding: spacing.md,
-    },
-    selectorAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    selectorAvatarText: {
-      color: colors.onPrimary,
-      fontSize: 13,
-      fontWeight: '800',
-    },
-    selectorCopy: {
-      flex: 1,
-      gap: 2,
-    },
-    selectorTitle: {
-      fontSize: typography.body,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    selectorSubtitle: {
-      fontSize: typography.caption,
-      color: colors.textMuted,
     },
     bankWrap: {
       flexDirection: 'row',

@@ -80,8 +80,6 @@ export default function QuickEntryScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string | string[] }>();
   const [supplierSearch, setSupplierSearch] = useState('');
   const [supplierPickerVisible, setSupplierPickerVisible] = useState(false);
-  const [expensePartySearch, setExpensePartySearch] = useState('');
-  const [expensePartyPickerVisible, setExpensePartyPickerVisible] = useState(false);
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [addingCategory, setAddingCategory] = useState(false);
@@ -129,10 +127,8 @@ export default function QuickEntryScreen() {
     kind: null,
   });
   const debouncedSupplierSearch = useDebouncedValue(supplierSearch);
-  const debouncedExpensePartySearch = useDebouncedValue(expensePartySearch);
   const { data: banks } = useBanks();
   const { data: suppliers } = useParties(debouncedSupplierSearch, 'supplier');
-  const { data: expenseParties } = useParties(debouncedExpensePartySearch, 'both');
   const expenseDraft = useDraftState<QuickExpenseDraft>(
     'draft:quick-expense',
     createQuickExpenseDraft(),
@@ -167,8 +163,6 @@ export default function QuickEntryScreen() {
       return () => {
         setSupplierSearch('');
         setSupplierPickerVisible(false);
-        setExpensePartySearch('');
-        setExpensePartyPickerVisible(false);
         setCategorySheetVisible(false);
         setDetailSheetMode(null);
         setSuccessState({
@@ -206,8 +200,9 @@ export default function QuickEntryScreen() {
 
     const payload = {
       entryType: 'expense' as const,
-      partyId: expenseDraft.value.party?.id || null,
-      partyName: expenseDraft.value.party?.name || expenseDraft.value.category,
+      // An expense is not owed to anyone — no party is attached.
+      partyId: null,
+      partyName: expenseDraft.value.category,
       invoiceNo: `MOB-EXP-${Date.now().toString().slice(-6)}`,
       purchaseDate: expenseDraft.value.date,
       status: 'received',
@@ -435,33 +430,6 @@ export default function QuickEntryScreen() {
                     <Text style={styles.selectorLabel}>
                       {expenseDraft.value.category || 'Select expense category'}
                     </Text>
-                  </View>
-                  <MaterialCommunityIcons
-                    color={colors.textSoft}
-                    name="chevron-right"
-                    size={22}
-                  />
-                </Pressable>
-
-                <Pressable
-                  style={styles.selectorCard}
-                  onPress={() => setExpensePartyPickerVisible(true)}>
-                  <View style={styles.selectorLead}>
-                    <View style={[styles.partyAvatar, { backgroundColor: colors.primary }]}>
-                      <MaterialCommunityIcons
-                        color={colors.onPrimary}
-                        name="account-outline"
-                        size={22}
-                      />
-                    </View>
-                    <View style={styles.selectorCopy}>
-                      <Text style={styles.selectorLabel}>
-                        {expenseDraft.value.party?.name || 'Paid to (Optional)'}
-                      </Text>
-                      <Text style={styles.selectorSubLabel}>
-                        {expenseDraft.value.party?.phone || 'Tap to select staff or supplier'}
-                      </Text>
-                    </View>
                   </View>
                   <MaterialCommunityIcons
                     color={colors.textSoft}
@@ -751,21 +719,6 @@ export default function QuickEntryScreen() {
         allowWalkIn={false}
         title="Select supplier"
         subtitle="Search the supplier you want to attach to this purchase."
-      />
-
-      <PartyPickerSheet
-        visible={expensePartyPickerVisible}
-        search={expensePartySearch}
-        onSearchChange={setExpensePartySearch}
-        parties={expenseParties ?? []}
-        onPick={(party) => {
-          expenseDraft.setValue((current) => ({ ...current, party }));
-          setExpensePartyPickerVisible(false);
-        }}
-        onClose={() => setExpensePartyPickerVisible(false)}
-        allowWalkIn={true}
-        title="Paid to (Optional)"
-        subtitle="Select a staff member or supplier for this expense."
       />
 
       <SuccessSheet
