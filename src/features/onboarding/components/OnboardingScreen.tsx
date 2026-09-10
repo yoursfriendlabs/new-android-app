@@ -8,6 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
 import { haptics } from '@/src/shared/lib/haptics';
 import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
+import { ThemeModeSelector } from '@/src/shared/ui/ThemeModeSelector';
+import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
 import { Text } from '@/src/shared/ui/Text';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing } from '@/src/theme';
@@ -23,6 +25,8 @@ interface Slide {
   body: string;
   /** Slide one lets them set the language before reading anything else. */
   showLanguage?: boolean;
+  /** Slide two picks light/dark and the accent colour. */
+  showTheme?: boolean;
 }
 
 const SLIDES: Slide[] = [
@@ -34,16 +38,17 @@ const SLIDES: Slide[] = [
     showLanguage: true,
   },
   {
+    key: 'theme',
+    icon: 'palette-outline',
+    title: 'Make it yours',
+    body: 'Light or dark, and a colour to match your shop. Both can be changed later in Settings.',
+    showTheme: true,
+  },
+  {
     key: 'what',
     icon: 'cash-register',
     title: 'Bill, stock and udharo in one place',
-    body: 'Ring up a sale in seconds, keep stock honest, and see at a glance who owes you and who you owe.',
-  },
-  {
-    key: 'start',
-    icon: 'rocket-launch-outline',
-    title: 'Works even without signal',
-    body: 'Record sales offline and they sync the moment you are back online. Nothing waits for the internet.',
+    body: 'Ring up a sale in seconds, keep stock honest, and see who owes you at a glance. It keeps working without signal and syncs when you are back online.',
   },
 ];
 
@@ -101,10 +106,15 @@ export function OnboardingScreen() {
           <View key={slide.key} style={[styles.slide, { width }]}>
             <LinearGradient
               colors={[colors.accentSoft, colors.surface]}
-              style={styles.art}
+              // Slides carrying controls use smaller art so nothing overflows a short screen.
+              style={[styles.art, (slide.showLanguage || slide.showTheme) && styles.artCompact]}
               start={{ x: 0.1, y: 0 }}
               end={{ x: 0.9, y: 1 }}>
-              <MaterialCommunityIcons name={slide.icon} size={72} color={colors.primary} />
+              <MaterialCommunityIcons
+                name={slide.icon}
+                size={slide.showLanguage || slide.showTheme ? 52 : 72}
+                color={colors.primary}
+              />
             </LinearGradient>
 
             <View style={styles.copy}>
@@ -117,8 +127,17 @@ export function OnboardingScreen() {
             </View>
 
             {slide.showLanguage ? (
-              <View style={styles.languageBox}>
+              <View style={styles.optionBox}>
                 <LanguageSelector />
+              </View>
+            ) : null}
+
+            {slide.showTheme ? (
+              <View style={styles.optionBox}>
+                <ThemeModeSelector compact />
+                <View style={styles.swatchRow}>
+                  <CompactThemeRow />
+                </View>
               </View>
             ) : null}
           </View>
@@ -164,7 +183,7 @@ const createStyles = (colors: AppPalette) =>
     },
     slide: {
       paddingHorizontal: spacing.xl,
-      gap: spacing.xl,
+      gap: spacing.lg,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -175,11 +194,19 @@ const createStyles = (colors: AppPalette) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    artCompact: {
+      width: 120,
+      height: 120,
+    },
     copy: {
       gap: spacing.sm,
     },
-    languageBox: {
+    optionBox: {
       alignSelf: 'stretch',
+      gap: spacing.md,
+    },
+    swatchRow: {
+      alignItems: 'center',
     },
     footer: {
       paddingHorizontal: spacing.xl,
