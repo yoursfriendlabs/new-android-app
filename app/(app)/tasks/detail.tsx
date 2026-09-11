@@ -18,6 +18,7 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
+import { PersonalNoteDetail } from '@/src/features/notes/components/PersonalNoteDetail';
 import {
   useTaskDetail,
   useTaskMetadata,
@@ -38,6 +39,17 @@ import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskDetailScreen() {
+  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const personal = isPersonalWorkspace({
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
+  // Personal workspaces get a clean, dedicated note/reminder view instead of the
+  // task chrome (priority, status, assignees, timeline).
+  if (personal) return <PersonalNoteDetail />;
+  return <BusinessTaskDetailScreen />;
+}
+
+function BusinessTaskDetailScreen() {
   const colors = usePalette();
   const toast = useToast();
   const styles = useThemedStyles(createStyles);
@@ -106,7 +118,7 @@ export default function TaskDetailScreen() {
         );
         return;
       }
-      toast.error(`Task status is now ${newStatus.replace('_', ' ')}.`);
+      toast.success(`Task status is now ${newStatus.replace('_', ' ')}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     }

@@ -563,6 +563,7 @@ export const tasksApi = {
       path: `/api/tasks/${id}/comments`,
       body: { content },
     }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/tasks/${id}` }),
   notificationsSummary: () => apiRequest<TaskNotificationSummary>({ path: '/api/tasks/notifications/summary' }),
   markNotificationsRead: () => apiRequest<void>({ method: 'POST', path: '/api/tasks/notifications/read' }),
 };

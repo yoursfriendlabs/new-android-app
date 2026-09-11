@@ -19,6 +19,7 @@ import { PersonalNotesInbox } from '@/src/features/notes/components/PersonalNote
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { useTasks, useTaskMetadata } from '@/src/features/notes/hooks/useTaskQueries';
+import { decodeNoteBody } from '@/src/features/notes/lib/notes';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { radius, spacing, typography, shadows } from '@/src/theme';
@@ -110,6 +111,9 @@ function BusinessTaskInboxScreen() {
 
   const renderTaskItem = ({ item }: { item: Task }) => {
     const isOverdue = item.dueDate && new Date(item.dueDate) < new Date() && item.status !== 'completed';
+    // Notes/reminders store their body behind [[note]]/[[reminder]]/[[at:]]
+    // markers — decode so the raw markers never surface in the preview.
+    const preview = decodeNoteBody(item.description).body;
     return (
       <Pressable
         style={styles.taskCard}
@@ -129,9 +133,9 @@ function BusinessTaskInboxScreen() {
           </View>
         </View>
 
-        {item.description ? (
+        {preview ? (
           <Text numberOfLines={2} style={styles.taskDesc}>
-            {item.description}
+            {preview}
           </Text>
         ) : null}
 

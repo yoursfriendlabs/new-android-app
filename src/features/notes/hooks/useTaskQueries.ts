@@ -129,6 +129,18 @@ export function useUpdateTaskMutation(id: string) {
   });
 }
 
+export function useDeleteTaskMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => tasksApi.remove(id),
+    onSuccess: (_data, id) => {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.removeQueries({ queryKey: ['task', id] });
+      void queryClient.invalidateQueries({ queryKey: ['task-notifications'] });
+    },
+  });
+}
+
 export function useAddTaskCommentMutation(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
