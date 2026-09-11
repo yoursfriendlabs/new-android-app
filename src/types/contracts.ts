@@ -378,6 +378,16 @@ export interface TaskCreatePayload {
 
 export type TaskUpdatePayload = Partial<TaskCreatePayload>;
 
+export interface NoteCreatePayload {
+  kind: 'note' | 'reminder';
+  title: string;
+  body?: string | null;
+  remindAt?: string | null; // ISO datetime, reminders only
+  status?: 'open' | 'done';
+}
+
+export type NoteUpdatePayload = Partial<NoteCreatePayload>;
+
 export interface TaskCommentPayload {
   content: string;
 }

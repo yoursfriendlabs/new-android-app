@@ -758,6 +758,21 @@ export interface TaskMetadata {
   activityTypes: Array<{ key: string; label: string }>;
 }
 
+export type NoteKind = 'note' | 'reminder';
+export type NoteStatus = 'open' | 'done';
+
+export interface Note {
+  id: string;
+  kind: NoteKind;
+  title: string;
+  body?: string | null;
+  remindAt?: string | null;
+  status: NoteStatus;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TaskNotificationSummary {
   lastSeenAt?: string | null;
   unreadActivityCount: number;

@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import { tasksApi } from '@/src/api';
+import { notesApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
 import { CoinChip } from '@/src/features/habits/components/CoinChip';
@@ -23,7 +23,7 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { useTasks } from '@/src/features/notes/hooks/useTaskQueries';
+import { useNotes } from '@/src/features/notes/hooks/useNoteQueries';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import {
@@ -35,13 +35,13 @@ import {
   type IntervalHabit,
   type IntervalTemplate,
 } from '@/src/features/habits/lib/interval-habits';
-import { decodeNoteBody, formatDueStamp, isOpenTask, reminderDueAt, taskKind } from '@/src/features/notes/lib/notes';
+import { formatDueStamp } from '@/src/features/notes/lib/notes';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
-import type { Task } from '@/src/types/models';
+import type { Note } from '@/src/types/models';
 
 type InboxTab = 'open' | 'notes' | 'done';
 
@@ -61,7 +61,7 @@ export function PersonalNotesInbox() {
   const [win, setWin] = useState<HabitWin | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data: tasksData, isLoading, refetch, isFetching } = useTasks({ q: search });
+  const { data: notesData, isLoading, refetch, isFetching } = useNotes({ q: search });
 
   useFocusEffect(
     useCallback(() => {
@@ -69,12 +69,11 @@ export function PersonalNotesInbox() {
     }, [refetch]),
   );
 
-  const items = tasksData?.items ?? [];
+  const items = notesData?.items ?? [];
   const visible = useMemo(() => {
-    return items.filter((task) => {
-      const kind = taskKind(task);
-      const open = isOpenTask(task.status);
-      if (tab === 'notes') return kind === 'note';
+    return items.filter((note) => {
+      const open = note.status !== 'done';
+      if (tab === 'notes') return note.kind === 'note';
       if (tab === 'done') return !open;
       return open;
     });
@@ -85,21 +84,21 @@ export function PersonalNotesInbox() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
-  const completeTask = async (task: Task) => {
-    if (!isOpenTask(task.status)) return;
-    setBusyId(task.id);
+  const completeNote = async (note: Note) => {
+    if (note.status === 'done') return;
+    setBusyId(note.id);
     try {
-      await tasksApi.update(task.id, { status: 'completed' });
-      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      await notesApi.update(note.id, { status: 'done' });
+      await queryClient.invalidateQueries({ queryKey: ['notes'] });
       const coinsAwarded = await useHabitStore.getState().awardCoins(COIN_REWARDS.complete, {
-        claimId: `complete:${task.id}`,
+        claimId: `complete:${note.id}`,
         reason: 'complete',
-        label: taskKind(task) === 'note' ? 'Closed a note' : 'Finished a reminder',
+        label: note.kind === 'note' ? 'Closed a note' : 'Finished a reminder',
       });
-      await useHabitStore.getState().cancelPing(`task:${task.id}`);
+      await useHabitStore.getState().cancelPing(`note:${note.id}`);
       showWin(
         buildCoinWin({
-          title: taskKind(task) === 'note' ? 'Note closed' : 'Reminder done',
+          title: note.kind === 'note' ? 'Note closed' : 'Reminder done',
           message: coinsAwarded ? `Nice follow-through. ${plusCoins(coinsAwarded)}.` : 'Already collected for this one.',
           coins: coinsAwarded,
           icon: 'check-decagram',
@@ -155,11 +154,10 @@ export function PersonalNotesInbox() {
     setIntervalOpen(true);
   };
 
-  const renderTask = ({ item }: { item: Task }) => {
-    const kind = taskKind(item);
-    const decoded = decodeNoteBody(item.description);
-    const open = isOpenTask(item.status);
-    const due = reminderDueAt(item);
+  const renderTask = ({ item }: { item: Note }) => {
+    const kind = item.kind;
+    const open = item.status !== 'done';
+    const due = item.remindAt ? new Date(item.remindAt) : null;
     const overdue = Boolean(due && due.getTime() < Date.now() && open && kind === 'reminder');
     return (
       <Pressable
@@ -186,7 +184,7 @@ export function PersonalNotesInbox() {
           {open ? (
             <Pressable
               hitSlop={8}
-              onPress={() => void completeTask(item)}
+              onPress={() => void completeNote(item)}
               style={[styles.checkBtn, { backgroundColor: colors.successSoft }]}>
               {busyId === item.id ? (
                 <ActivityIndicator color={colors.success} size="small" />
@@ -198,9 +196,9 @@ export function PersonalNotesInbox() {
             <Text style={[styles.coinHint, { color: colors.warning }]}>{plusCoins(COIN_REWARDS.complete)}</Text>
           )}
         </View>
-        {decoded.body ? (
+        {item.body ? (
           <Text numberOfLines={2} style={[styles.cardBody, { color: colors.textSoft }]}>
-            {decoded.body}
+            {item.body}
           </Text>
         ) : null}
       </Pressable>

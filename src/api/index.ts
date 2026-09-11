@@ -52,6 +52,8 @@ import type {
   UploadAttachmentResponse,
   UploadAttachmentsResponse,
   VerifyOtpPayload,
+  NoteCreatePayload,
+  NoteUpdatePayload,
   TaskCreatePayload,
   TaskUpdatePayload,
   TaskCommentPayload,
@@ -69,6 +71,7 @@ import type {
   CoinSnapshotResponse,
 } from '@/src/types/contracts';
 import type {
+  Note,
   BankAccount,
   Budget,
   BudgetSummary,
@@ -566,6 +569,17 @@ export const tasksApi = {
   remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/tasks/${id}` }),
   notificationsSummary: () => apiRequest<TaskNotificationSummary>({ path: '/api/tasks/notifications/summary' }),
   markNotificationsRead: () => apiRequest<void>({ method: 'POST', path: '/api/tasks/notifications/read' }),
+};
+
+export const notesApi = {
+  list: (query: Record<string, unknown> = {}) =>
+    apiRequest<PaginatedResponse<Note>>({ path: '/api/notes', query }),
+  get: (id: string) => apiRequest<Note>({ path: `/api/notes/${id}` }),
+  create: (payload: NoteCreatePayload) =>
+    apiRequest<Note, NoteCreatePayload>({ method: 'POST', path: '/api/notes', body: payload }),
+  update: (id: string, payload: NoteUpdatePayload) =>
+    apiRequest<Note, NoteUpdatePayload>({ method: 'PATCH', path: `/api/notes/${id}`, body: payload }),
+  remove: (id: string) => apiRequest<void>({ method: 'DELETE', path: `/api/notes/${id}` }),
 };
 
 export const tablesApi = {

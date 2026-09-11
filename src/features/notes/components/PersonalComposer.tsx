@@ -19,7 +19,7 @@ import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
-import { useCreateTaskMutation, useTaskDetail, useUpdateTaskMutation } from '@/src/features/notes/hooks/useTaskQueries';
+import { useCreateNoteMutation, useNoteDetail, useUpdateNoteMutation } from '@/src/features/notes/hooks/useNoteQueries';
 import { BsDatePickerModal } from '@/src/shared/forms/BsDatePickerModal';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { localIsoDate, prettyDate } from '@/src/shared/lib/format';
@@ -28,8 +28,6 @@ import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 import {
   createdRecordId,
-  decodeNoteBody,
-  encodeNoteBody,
   formatDueStamp,
   reminderPresets,
   roundToNextHour,
@@ -49,9 +47,9 @@ export function PersonalComposer() {
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ id?: string; kind?: string }>();
   const isEdit = Boolean(params.id);
-  const { data: task, isLoading } = useTaskDetail(params.id);
-  const createTaskMutation = useCreateTaskMutation();
-  const updateTaskMutation = useUpdateTaskMutation(params.id || '');
+  const { data: note, isLoading } = useNoteDetail(params.id);
+  const createNoteMutation = useCreateNoteMutation();
+  const updateNoteMutation = useUpdateNoteMutation(params.id || '');
 
   const [kind, setKind] = useState<ComposerKind>(params.kind === 'note' ? 'note' : params.kind === 'interval' ? 'interval' : 'reminder');
   const [title, setTitle] = useState('');
@@ -76,21 +74,20 @@ export function PersonalComposer() {
   }, [params.kind]);
 
   useEffect(() => {
-    if (isEdit && task && task.id && loadedTaskId !== task.id) {
-      const decoded = decodeNoteBody(task.description);
-      setKind(decoded.kind);
-      setTitle(task.title || '');
-      setBody(decoded.body || '');
-      if (decoded.dueAt) {
-        const parsed = new Date(decoded.dueAt);
+    if (isEdit && note && note.id && loadedTaskId !== note.id) {
+      setKind(note.kind);
+      setTitle(note.title || '');
+      setBody(note.body || '');
+      if (note.remindAt) {
+        const parsed = new Date(note.remindAt);
         if (!Number.isNaN(parsed.getTime())) {
           setDueAt(parsed);
           setDuePreset('custom');
         }
       }
-      setLoadedTaskId(task.id);
+      setLoadedTaskId(note.id);
     }
-  }, [isEdit, loadedTaskId, task]);
+  }, [isEdit, loadedTaskId, note]);
 
   const handleSave = async () => {
     if (kind === 'interval') {
@@ -111,18 +108,18 @@ export function PersonalComposer() {
     try {
       const dueIso = dueAt.toISOString();
       const payload = {
+        kind: kind === 'reminder' ? ('reminder' as const) : ('note' as const),
         title: title.trim(),
-        description: encodeNoteBody(kind, body, kind === 'reminder' ? dueIso : undefined),
-        priority: kind === 'note' ? 'low' : 'medium',
-        status: 'open',
-        dueDate: kind === 'reminder' ? localIsoDate(dueAt) : localIsoDate(),
+        body: body.trim() || null,
+        remindAt: kind === 'reminder' ? dueIso : null,
+        status: 'open' as const,
       };
 
       if (isEdit) {
-        await updateTaskMutation.mutateAsync(payload);
+        await updateNoteMutation.mutateAsync(payload);
         if (kind === 'reminder' && params.id) {
           await useHabitStore.getState().schedulePing({
-            id: `task:${params.id}`,
+            id: `note:${params.id}`,
             title: payload.title,
             body: body.trim() || payload.title,
             at: dueIso,
@@ -130,7 +127,7 @@ export function PersonalComposer() {
           });
         }
       } else {
-        const created = await createTaskMutation.mutateAsync(payload);
+        const created = await createNoteMutation.mutateAsync(payload);
         const createdId = createdRecordId(created);
         const coins = await useHabitStore.getState().awardCoins(reward, {
           claimId: createdId ? `create:${createdId}` : undefined,
@@ -139,7 +136,7 @@ export function PersonalComposer() {
         });
         if (kind === 'reminder') {
           await useHabitStore.getState().schedulePing({
-            id: `task:${createdId || Date.now()}`,
+            id: `note:${createdId || Date.now()}`,
             title: payload.title,
             body: body.trim() || payload.title,
             at: dueIso,

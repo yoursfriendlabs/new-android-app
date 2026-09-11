@@ -9,13 +9,13 @@ import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
 import {
-  useTaskDetail,
-  useUpdateTaskMutation,
-  useDeleteTaskMutation,
-} from '@/src/features/notes/hooks/useTaskQueries';
+  useNoteDetail,
+  useUpdateNoteMutation,
+  useDeleteNoteMutation,
+} from '@/src/features/notes/hooks/useNoteQueries';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
-import { decodeNoteBody, formatDueStamp, isOpenTask, reminderDueAt, taskKind } from '@/src/features/notes/lib/notes';
+import { formatDueStamp } from '@/src/features/notes/lib/notes';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { prettyDate } from '@/src/shared/lib/format';
 import { radius, spacing, typography, shadows } from '@/src/theme';
@@ -32,9 +32,9 @@ export function PersonalNoteDetail() {
 
   const [win, setWin] = useState<HabitWin | null>(null);
 
-  const { data: task, isLoading } = useTaskDetail(id);
-  const updateTaskMutation = useUpdateTaskMutation(id || '');
-  const deleteTaskMutation = useDeleteTaskMutation();
+  const { data: note, isLoading } = useNoteDetail(id);
+  const updateNoteMutation = useUpdateNoteMutation(id || '');
+  const deleteNoteMutation = useDeleteNoteMutation();
 
   if (isLoading) {
     return (
@@ -46,7 +46,7 @@ export function PersonalNoteDetail() {
     );
   }
 
-  if (!task) {
+  if (!note) {
     return (
       <Screen scrollable={false} padded={false} topBarTitle="Note" topBarLeading="back">
         <View style={styles.centerWrap}>
@@ -61,34 +61,32 @@ export function PersonalNoteDetail() {
     );
   }
 
-  const decoded = decodeNoteBody(task.description);
-  const kind = taskKind(task);
-  const isNote = kind === 'note';
-  const open = isOpenTask(task.status);
-  const dueMoment = reminderDueAt(task);
+  const isNote = note.kind === 'note';
+  const open = note.status !== 'done';
+  const dueMoment = note.remindAt ? new Date(note.remindAt) : null;
   const overdue = Boolean(!isNote && dueMoment && dueMoment.getTime() < Date.now() && open);
 
   const topBarRight = (
     <Pressable
       style={styles.headerButton}
-      onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: task.id } })}>
+      onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: note.id } })}>
       <MaterialCommunityIcons color={colors.onPrimary} name="pencil" size={20} />
     </Pressable>
   );
 
   async function handleToggleDone() {
-    if (!task) return;
-    const nextStatus = open ? 'completed' : 'open';
+    if (!note) return;
+    const nextStatus = open ? 'done' : 'open';
     try {
-      await updateTaskMutation.mutateAsync({ status: nextStatus });
+      await updateNoteMutation.mutateAsync({ status: nextStatus });
       if (open) {
         // Was open, now completing — reward and cancel any pending reminder ping.
         const coins = await useHabitStore.getState().awardCoins(COIN_REWARDS.complete, {
-          claimId: `complete:${task.id}`,
+          claimId: `complete:${note.id}`,
           reason: 'complete',
           label: isNote ? 'Closed a note' : 'Finished a reminder',
         });
-        await useHabitStore.getState().cancelPing(`task:${task.id}`);
+        await useHabitStore.getState().cancelPing(`note:${note.id}`);
         setWin(
           buildCoinWin({
             title: isNote ? 'Note closed' : 'Reminder done',
@@ -106,7 +104,7 @@ export function PersonalNoteDetail() {
   }
 
   async function handleDelete() {
-    if (!task) return;
+    if (!note) return;
     const ok = await confirm({
       title: isNote ? 'Delete this note?' : 'Delete this reminder?',
       message: 'This cannot be undone.',
@@ -116,8 +114,8 @@ export function PersonalNoteDetail() {
     });
     if (!ok) return;
     try {
-      await useHabitStore.getState().cancelPing(`task:${task.id}`);
-      await deleteTaskMutation.mutateAsync(task.id);
+      await useHabitStore.getState().cancelPing(`note:${note.id}`);
+      await deleteNoteMutation.mutateAsync(note.id);
       toast.success(isNote ? 'Note deleted' : 'Reminder deleted');
       router.back();
     } catch (error) {
@@ -160,7 +158,7 @@ export function PersonalNoteDetail() {
           ) : null}
         </View>
 
-        <Text style={styles.title}>{task.title}</Text>
+        <Text style={styles.title}>{note.title}</Text>
 
         {!isNote && dueMoment ? (
           <View style={[styles.dueRow, overdue && { borderColor: colors.danger, backgroundColor: colors.dangerSoft }]}>
@@ -178,8 +176,8 @@ export function PersonalNoteDetail() {
           </View>
         ) : null}
 
-        {decoded.body ? (
-          <Text style={styles.body}>{decoded.body}</Text>
+        {note.body ? (
+          <Text style={styles.body}>{note.body}</Text>
         ) : (
           <Text style={styles.bodyMuted}>No additional detail.</Text>
         )}
@@ -187,7 +185,7 @@ export function PersonalNoteDetail() {
         <View style={styles.metaRow}>
           <MaterialCommunityIcons color={colors.textMuted} name="calendar-blank-outline" size={14} />
           <Text style={styles.metaText}>
-            {task.createdAt ? `Created ${prettyDate(task.createdAt)}` : 'Saved to your workspace'}
+            {note.createdAt ? `Created ${prettyDate(note.createdAt)}` : 'Saved to your workspace'}
           </Text>
         </View>
       </ScrollView>

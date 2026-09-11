@@ -39,6 +39,9 @@ import type {
   TaskActivity,
   TaskMetadata,
   TaskNotificationSummary,
+  Note,
+  NoteKind,
+  NoteStatus,
 } from '@/src/types/models';
 
 type UnknownRecord = Record<string, unknown>;
@@ -1051,6 +1054,23 @@ export function normalizeTask(raw: unknown): Task {
     } : null,
     assignments,
     activities,
+  };
+}
+
+export function normalizeNote(raw: unknown): Note {
+  const record = asRecord(unwrapEntity<unknown>(raw)) ?? asRecord(raw) ?? {};
+  const kind: NoteKind = asString(record.kind, 'note') === 'reminder' ? 'reminder' : 'note';
+  const status: NoteStatus = asString(record.status, 'open') === 'done' ? 'done' : 'open';
+  return {
+    id: asString(firstDefined(record.id, record._id), ''),
+    kind,
+    title: asString(record.title, ''),
+    body: record.body != null ? asString(record.body) : null,
+    remindAt: record.remindAt ? asString(record.remindAt) : null,
+    status,
+    completedAt: record.completedAt ? asString(record.completedAt) : null,
+    createdAt: asString(record.createdAt, ''),
+    updatedAt: asString(record.updatedAt, ''),
   };
 }
 
