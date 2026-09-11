@@ -14,6 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { Screen } from '@/src/shared/layout/Screen';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SkeletonCardGrid } from '@/src/shared/ui/Skeleton';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { useSalesList, useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
@@ -39,6 +40,7 @@ export default function SeatingOrdersScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [viewMode, setViewMode] = useState<'floor' | 'board'>('floor');
   const [selectedStatus, setSelectedStatus] = useState<string>('new');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -152,8 +154,9 @@ export default function SeatingOrdersScreen() {
         queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
         queryClient.invalidateQueries({ queryKey: ['recent-sales'] }),
       ]);
+      toast.success(`Order moved to ${nextStatus.label}`);
     } catch (error) {
-      console.error('Failed to update order status', error);
+      toast.error(error instanceof Error ? error.message : 'Could not update the order status.');
     } finally {
       setUpdatingId(null);
     }

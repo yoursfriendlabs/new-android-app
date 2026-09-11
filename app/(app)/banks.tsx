@@ -127,9 +127,6 @@ export default function BanksScreen() {
   const [editingBank, setEditingBank] = useState<BankAccount | null>(null);
   const [form, setForm] = useState(createBankForm());
   const [saving, setSaving] = useState(false);
-  const [adjustingBank, setAdjustingBank] = useState<BankAccount | null>(null);
-  const [adjustAmount, setAdjustAmount] = useState('');
-  const [adjusting, setAdjusting] = useState(false);
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
   const [txSearch, setTxSearch] = useState('');
 
@@ -143,11 +140,6 @@ export default function BanksScreen() {
     setEditingBank(bank);
     setForm(createBankForm(bank));
     setSheetVisible(true);
-  }
-
-  function openAdjust(bank: BankAccount) {
-    setAdjustingBank(bank);
-    setAdjustAmount(String(bank.currentBalance ?? 0));
   }
 
   function openBankDetail(bank: BankAccount) {
@@ -334,41 +326,6 @@ export default function BanksScreen() {
     }
   }
 
-  async function saveAdjustedBalance() {
-    if (!adjustingBank) return;
-    const nextBalance = Number(adjustAmount || 0);
-    setSaving(true);
-    try {
-      await withWorkspaceRetry(() =>
-        submitWithOfflineQueue({
-          entityType: 'bank',
-          method: 'PUT',
-          path: `/api/banks/${adjustingBank.id}`,
-          body: {
-            name: adjustingBank.name,
-            accountName: adjustingBank.accountName || adjustingBank.name,
-            accountNumber: adjustingBank.accountNumber,
-            branchName: adjustingBank.branchName,
-            openingBalance: adjustingBank.openingBalance ?? 0,
-            currentBalance: nextBalance,
-            isActive: adjustingBank.isActive,
-            notes: adjustingBank.notes,
-          },
-        })
-      );
-      await cacheBankRecord({ ...adjustingBank, currentBalance: nextBalance });
-      await queryClient.invalidateQueries({ queryKey: ['banks'] });
-      if (selectedBank && selectedBank.id === adjustingBank.id) {
-        setSelectedBank({ ...selectedBank, currentBalance: nextBalance });
-      }
-      setAdjustingBank(null);
-    } catch (error) {
-      toast.error(workspaceAccessMessage(error, 'Please try again.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleRefreshAll() {
     await Promise.all([
       refetch(),
@@ -448,16 +405,6 @@ export default function BanksScreen() {
                         hitSlop={8}
                         onPress={(e) => {
                           e.stopPropagation();
-                          openAdjust(bank);
-                        }}
-                        style={[styles.adjustChip, { backgroundColor: colors.backgroundAlt }]}
-                      >
-                        <Text style={[styles.adjustChipLabel, { color: colors.primary }]}>Set bal</Text>
-                      </Pressable>
-                      <Pressable
-                        hitSlop={8}
-                        onPress={(e) => {
-                          e.stopPropagation();
                           openEdit(bank);
                         }}
                         style={[styles.editChip, { backgroundColor: colors.backgroundAlt }]}
@@ -486,16 +433,6 @@ export default function BanksScreen() {
         footer={
           selectedBank ? (
             <View style={styles.detailSheetFooter}>
-              <Pressable
-                style={[styles.detailActionBtn, { backgroundColor: colors.backgroundAlt }]}
-                onPress={() => {
-                  if (selectedBank) openAdjust(selectedBank);
-                }}
-              >
-                <MaterialCommunityIcons name="currency-usd" size={18} color={colors.primary} />
-                <Text style={[styles.detailActionBtnText, { color: colors.primary }]}>Set Balance</Text>
-              </Pressable>
-
               <Pressable
                 style={[styles.detailActionBtn, { backgroundColor: colors.backgroundAlt }]}
                 onPress={() => {
@@ -716,36 +653,6 @@ export default function BanksScreen() {
           </Pressable>
         )}
       </BottomSheet>
-
-      {/* Set Balance Sheet */}
-      <BottomSheet
-        visible={Boolean(adjustingBank)}
-        title="Set Current Balance"
-        subtitle={adjustingBank ? `Update current balance for ${adjustingBank.name}` : undefined}
-        onClose={() => setAdjustingBank(null)}
-        footer={
-          <Pressable
-            style={[styles.saveButton, { backgroundColor: colors.primary }]}
-            onPress={() => void saveAdjustedBalance()}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
-              <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>Save Balance</Text>
-            )}
-          </Pressable>
-        }
-      >
-        <FormField
-          label="Current Balance Amount"
-          value={adjustAmount}
-          onChangeText={setAdjustAmount}
-          keyboardType="numeric"
-          placeholder="0"
-          autoFocus
-        />
-      </BottomSheet>
     </Screen>
   );
 }
@@ -831,15 +738,6 @@ const createStyles = (colors: AppPalette) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-    },
-    adjustChip: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: radius.sm,
-    },
-    adjustChipLabel: {
-      fontSize: 10,
-      fontWeight: '700',
     },
     editChip: {
       padding: 4,

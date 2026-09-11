@@ -38,7 +38,7 @@ import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
-const steps = ['Customer', 'Job', 'Items', 'Payment', 'Review'] as const;
+const steps = ['Details', 'Items & Payment', 'Review'] as const;
 
 function createEmptyServiceDraft(): ServiceDraft {
   return {
@@ -243,7 +243,7 @@ export default function ServiceCreateScreen() {
 
     if (draft.value.paymentMethod === 'bank' && draft?.value?.receivedTotal > 0 && !draft.value.bankId) {
       setFormError('Choose a bank account for bank payments.');
-      setStepIndex(3);
+      setStepIndex(1);
       return;
     }
 
@@ -256,7 +256,7 @@ export default function ServiceCreateScreen() {
 
     if (invalidSecondaryLine) {
       setFormError('This product is missing a secondary unit conversion rate.');
-      setStepIndex(2);
+      setStepIndex(1);
       return;
     }
 
@@ -380,7 +380,7 @@ export default function ServiceCreateScreen() {
       ) {
         setOrderNumberError(message);
         setFormError(message);
-        setStepIndex(1);
+        setStepIndex(0);
         return;
       }
 
@@ -491,7 +491,7 @@ export default function ServiceCreateScreen() {
         </SurfaceCard>
       ) : null}
 
-      {stepIndex === 1 ? (
+      {stepIndex === 0 ? (
         <SurfaceCard title="Job details" subtitle="Order, status, delivery, notes, and optional custom attributes.">
           <FormField
             label="Order number"
@@ -658,7 +658,7 @@ export default function ServiceCreateScreen() {
         </SurfaceCard>
       ) : null}
 
-      {stepIndex === 2 ? (
+      {stepIndex === 1 ? (
         <SurfaceCard title="Services and Products" subtitle="Keep services and products organized for this job.">
           <View style={styles.actionsRow}>
             <Pressable style={styles.secondaryButton} onPress={() => openAddLine('labor')}>
@@ -736,7 +736,7 @@ export default function ServiceCreateScreen() {
         </SurfaceCard>
       ) : null}
 
-      {stepIndex === 3 ? (
+      {stepIndex === 1 ? (
         <SurfaceCard title="Payment & Advance" subtitle="Record advance received or mark for payment on delivery.">
           {/* Live Remaining Due Preview */}
           <View style={[styles.duePreviewBox, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
@@ -837,7 +837,7 @@ export default function ServiceCreateScreen() {
         </SurfaceCard>
       ) : null}
 
-      {stepIndex === 4 ? (
+      {stepIndex === 2 ? (
         <SurfaceCard title="Review Service Order" subtitle="One last glance before you save the service order.">
           <Text style={styles.reviewHeading}>{draft.value.customer?.name ?? 'No customer selected'}</Text>
           <Text style={styles.reviewMeta}>
@@ -934,9 +934,14 @@ export default function ServiceCreateScreen() {
             onPress: () => {
               if (stepIndex === steps.length - 1) {
                 void saveService();
-              } else {
-                setStepIndex((current) => current + 1);
+                return;
               }
+              if (stepIndex === 0 && !draft.value.customer?.id) {
+                setFormError('Select a customer before continuing.');
+                return;
+              }
+              setFormError('');
+              setStepIndex((current) => current + 1);
             },
           }}
         />

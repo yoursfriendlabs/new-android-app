@@ -231,10 +231,17 @@ export default function CashierScreen() {
     setSubmittingCheckout(true);
     try {
       const isPaid = receivedAmt >= finalTotal;
-      const status = isPaid ? 'paid' : receivedAmt > 0 ? 'partial' : 'unpaid';
+      // A fully paid bill is closed ('paid'); anything else stays an open bill
+      // ('due') so it keeps showing in the cashier's unpaid list.
+      const status = isPaid ? 'paid' : 'due';
 
       const payload = {
         status,
+        // Closing the bill also completes the kitchen order so the table clears
+        // from the orders board and floor map (both key off order_status).
+        attributes: isPaid
+          ? { ...(saleDetails.attributes || {}), order_status: 'completed' }
+          : saleDetails.attributes,
         amountReceived: receivedAmt,
         paymentMethod: receivedAmt > 0 ? paymentMethod : 'cash',
         bankId: receivedAmt > 0 && paymentMethod === 'bank' ? bankId : undefined,
