@@ -79,6 +79,8 @@ export default function AppLayout() {
       <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
       <Stack.Screen name="cashier" />
       <Stack.Screen name="tables" />
+      <Stack.Screen name="item-form" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="item-detail" />
     </Stack>
   );
 }

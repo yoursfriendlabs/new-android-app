@@ -6,6 +6,7 @@ import { productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { getCurrentStock, invalidateInventoryQueries } from '@/src/features/inventory/lib/inventory';
@@ -20,15 +21,16 @@ type RestockAction = 'add' | 'remove';
 interface ProductRestockSheetProps {
   visible: boolean;
   product?: Product | null;
+  initialAction?: RestockAction;
   onClose: () => void;
 }
 
-export function ProductRestockSheet({ onClose, product, visible }: ProductRestockSheetProps) {
+export function ProductRestockSheet({ initialAction = 'add', onClose, product, visible }: ProductRestockSheetProps) {
   const colors = usePalette();
   const toast = useToast();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
-  const [action, setAction] = useState<RestockAction>('add');
+  const [action, setAction] = useState<RestockAction>(initialAction);
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
@@ -37,13 +39,13 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
 
   useEffect(() => {
     if (visible) {
-      setAction('add');
+      setAction(initialAction);
       setQuantity('');
       setExpiryDate('');
       setBatchNumber('');
       setNote('');
     }
-  }, [visible, product?.id]);
+  }, [visible, product?.id, initialAction]);
 
   const currentStock = getCurrentStock(product);
   const qty = Number(quantity || 0);
@@ -128,7 +130,7 @@ export function ProductRestockSheet({ onClose, product, visible }: ProductRestoc
       />
       {action === 'add' ? (
         <>
-          <FormField label="Expiry date" value={expiryDate} onChangeText={setExpiryDate} placeholder="YYYY-MM-DD" />
+          <DatePickerField label="Expiry date" value={expiryDate} onChangeText={setExpiryDate} helperText="Optional — tracks this batch's expiry." />
           <FormField label="Batch number" value={batchNumber} onChangeText={setBatchNumber} placeholder="Optional" />
         </>
       ) : null}

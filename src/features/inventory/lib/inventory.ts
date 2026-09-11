@@ -40,7 +40,12 @@ export function getCurrentStock(product?: Product | null) {
   return Number(product?.stockOnHand ?? product?.openingStock ?? 0);
 }
 
-const NEAR_EXPIRY_DAYS = 20;
+// Warning band: an item/lot expiring within this many days is "near expiry".
+export const NEAR_EXPIRY_DAYS = 90;
+// Danger band: within this many days it turns red (more urgent than the warning band).
+export const EXPIRY_DANGER_DAYS = 30;
+
+export type ExpiryLevel = 'none' | 'warning' | 'danger' | 'expired';
 
 export function daysUntilExpiry(expiryDate?: string | null) {
   const value = String(expiryDate || '').trim();
@@ -72,6 +77,35 @@ export function isNearExpiryProduct(product?: Product | null) {
   });
 }
 
+// Classify a single expiry date (with an optional backend `isExpired` flag) into a
+// colour band: expired (≤0 days), danger (≤30), warning (≤90), or none.
+export function getExpiryLevel(expiryDate?: string | null, isExpired?: boolean): ExpiryLevel {
+  if (isExpired) return 'expired';
+  const days = daysUntilExpiry(expiryDate);
+  if (days == null) return 'none';
+  if (days <= 0) return 'expired';
+  if (days <= EXPIRY_DANGER_DAYS) return 'danger';
+  if (days <= NEAR_EXPIRY_DAYS) return 'warning';
+  return 'none';
+}
+
+export function getExpiryLevelMeta(level: ExpiryLevel, colors: AppPalette) {
+  if (level === 'warning') {
+    return { color: colors.warning, backgroundColor: colors.warningSoft, borderColor: colors.warning };
+  }
+  if (level === 'danger' || level === 'expired') {
+    return { color: colors.danger, backgroundColor: colors.dangerSoft, borderColor: colors.danger };
+  }
+  return { color: colors.textMuted, backgroundColor: colors.backgroundAlt, borderColor: colors.border };
+}
+
+// Lots that are expired or inside the 90-day near-expiry window can be exchanged or
+// written off — the shop can swap them with the supplier before they go bad.
+export function canManageExpiryBatch(batch?: { expiryDate?: string | null; isExpired?: boolean } | null) {
+  if (!batch) return false;
+  return getExpiryLevel(batch.expiryDate, batch.isExpired) !== 'none';
+}
+
 export type StockStatus = 'ok' | 'low' | 'out' | 'expired' | 'expiring';
 
 export function getStockStatus(product?: Product | null): StockStatus {
@@ -87,7 +121,7 @@ export function getStockStatus(product?: Product | null): StockStatus {
 export function getStockStatusMeta(status: StockStatus, colors: AppPalette) {
   if (status === 'out') return { label: 'Out of stock', color: colors.danger, backgroundColor: colors.dangerSoft };
   if (status === 'expired') return { label: 'Expired stock', color: colors.danger, backgroundColor: colors.dangerSoft };
-  if (status === 'expiring') return { label: 'Near expiry', color: colors.info, backgroundColor: colors.infoSoft };
+  if (status === 'expiring') return { label: 'Near expiry', color: colors.warning, backgroundColor: colors.warningSoft };
   if (status === 'low') return { label: 'Low stock', color: colors.warning, backgroundColor: colors.warningSoft };
   return { label: 'In stock', color: colors.success, backgroundColor: colors.successSoft };
 }

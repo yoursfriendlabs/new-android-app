@@ -1,12 +1,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
-import { ProductDetailSheet } from '@/src/features/inventory/components/ProductDetailSheet';
-import { ProductFormSheet } from '@/src/features/inventory/components/ProductFormSheet';
 import { ProductRestockSheet } from '@/src/features/inventory/components/ProductRestockSheet';
 import { Screen } from '@/src/shared/layout/Screen';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -19,15 +18,15 @@ import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import {
-  daysUntilExpiry,
   expiryRemainingLabel,
   getCurrentStock,
+  getExpiryLevel,
+  getExpiryLevelMeta,
   getStockStatus,
   getStockStatusMeta,
   invalidateInventoryQueries,
   isNearExpiryProduct,
   isRestockableProduct,
-  itemTypeLabel,
   productBrand,
 } from '@/src/features/inventory/lib/inventory';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
@@ -45,7 +44,14 @@ import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type StockFilter = 'all' | 'low' | 'out' | 'expiring' | 'expired';
-type DetailTab = 'overview' | 'lots' | 'history';
+
+function openItemForm(id?: string) {
+  router.push({ pathname: '/(app)/item-form' as any, params: id ? { id } : {} });
+}
+
+function openItemDetail(id: string, tab: 'activity' | 'details' = 'activity') {
+  router.push({ pathname: '/(app)/item-detail' as any, params: { id, tab } });
+}
 
 export default function InventoryScreen() {
   const colors = usePalette();
@@ -57,11 +63,7 @@ export default function InventoryScreen() {
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [category, setCategory] = useState('All');
-  const [createVisible, setCreateVisible] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
-  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
-  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [menuProduct, setMenuProduct] = useState<Product | null>(null);
   const debouncedSearch = useDebouncedValue(search);
   const productsQuery = useProducts(debouncedSearch);
@@ -95,9 +97,8 @@ export default function InventoryScreen() {
   const localExpiringCount = products.filter(isNearExpiryProduct).length;
   const localExpiredCount = products.filter((product) => getStockStatus(product) === 'expired' || product.hasExpiredStock).length;
 
-  function openDetail(product: Product, tab: DetailTab = 'overview') {
-    setDetailTab(tab);
-    setDetailProduct(product);
+  function openDetail(product: Product, tab: 'activity' | 'details' = 'activity') {
+    openItemDetail(product.id, tab);
   }
 
   function productActions(product: Product): ActionSheetItem[] {
@@ -106,7 +107,7 @@ export default function InventoryScreen() {
         id: 'view',
         label: 'View details',
         icon: 'eye-outline',
-        onPress: () => openDetail(product, 'overview'),
+        onPress: () => openDetail(product, 'activity'),
       },
       ...(isRestockableProduct(product)
         ? [
@@ -122,19 +123,13 @@ export default function InventoryScreen() {
         id: 'edit',
         label: 'Edit',
         icon: 'pencil-outline',
-        onPress: () => setEditingProduct(product),
+        onPress: () => openItemForm(product.id),
       },
       {
         id: 'lots',
         label: 'Stock lots',
         icon: 'layers-outline',
-        onPress: () => openDetail(product, 'lots'),
-      },
-      {
-        id: 'history',
-        label: 'History',
-        icon: 'history',
-        onPress: () => openDetail(product, 'history'),
+        onPress: () => openDetail(product, 'details'),
       },
       {
         id: 'delete',
@@ -178,7 +173,7 @@ export default function InventoryScreen() {
       scrollable={false}
       padded={false}
       topBarTitle="Inventory"
-      footer={<StickyActionBar primary={{ label: 'New product', onPress: () => setCreateVisible(true) }} />}>
+      footer={<StickyActionBar primary={{ label: 'New product', onPress: () => openItemForm() }} />}>
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
@@ -308,7 +303,7 @@ export default function InventoryScreen() {
                 : 'Add your first item with photo, unit, opening stock, and price.'
             }
             actionLabel={products.length ? undefined : 'New product'}
-            onAction={products.length ? undefined : () => setCreateVisible(true)}
+            onAction={products.length ? undefined : () => openItemForm()}
           />
         ) : null}
 
@@ -322,8 +317,8 @@ export default function InventoryScreen() {
             const currentStock = getCurrentStock(product);
             const expiredQty = Number(product.expiredQuantity ?? 0);
             const sellableQty = Number(product.sellableQuantity ?? Math.max(0, currentStock - expiredQty));
-            const daysLeft = daysUntilExpiry(product.expiryDate);
-            const isNear = !product.hasExpiredStock && daysLeft != null && daysLeft >= 0 && daysLeft <= 20;
+            const expiryLevel = getExpiryLevel(product.expiryDate, product.hasExpiredStock);
+            const expiryMeta = getExpiryLevelMeta(expiryLevel, colors);
 
             return (
               <View key={product.id} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -352,7 +347,7 @@ export default function InventoryScreen() {
                     </View>
 
                     <Text style={[styles.rowMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                      {[brand || product.categoryName || 'General', itemTypeLabel(product.itemType), product.sku]
+                      {[brand || product.categoryName || 'General', product.sku]
                         .filter(Boolean)
                         .join('  ·  ')}
                     </Text>
@@ -363,14 +358,14 @@ export default function InventoryScreen() {
                         <MaterialCommunityIcons
                           name="clock-outline"
                           size={12}
-                          color={status === 'expired' ? colors.danger : isNear ? colors.info : colors.textMuted}
+                          color={expiryLevel === 'none' ? colors.textMuted : expiryMeta.color}
                         />
                         <Text
                           style={[
                             styles.expiryBadgeText,
                             {
-                              color: status === 'expired' ? colors.danger : isNear ? colors.info : colors.textMuted,
-                              fontWeight: status === 'expired' || isNear ? '700' : '500',
+                              color: expiryLevel === 'none' ? colors.textMuted : expiryMeta.color,
+                              fontWeight: expiryLevel === 'none' ? '500' : '700',
                             },
                           ]}>
                           {prettyDate(product.expiryDate)}
@@ -403,7 +398,7 @@ export default function InventoryScreen() {
 
                 {/* Card Action Row */}
                 <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
-                  <Pressable style={styles.actionBtn} onPress={() => openDetail(product, 'overview')}>
+                  <Pressable style={styles.actionBtn} onPress={() => openDetail(product, 'activity')}>
                     <MaterialCommunityIcons color={colors.text} name="eye-outline" size={16} />
                     <Text style={[styles.actionLabel, { color: colors.text }]}>View</Text>
                   </Pressable>
@@ -413,7 +408,7 @@ export default function InventoryScreen() {
                       <Text style={[styles.actionLabel, { color: colors.primary }]}>Restock</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable style={styles.actionBtn} onPress={() => setEditingProduct(product)}>
+                  <Pressable style={styles.actionBtn} onPress={() => openItemForm(product.id)}>
                     <MaterialCommunityIcons color={colors.text} name="pencil-outline" size={16} />
                     <Text style={[styles.actionLabel, { color: colors.text }]}>Edit</Text>
                   </Pressable>
@@ -436,35 +431,10 @@ export default function InventoryScreen() {
         actions={menuProduct ? productActions(menuProduct) : []}
       />
 
-      <ProductFormSheet
-        visible={createVisible}
-        onClose={() => setCreateVisible(false)}
-        onOpenDetail={(created) => openDetail(created)}
-      />
-      <ProductFormSheet
-        visible={Boolean(editingProduct)}
-        product={editingProduct}
-        onClose={() => setEditingProduct(null)}
-      />
       <ProductRestockSheet
         visible={Boolean(restockProduct)}
         product={restockProduct}
         onClose={() => setRestockProduct(null)}
-      />
-      <ProductDetailSheet
-        visible={Boolean(detailProduct)}
-        productId={detailProduct?.id}
-        productHint={detailProduct}
-        initialTab={detailTab}
-        onClose={() => setDetailProduct(null)}
-        onEdit={(product) => {
-          setDetailProduct(null);
-          setTimeout(() => setEditingProduct(product), 280);
-        }}
-        onRestock={(product) => {
-          setDetailProduct(null);
-          setTimeout(() => setRestockProduct(product), 280);
-        }}
       />
     </Screen>
   );
