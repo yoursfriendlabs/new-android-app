@@ -19,6 +19,7 @@ import { useLanguageStore } from '@/src/stores/language-store';
 import { useDateFormatStore } from '@/src/stores/date-format-store';
 import { usePalette, useThemeMode, useThemeStore } from '@/src/stores/theme-store';
 import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
+import { PekkaFab } from '@/src/features/pekka/components/PekkaFab';
 import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
 
@@ -143,7 +144,10 @@ export function AppProviders({ children }: PropsWithChildren) {
           <ToastProvider>
             {/* Inside the toast provider: reminders surface as toasts. */}
             <ReminderWatch />
-            <ConfirmProvider>{children}</ConfirmProvider>
+            <ConfirmProvider>
+              {children}
+              <PekkaFab />
+            </ConfirmProvider>
           </ToastProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

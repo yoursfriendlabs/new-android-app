@@ -233,15 +233,15 @@ export default function ItemFormScreen() {
               </>
             ) : null}
             <View style={{ flex: 1 }}>
-              <Pressable style={styles.unitField} onPress={() => setUnitVisible(true)}>
-                <Text style={styles.selectLabel}>Unit</Text>
-                <View style={styles.unitFieldRow}>
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Unit</Text>
+                <Pressable style={styles.unitBox} onPress={() => setUnitVisible(true)}>
                   <Text style={[styles.selectValue, { color: form.primaryUnit ? colors.text : colors.textMuted }]} numberOfLines={1}>
                     {unitLabelText}
                   </Text>
                   <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
           </View>
           {conversionHint ? (
@@ -468,6 +468,27 @@ const createStyles = (colors: AppPalette) =>
     },
     row: {
       flexDirection: 'row',
+      alignItems: 'flex-start',
+    },
+    fieldBlock: {
+      gap: spacing.xs,
+    },
+    fieldLabel: {
+      fontSize: typography.label,
+      fontWeight: '600',
+      color: colors.textMuted,
+    },
+    unitBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 4,
+      minHeight: 52,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.input,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.md,
     },
     selectRow: {
       flexDirection: 'row',
@@ -479,22 +500,6 @@ const createStyles = (colors: AppPalette) =>
       backgroundColor: colors.surface,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm + 2,
-    },
-    unitField: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: radius.md,
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      minHeight: 58,
-      justifyContent: 'center',
-    },
-    unitFieldRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 4,
     },
     selectLabel: {
       fontSize: typography.caption,
