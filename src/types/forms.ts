@@ -98,13 +98,13 @@ export interface ServiceDraft {
   customer?: Party | null;
   orderNo: string;
   status: string;
+  serviceType: 'physical' | 'online';
   deliveryDate: string;
   notes: string;
   paymentMethod: PaymentMethod;
   bankId?: string;
   paymentNote: string;
   receivedTotal: number;
-  discount: number;
   attributes: Record<string, string>;
   attachments: string[];
   items: DraftServiceLine[];

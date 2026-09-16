@@ -2,18 +2,18 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
 import { ProductRestockSheet } from '@/src/features/inventory/components/ProductRestockSheet';
+import { CategoryFilterSheet } from '@/src/features/inventory/components/CategoryFilterSheet';
 import { Screen } from '@/src/shared/layout/Screen';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SearchField } from '@/src/shared/ui/SearchField';
-import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
@@ -32,6 +32,7 @@ import {
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import {
   useInventorySummary,
+  useCategories,
   useLowStockProducts,
   useProductStats,
   useProducts,
@@ -62,7 +63,8 @@ export default function InventoryScreen() {
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
-  const [category, setCategory] = useState('All');
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  const [categoryFilterVisible, setCategoryFilterVisible] = useState(false);
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [menuProduct, setMenuProduct] = useState<Product | null>(null);
   const debouncedSearch = useDebouncedValue(search);
@@ -70,16 +72,17 @@ export default function InventoryScreen() {
   const statsQuery = useProductStats();
   const summaryQuery = useInventorySummary();
   const lowStockQuery = useLowStockProducts();
+  const categoriesQuery = useCategories();
   const products = productsQuery.data ?? [];
+  const categories = categoriesQuery.data ?? [];
   const summary = summaryQuery.data;
   const stats = statsQuery.data;
 
-  const categories = useMemo(() => {
-    const names = Array.from(
-      new Set(products.map((product) => product.categoryName?.trim()).filter(Boolean) as string[]),
-    ).sort((a, b) => a.localeCompare(b));
-    return ['All', ...names];
-  }, [products]);
+  const categoryLabel = useMemo(() => {
+    if (categoryId === undefined) return 'All categories';
+    if (categoryId === '') return 'Uncategorized';
+    return categories.find((category) => category.id === categoryId)?.name || 'Category';
+  }, [categories, categoryId]);
 
   const visibleProducts = useMemo(() => {
     return products.filter((product) => {
@@ -88,10 +91,11 @@ export default function InventoryScreen() {
       if (stockFilter === 'out' && status !== 'out') return false;
       if (stockFilter === 'expiring' && !isNearExpiryProduct(product)) return false;
       if (stockFilter === 'expired' && status !== 'expired' && !product.hasExpiredStock) return false;
-      if (category !== 'All' && (product.categoryName || 'General') !== category) return false;
+      if (categoryId === '' && (product.categoryId || product.categoryName)) return false;
+      if (categoryId && product.categoryId !== categoryId) return false;
       return true;
     });
-  }, [category, products, stockFilter]);
+  }, [categoryId, products, stockFilter]);
 
   const lowStockPreview = (lowStockQuery.data ?? []).slice(0, 3);
   const localExpiringCount = products.filter(isNearExpiryProduct).length;
@@ -162,6 +166,7 @@ export default function InventoryScreen() {
   async function handleRefresh() {
     await Promise.all([
       productsQuery.refetch(),
+      categoriesQuery.refetch(),
       statsQuery.refetch(),
       summaryQuery.refetch(),
       lowStockQuery.refetch(),
@@ -272,24 +277,13 @@ export default function InventoryScreen() {
         ) : null}
 
         <SearchField placeholder="Search name, brand, SKU, or category" value={search} onChangeText={setSearch} />
-        <SegmentedTabs
-          value={stockFilter}
-          onChange={setStockFilter}
-          options={[
-            { label: 'All', value: 'all' },
-            { label: 'Low', value: 'low' },
-            { label: 'Out', value: 'out' },
-            { label: 'Expiring', value: 'expiring' },
-            { label: 'Expired', value: 'expired' },
-          ]}
-        />
-        {categories.length > 1 ? (
-          <SegmentedTabs
-            value={category}
-            onChange={setCategory}
-            options={categories.map((name) => ({ label: name, value: name }))}
-          />
-        ) : null}
+        <Pressable style={[styles.categoryFilter, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setCategoryFilterVisible(true)}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.categoryFilterLabel, { color: colors.textMuted }]}>Category</Text>
+            <Text style={[styles.categoryFilterValue, { color: colors.text }]} numberOfLines={1}>{categoryLabel}</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-down" size={22} color={colors.textMuted} />
+        </Pressable>
 
         {productsQuery.isLoading && !products.length ? <SkeletonList count={6} /> : null}
 
@@ -436,6 +430,13 @@ export default function InventoryScreen() {
         product={restockProduct}
         onClose={() => setRestockProduct(null)}
       />
+      <CategoryFilterSheet
+        categories={categories}
+        selectedId={categoryId}
+        visible={categoryFilterVisible}
+        onSelect={setCategoryId}
+        onClose={() => setCategoryFilterVisible(false)}
+      />
     </Screen>
   );
 }
@@ -506,6 +507,24 @@ const createStyles = (_colors: AppPalette) =>
     alertStock: {
       fontSize: typography.body,
       fontWeight: '800',
+    },
+    categoryFilter: {
+      minHeight: 58,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderWidth: 1,
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+    },
+    categoryFilterLabel: {
+      fontSize: typography.caption,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    categoryFilterValue: {
+      fontSize: typography.body,
+      fontWeight: '700',
     },
     list: {
       gap: spacing.sm,

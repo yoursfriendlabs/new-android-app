@@ -635,15 +635,17 @@ export function normalizePurchase(raw: unknown): Purchase {
 export function normalizeService(raw: unknown): Service {
   const record = asRecord(raw) ?? {};
   const nestedParty = asRecord(record.party);
+  const attributes = asRecord(record.attributes);
 
   return {
     ...(record as Service),
     id: asString(firstDefined(record.id, record._id), ''),
     orderNo: asString(firstDefined(record.orderNo, record.invoiceNo), ''),
     status: asString(firstDefined(record.status, 'open')),
+    serviceType: asString(firstDefined(record.serviceType, record.service_type, attributes?.serviceType, attributes?.service_type), ''),
     partyId: asString(firstDefined(record.partyId, record.customerId, nestedParty?.id), ''),
     partyName: asString(firstDefined(record.partyName, record.customerName, nestedParty?.name), ''),
-    deliveryDate: asString(firstDefined(record.deliveryDate, record.createdAt), ''),
+    deliveryDate: asString(record.deliveryDate, ''),
     laborTotal: asNumber(record.laborTotal),
     partsTotal: asNumber(record.partsTotal),
     subTotal: asNumber(record.subTotal),

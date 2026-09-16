@@ -14,6 +14,7 @@ export interface UnitSelection {
   primaryUnit: string;
   primaryUnitId: string;
   secondaryUnit: string;
+  secondaryUnitId: string;
   conversionRate: string;
 }
 
@@ -40,7 +41,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
     <BottomSheet
       visible={visible}
       title="Select unit"
-      subtitle="Pick a primary unit, and an optional secondary unit for pack conversions."
+      subtitle="Choose units set up for this business, with an optional secondary unit for pack conversions."
       onClose={onClose}
       footer={
         <Pressable
@@ -73,21 +74,35 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
             );
           })}
         </View>
-      ) : null}
-      <FormField
-        label="Or type a unit"
-        value={draft.primaryUnit}
-        onChangeText={(primaryUnit) => setDraft((current) => ({ ...current, primaryUnit, primaryUnitId: '' }))}
-        placeholder="pcs, kg, box, ltr"
-      />
+      ) : (
+        <Text style={[styles.empty, { color: colors.textMuted }]}>No units are set up for this business yet.</Text>
+      )}
 
       <Text style={styles.sectionLabel}>Secondary unit (optional)</Text>
-      <FormField
-        label="Secondary unit"
-        value={draft.secondaryUnit}
-        onChangeText={(secondaryUnit) => setDraft((current) => ({ ...current, secondaryUnit }))}
-        placeholder="e.g. carton, pack, bundle"
-      />
+      <View style={styles.chipWrap}>
+        <Pressable
+          style={[styles.chip, !draft.secondaryUnitId && styles.chipActive]}
+          onPress={() => setDraft((current) => ({ ...current, secondaryUnit: '', secondaryUnitId: '', conversionRate: '' }))}>
+          <Text style={[styles.chipLabel, !draft.secondaryUnitId && styles.chipLabelActive]}>None</Text>
+        </Pressable>
+        {units.map((unit) => {
+          const active = draft.secondaryUnitId === unit.id;
+          return (
+            <Pressable
+              key={unit.id}
+              style={[styles.chip, active && styles.chipActive]}
+              onPress={() =>
+                setDraft((current) => ({
+                  ...current,
+                  secondaryUnitId: unit.id,
+                  secondaryUnit: unit.name || unit.symbol || current.secondaryUnit,
+                }))
+              }>
+              <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{unitLabel(unit)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       {hasSecondary ? (
         <>
           <FormField
@@ -151,6 +166,10 @@ const createStyles = (colors: AppPalette) =>
       borderRadius: radius.md,
       paddingVertical: spacing.sm,
       paddingHorizontal: spacing.md,
+    },
+    empty: {
+      fontSize: typography.body,
+      paddingVertical: spacing.sm,
     },
     hintText: {
       fontSize: typography.body,

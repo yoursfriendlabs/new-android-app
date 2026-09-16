@@ -502,6 +502,9 @@ export function buildServiceReceipt(
 
   const candidateAttrs = service.attributes || {};
   const extraDetails = [
+    service.serviceType || candidateAttrs.serviceType
+      ? `Service Type: ${String(service.serviceType || candidateAttrs.serviceType) === 'online' ? 'Online' : 'Physical'}`
+      : '',
     candidateAttrs.device || candidateAttrs.deviceName ? `Device: ${candidateAttrs.device || candidateAttrs.deviceName}` : '',
     candidateAttrs.model ? `Model: ${candidateAttrs.model}` : '',
     candidateAttrs.brand ? `Brand: ${candidateAttrs.brand}` : '',

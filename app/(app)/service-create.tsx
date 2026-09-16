@@ -29,6 +29,7 @@ import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { generateId } from '@/src/shared/lib/id';
+import { calculateServicePayment } from '@/src/features/services/lib/payment';
 import { radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -45,13 +46,13 @@ function createEmptyServiceDraft(): ServiceDraft {
     customer: null,
     orderNo: `SO-${Date.now().toString().slice(-6)}`,
     status: 'in_progress',
-    deliveryDate: todayIso(),
+    serviceType: 'physical',
+    deliveryDate: '',
     notes: '',
     paymentMethod: 'cash',
     bankId: undefined,
     paymentNote: '',
     receivedTotal: 0,
-    discount: 0,
     attributes: {
       Device: '',
     },
@@ -100,6 +101,12 @@ export default function ServiceCreateScreen() {
   const { data: orderAttributes } = useOrderAttributes('service');
   const activeBanks = (banks ?? []).filter((bank) => bank.isActive);
   const draft = useDraftState<ServiceDraft>('draft:service', createEmptyServiceDraft());
+
+  useEffect(() => {
+    if (draft.isReady && !draft.value.serviceType) {
+      draft.setValue((current) => ({ ...current, serviceType: 'physical' }));
+    }
+  }, [draft.isReady, draft.setValue, draft.value.serviceType]);
 
   useEffect(() => {
     if (!draft.isReady) return;
@@ -153,11 +160,12 @@ export default function ServiceCreateScreen() {
   );
   const grandTotal = useMemo(
     () =>
-      computeGrandTotal(
-        draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate })),
-        draft.value.discount,
-      ),
-    [draft.value.discount, draft.value.items],
+      computeGrandTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
+    [draft.value.items],
+  );
+  const payment = useMemo(
+    () => calculateServicePayment(grandTotal, draft.value.receivedTotal),
+    [draft.value.receivedTotal, grandTotal],
   );
 
   function updateLine(id: string, patch: Partial<DraftServiceLine>) {
@@ -241,7 +249,7 @@ export default function ServiceCreateScreen() {
       return;
     }
 
-    if (draft.value.paymentMethod === 'bank' && draft?.value?.receivedTotal > 0 && !draft.value.bankId) {
+    if (draft.value.paymentMethod === 'bank' && payment.receivedTotal > 0 && !draft.value.bankId) {
       setFormError('Choose a bank account for bank payments.');
       setStepIndex(1);
       return;
@@ -269,6 +277,7 @@ export default function ServiceCreateScreen() {
         customerName: draft.value.customer.name,
         orderNo: draft.value.orderNo,
         status: draft.value.status,
+        serviceType: draft.value.serviceType,
         notes: draft.value.notes,
         deliveryDate: draft.value.deliveryDate?.trim() || undefined,
         paymentMethod: draft.value.paymentMethod,
@@ -279,17 +288,14 @@ export default function ServiceCreateScreen() {
         attachments: uploadedAttachmentUrls,
         attributes: {
           ...draft.value.attributes,
-          discount: draft.value.discount,
-          discountTotal: draft.value.discount,
+          serviceType: draft.value.serviceType,
         },
         laborTotal,
         partsTotal,
         subTotal,
         taxTotal,
-        discount: draft.value.discount,
-        discountTotal: draft?.value?.discount,
         grandTotal,
-        receivedTotal: draft?.value?.receivedTotal,
+        receivedTotal: payment.receivedTotal,
         createdBy: undefined,
         items: draft.value.items.map((item) => ({
           itemType: item.itemType,
@@ -323,19 +329,19 @@ export default function ServiceCreateScreen() {
           partyName: draft.value.customer.name,
           customerName: draft.value.customer.name,
           status: draft.value.status,
+          serviceType: draft.value.serviceType,
           notes: draft.value.notes,
           deliveryDate: draft.value.deliveryDate,
           paymentMethod: draft.value.paymentMethod,
           bankId: draft.value.bankId,
           paymentNote: draft.value.paymentNote,
-          attributes: draft.value.attributes,
+          attributes: { ...draft.value.attributes, serviceType: draft.value.serviceType },
           laborTotal,
           partsTotal,
           subTotal,
           taxTotal,
-          discount: draft.value.discount,
           grandTotal,
-          receivedTotal: draft.value.receivedTotal,
+          receivedTotal: payment.receivedTotal,
           items: draft.value.items.map((item) => ({
             itemType: item.itemType,
             description: item.description || item.product?.name || '',
@@ -512,6 +518,19 @@ export default function ServiceCreateScreen() {
               { label: isGym ? 'Completed' : 'Closed', value: 'closed' },
             ]}
           />
+          <View style={styles.attributeRow}>
+            <Text style={styles.attributeLabel}>Service type</Text>
+            <SegmentedTabs
+              value={draft.value.serviceType}
+              onChange={(serviceType) =>
+                draft.setValue((current) => ({ ...current, serviceType: serviceType as ServiceDraft['serviceType'] }))
+              }
+              options={[
+                { label: 'Physical', value: 'physical' },
+                { label: 'Online', value: 'online' },
+              ]}
+            />
+          </View>
           <Pressable
             style={styles.deliveryToggleRow}
             onPress={() => {
@@ -749,9 +768,9 @@ export default function ServiceCreateScreen() {
               <Text
                 style={[
                   styles.duePreviewValue,
-                  { color: Math.max(grandTotal - (draft.value.receivedTotal || 0), 0) > 0 ? colors.danger : colors.success },
+                  { color: payment.balanceDue > 0 ? colors.danger : colors.success },
                 ]}>
-                {formatCurrency(Math.max(grandTotal - (draft.value.receivedTotal || 0), 0))}
+                {formatCurrency(payment.balanceDue)}
               </Text>
             </View>
           </View>
@@ -762,14 +781,14 @@ export default function ServiceCreateScreen() {
               style={[
                 styles.advanceShortcutBtn,
                 { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
-                draft.value.receivedTotal === grandTotal && { backgroundColor: colors.primary, borderColor: colors.primary },
+                payment.tendered === grandTotal && { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
               onPress={() => draft.setValue((current) => ({ ...current, receivedTotal: grandTotal }))}>
               <Text
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === grandTotal && { color: colors.onPrimary },
+                  payment.tendered === grandTotal && { color: colors.onPrimary },
                 ]}>
                 Full ({formatCurrency(grandTotal)})
               </Text>
@@ -778,7 +797,7 @@ export default function ServiceCreateScreen() {
               style={[
                 styles.advanceShortcutBtn,
                 { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
-                draft.value.receivedTotal === Math.round(grandTotal / 2) && {
+                payment.tendered === Math.round(grandTotal / 2) && {
                   backgroundColor: colors.primary,
                   borderColor: colors.primary,
                 },
@@ -788,7 +807,7 @@ export default function ServiceCreateScreen() {
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === Math.round(grandTotal / 2) && { color: colors.onPrimary },
+                  payment.tendered === Math.round(grandTotal / 2) && { color: colors.onPrimary },
                 ]}>
                 50% Advance
               </Text>
@@ -797,14 +816,14 @@ export default function ServiceCreateScreen() {
               style={[
                 styles.advanceShortcutBtn,
                 { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
-                draft.value.receivedTotal === 0 && { backgroundColor: colors.primary, borderColor: colors.primary },
+                payment.tendered === 0 && { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
               onPress={() => draft.setValue((current) => ({ ...current, receivedTotal: 0 }))}>
               <Text
                 style={[
                   styles.advanceShortcutText,
                   { color: colors.text },
-                  draft.value.receivedTotal === 0 && { color: colors.onPrimary },
+                  payment.tendered === 0 && { color: colors.onPrimary },
                 ]}>
                 Pay Later (0)
               </Text>
@@ -812,11 +831,24 @@ export default function ServiceCreateScreen() {
           </View>
 
           <FormField
-            label="Amount received (रू)"
-            value={String(draft?.value?.receivedTotal)}
-            onChangeText={(receivedTotal) => draft.setValue((current) => ({ ...current, receivedTotal: Number(receivedTotal || 0) }))}
+            label="Amount tendered (रू)"
+            value={String(payment.tendered)}
+            onChangeText={(receivedTotal) => {
+              const amount = Number(receivedTotal);
+              draft.setValue((current) => ({ ...current, receivedTotal: Number.isFinite(amount) ? Math.max(amount, 0) : 0 }));
+            }}
             keyboardType="numeric"
           />
+          {payment.changeDue > 0 ? (
+            <View style={[styles.changeDueCard, { backgroundColor: colors.successSoft, borderColor: colors.success }]}>
+              <MaterialCommunityIcons name="cash-refund" size={22} color={colors.success} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.changeDueLabel, { color: colors.success }]}>Change to give</Text>
+                <Text style={[styles.changeDueCopy, { color: colors.textSoft }]}>Only {formatCurrency(payment.receivedTotal)} will be saved as payment.</Text>
+              </View>
+              <Text style={[styles.changeDueValue, { color: colors.success }]}>{formatCurrency(payment.changeDue)}</Text>
+            </View>
+          ) : null}
           <PaymentMethodSelector
             value={draft.value.paymentMethod}
             onChange={(paymentMethod) => draft.setValue((current) => ({ ...current, paymentMethod }))}
@@ -828,12 +860,6 @@ export default function ServiceCreateScreen() {
             value={draft.value.paymentNote}
             onChangeText={(paymentNote) => draft.setValue((current) => ({ ...current, paymentNote }))}
           />
-          <FormField
-            label="Discount (रू)"
-            value={String(draft.value.discount)}
-            onChangeText={(discount) => draft.setValue((current) => ({ ...current, discount: Number(discount || 0) }))}
-            keyboardType="numeric"
-          />
         </SurfaceCard>
       ) : null}
 
@@ -841,7 +867,8 @@ export default function ServiceCreateScreen() {
         <SurfaceCard title="Review Service Order" subtitle="One last glance before you save the service order.">
           <Text style={styles.reviewHeading}>{draft.value.customer?.name ?? 'No customer selected'}</Text>
           <Text style={styles.reviewMeta}>
-            {draft.value.orderNo}  •  {isGym ? 'Expiry' : 'Delivery'} {draft.value.deliveryDate}
+            {draft.value.orderNo}  •  {draft.value.serviceType === 'online' ? 'Online' : 'Physical'}
+            {draft.value.deliveryDate ? `  •  ${isGym ? 'Expiry' : 'Delivery'} ${draft.value.deliveryDate}` : ''}
           </Text>
           
           <View style={styles.totalsOverviewCard}>
@@ -859,26 +886,24 @@ export default function ServiceCreateScreen() {
                 <Text style={styles.overviewValue}>{formatCurrency(taxTotal)}</Text>
               </View>
             )}
-            {draft.value.discount > 0 && (
-              <View style={styles.overviewRow}>
-                <Text style={styles.overviewLabel}>Discount</Text>
-                <Text style={[styles.overviewValue, { color: colors.danger }]}>
-                  -{formatCurrency(draft.value.discount)}
-                </Text>
-              </View>
-            )}
             <View style={[styles.overviewRow, styles.overviewRowGrand]}>
               <Text style={styles.overviewLabelGrand}>Grand Total</Text>
               <Text style={styles.overviewValueGrand}>{formatCurrency(grandTotal)}</Text>
             </View>
             <View style={styles.overviewRow}>
               <Text style={styles.overviewLabel}>Advance / Received</Text>
-              <Text style={styles.overviewValue}>{formatCurrency(draft.value.receivedTotal)}</Text>
+              <Text style={styles.overviewValue}>{formatCurrency(payment.receivedTotal)}</Text>
             </View>
+            {payment.changeDue > 0 ? (
+              <View style={styles.overviewRow}>
+                <Text style={[styles.overviewLabel, { color: colors.success }]}>Change to give</Text>
+                <Text style={[styles.overviewValue, { color: colors.success }]}>{formatCurrency(payment.changeDue)}</Text>
+              </View>
+            ) : null}
             <View style={[styles.overviewRow, styles.overviewRowDue]}>
               <Text style={styles.overviewLabelDue}>Balance Due</Text>
               <Text style={styles.overviewValueDue}>
-                {formatCurrency(Math.max(grandTotal - draft.value.receivedTotal, 0))}
+                {formatCurrency(payment.balanceDue)}
               </Text>
             </View>
           </View>
@@ -1831,6 +1856,26 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     fontSize: typography.subheading,
     fontWeight: '800',
     marginTop: 2,
+  },
+  changeDueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  changeDueLabel: {
+    fontSize: typography.body,
+    fontWeight: '800',
+  },
+  changeDueCopy: {
+    fontSize: typography.caption,
+    marginTop: 2,
+  },
+  changeDueValue: {
+    fontSize: typography.subheading,
+    fontWeight: '800',
   },
   advanceShortcutRow: {
     flexDirection: 'row',

@@ -468,6 +468,7 @@ export interface Service {
   partyName?: string;
   orderNo: string;
   status: ServiceStatus;
+  serviceType?: 'physical' | 'online' | string;
   notes?: string;
   deliveryDate?: string;
   paymentMethod?: PaymentMethod;
@@ -810,4 +811,3 @@ export interface Attendance {
   status: 'present' | 'absent' | string;
   BusinessUser?: StaffMember;
 }
-

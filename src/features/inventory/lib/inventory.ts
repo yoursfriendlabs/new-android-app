@@ -28,6 +28,12 @@ export function productInitials(name?: string | null) {
     .join('');
 }
 
+export function createItemCode() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `ITM-${timestamp}-${suffix}`;
+}
+
 export function productBrand(product?: Product | null) {
   return String(product?.companyName || '').trim();
 }

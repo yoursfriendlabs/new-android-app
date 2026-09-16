@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
@@ -18,6 +18,7 @@ import {
   getPurityOptions,
   invalidateInventoryQueries,
   METAL_TYPE_OPTIONS,
+  createItemCode,
 } from '@/src/features/inventory/lib/inventory';
 import { useProductById } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -34,22 +35,19 @@ function formFromProduct(product?: Product | null) {
     imageUrl: product?.imageUrl || null,
     name: product?.name ?? '',
     companyName: String(product?.companyName ?? ''),
-    sku: String(product?.sku ?? ''),
+    sku: product ? String(product.sku ?? '') : createItemCode(),
     barcode: String(product?.barcode ?? ''),
     categoryId: String(product?.categoryId ?? ''),
     categoryName: String(product?.categoryName ?? ''),
     unitId: String(product?.unitId || product?.primaryUnitId || ''),
     primaryUnit: product?.primaryUnit ?? '',
     secondaryUnit: String(product?.secondaryUnit ?? ''),
+    secondaryUnitId: String(product?.secondaryUnitId ?? ''),
     conversionRate: product?.secondaryConversionRate ? String(product.secondaryConversionRate) : '',
     salePrice: product ? String(product.salePrice ?? '') : '',
     purchasePrice: product?.purchasePrice != null ? String(product.purchasePrice) : '',
-    mrpPrice: product?.mrpPrice ? String(product.mrpPrice) : '',
-    wholesalePrice: product?.wholesalePrice ? String(product.wholesalePrice) : '',
     secondarySalePrice: product?.secondarySalePrice ? String(product.secondarySalePrice) : '',
-    minWholesaleQuantity: product?.minWholesaleQuantity ? String(product.minWholesaleQuantity) : '',
     openingStock: '',
-    taxRate: product?.taxRate != null ? String(product.taxRate) : '0',
     lowStockAlert: product ? Boolean(product.lowStockAlert) : false,
     minStockLevel: product?.minStockLevel ? String(product.minStockLevel) : '',
     metalType: String(product?.metalType ?? ''),
@@ -98,6 +96,7 @@ export default function ItemFormScreen() {
       primaryUnit: selection.primaryUnit,
       unitId: selection.primaryUnitId,
       secondaryUnit: selection.secondaryUnit,
+      secondaryUnitId: selection.secondaryUnitId,
       conversionRate: selection.conversionRate,
     }));
   }
@@ -116,9 +115,9 @@ export default function ItemFormScreen() {
       toast.error('Enter a sales price.');
       return;
     }
-    if (!form.primaryUnit.trim() && !form.unitId) {
+    if (!form.unitId) {
       setTab('stock');
-      toast.error('Pick or type a unit.');
+      toast.error('Select a unit from your business settings.');
       return;
     }
 
@@ -133,15 +132,12 @@ export default function ItemFormScreen() {
       unitId: form.unitId || undefined,
       primaryUnit: form.primaryUnit.trim() || 'pcs',
       secondaryUnit: form.secondaryUnit.trim() || undefined,
+      secondaryUnitId: form.secondaryUnitId || undefined,
       conversionRate: form.conversionRate.trim() ? Number(form.conversionRate) : undefined,
       secondaryConversionRate: form.conversionRate.trim() ? Number(form.conversionRate) : undefined,
       salePrice: Number(form.salePrice || 0),
       purchasePrice: form.purchasePrice.trim() ? Number(form.purchasePrice) : undefined,
-      mrpPrice: form.mrpPrice.trim() ? Number(form.mrpPrice) : undefined,
-      wholesalePrice: form.wholesalePrice.trim() ? Number(form.wholesalePrice) : undefined,
       secondarySalePrice: form.secondarySalePrice.trim() ? Number(form.secondarySalePrice) : undefined,
-      minWholesaleQuantity: form.minWholesaleQuantity.trim() ? Number(form.minWholesaleQuantity) : undefined,
-      taxRate: form.taxRate.trim() ? Number(form.taxRate) : undefined,
       lowStockAlert: form.lowStockAlert,
       minStockLevel: form.lowStockAlert && form.minStockLevel.trim() ? Number(form.minStockLevel) : undefined,
       imageUrl: form.imageUrl || null,
@@ -334,7 +330,7 @@ export default function ItemFormScreen() {
             label="Item Code"
             value={form.sku}
             onChangeText={(sku) => setForm((current) => ({ ...current, sku }))}
-            placeholder="e.g. AML-1L"
+            helperText={isEditing ? undefined : 'Generated automatically. You can change it.'}
           />
           <FormField
             label="Barcode"
@@ -348,49 +344,6 @@ export default function ItemFormScreen() {
             onChangeText={(companyName) => setForm((current) => ({ ...current, companyName }))}
             placeholder="e.g. Amul"
           />
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="MRP"
-                value={form.mrpPrice}
-                onChangeText={(mrpPrice) => setForm((current) => ({ ...current, mrpPrice }))}
-                keyboardType="numeric"
-                placeholder="Optional"
-              />
-            </View>
-            <View style={{ width: spacing.sm }} />
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="Wholesale"
-                value={form.wholesalePrice}
-                onChangeText={(wholesalePrice) => setForm((current) => ({ ...current, wholesalePrice }))}
-                keyboardType="numeric"
-                placeholder="Optional"
-              />
-            </View>
-          </View>
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="Min wholesale qty"
-                value={form.minWholesaleQuantity}
-                onChangeText={(minWholesaleQuantity) => setForm((current) => ({ ...current, minWholesaleQuantity }))}
-                keyboardType="numeric"
-                placeholder="Optional"
-              />
-            </View>
-            <View style={{ width: spacing.sm }} />
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="Tax %"
-                value={form.taxRate}
-                onChangeText={(taxRate) => setForm((current) => ({ ...current, taxRate }))}
-                keyboardType="numeric"
-                placeholder="0"
-              />
-            </View>
-          </View>
-
           {isJewellery ? (
             <>
               <Text style={styles.sectionLabel}>Metal</Text>
@@ -452,6 +405,7 @@ export default function ItemFormScreen() {
           primaryUnit: form.primaryUnit,
           primaryUnitId: form.unitId,
           secondaryUnit: form.secondaryUnit,
+          secondaryUnitId: form.secondaryUnitId,
           conversionRate: form.conversionRate,
         }}
         onApply={applyUnit}
