@@ -54,11 +54,22 @@ function toneColors(tone: Tone, colors: AppPalette) {
   }
 }
 
+// Order agreed for launch: the four daily shortcuts first, then setup lists under
+// Settings, then features still being polished under Beta. Attendance is hidden for now.
 const MENU_GROUPS: MenuGroup[] = [
   {
     id: 'daily',
     title: 'Daily work',
     items: [
+      {
+        id: 'inventory',
+        segment: 'inventory',
+        label: 'Inventory',
+        subtitle: 'Stock, products, and low alerts',
+        icon: 'package-variant-closed',
+        tone: 'primary',
+        route: '/(app)/(tabs)/inventory',
+      },
       {
         id: 'quick-entry',
         segment: 'quick-entry',
@@ -78,47 +89,23 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/(tabs)/expenses',
       },
       {
-        id: 'tasks',
-        segment: 'tasks',
-        label: 'Tasks & notes',
-        subtitle: 'To-dos, reminders, and notes',
-        icon: 'checkbox-marked-circle-outline',
+        id: 'purchases',
+        segment: 'purchases',
+        label: 'Purchases',
+        subtitle: 'Supplier bills and stock buying',
+        icon: 'cart-outline',
+        tone: 'purple',
+        route: '/(app)/purchases',
+      },
+      {
+        id: 'pos',
+        segment: 'pos',
+        label: 'Sale',
+        subtitle: 'Ring up products at the counter',
+        icon: 'cash-register',
         tone: 'success',
-        route: '/(app)/(tabs)/tasks',
+        route: '/(app)/(tabs)/pos',
       },
-      {
-        id: 'coins',
-        segment: 'home',
-        label: 'Coins',
-        subtitle: 'History and merch you can redeem',
-        icon: 'circle-multiple',
-        tone: 'warning',
-        route: '/(app)/coins',
-      },
-      {
-        id: 'services',
-        segment: 'services',
-        label: 'Services',
-        subtitle: 'Jobs, orders, and deliveries',
-        icon: 'toolbox-outline',
-        tone: 'info',
-        route: '/(app)/(tabs)/services',
-      },
-      {
-        id: 'inventory',
-        segment: 'inventory',
-        label: 'Inventory',
-        subtitle: 'Stock, products, and low alerts',
-        icon: 'package-variant-closed',
-        tone: 'primary',
-        route: '/(app)/(tabs)/inventory',
-      },
-    ],
-  },
-  {
-    id: 'money',
-    title: 'Money',
-    items: [
       {
         id: 'sales',
         segment: 'sales',
@@ -127,15 +114,6 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: 'receipt-text-outline',
         tone: 'info',
         route: '/(app)/sales' as any,
-      },
-      {
-        id: 'purchases',
-        segment: 'purchases',
-        label: 'Purchases',
-        subtitle: 'Supplier bills and stock buying',
-        icon: 'cart-outline',
-        tone: 'purple',
-        route: '/(app)/purchases',
       },
       {
         id: 'ledger',
@@ -147,31 +125,13 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/ledger',
       },
       {
-        id: 'banks',
-        segment: 'banks',
-        label: 'Banks',
-        subtitle: 'Accounts and transfers',
-        icon: 'bank-outline',
-        tone: 'info',
-        route: '/(app)/banks',
-      },
-      {
-        id: 'budgets',
-        segment: 'budgets',
-        label: 'Budgets',
-        subtitle: 'Spending limits and early warnings',
-        icon: 'target',
-        tone: 'success',
-        route: '/(app)/budgets',
-      },
-      {
-        id: 'expense-categories',
-        segment: 'expenses',
-        label: 'Expense categories',
-        subtitle: 'Labels used when adding an expense',
-        icon: 'shape-outline',
+        id: 'coins',
+        segment: 'home',
+        label: 'Coins',
+        subtitle: 'History and merch you can redeem',
+        icon: 'circle-multiple',
         tone: 'warning',
-        route: '/(app)/expense-categories',
+        route: '/(app)/coins',
       },
     ],
   },
@@ -209,9 +169,78 @@ const MENU_GROUPS: MenuGroup[] = [
     ],
   },
   {
-    id: 'team',
-    title: 'Team',
+    id: 'setup',
+    title: 'Settings',
     items: [
+      {
+        id: 'banks',
+        segment: 'banks',
+        label: 'Banks',
+        subtitle: 'Accounts and transfers',
+        icon: 'bank-outline',
+        tone: 'info',
+        route: '/(app)/banks',
+      },
+      {
+        id: 'expense-categories',
+        segment: 'expenses',
+        label: 'Expense categories',
+        subtitle: 'Labels used when adding an expense',
+        icon: 'shape-outline',
+        tone: 'warning',
+        route: '/(app)/expense-categories',
+      },
+      {
+        id: 'units',
+        segment: 'units',
+        label: 'Units',
+        subtitle: 'pcs, kg, box — how you sell stock',
+        icon: 'scale-balance',
+        tone: 'primary',
+        route: '/(app)/units',
+      },
+      {
+        id: 'attributes',
+        segment: 'attributes',
+        label: 'Attributes',
+        subtitle: 'Extra fields on sale and service forms',
+        icon: 'form-textbox',
+        tone: 'purple',
+        route: '/(app)/attributes',
+      },
+    ],
+  },
+  {
+    id: 'beta',
+    title: 'Beta',
+    items: [
+      {
+        id: 'tasks',
+        segment: 'tasks',
+        label: 'Tasks',
+        subtitle: 'To-dos for you and your team',
+        icon: 'checkbox-marked-circle-outline',
+        tone: 'success',
+        route: '/(app)/(tabs)/tasks',
+      },
+      {
+        id: 'notes',
+        segment: 'notes',
+        label: 'Notes',
+        subtitle: 'Notes and reminders',
+        icon: 'note-text-outline',
+        tone: 'info',
+        route: '/(app)/notes',
+      },
+      {
+        id: 'budgets',
+        segment: 'budgets',
+        label: 'Budgets',
+        subtitle: 'Spending limits and early warnings',
+        icon: 'target',
+        tone: 'success',
+        route: '/(app)/budgets',
+      },
       {
         id: 'staff',
         segment: 'owner-tools',
@@ -220,15 +249,6 @@ const MENU_GROUPS: MenuGroup[] = [
         icon: 'account-multiple-outline',
         tone: 'purple',
         route: '/(app)/staff',
-      },
-      {
-        id: 'attendance',
-        segment: 'attendance',
-        label: 'Attendance',
-        subtitle: 'Check-in and check-out',
-        icon: 'map-marker-radius',
-        tone: 'success',
-        route: '/(app)/attendance',
       },
     ],
   },
@@ -291,9 +311,9 @@ export default function MoreScreen() {
 
     const groupTitleMap: Record<string, string> = {
       daily: personal ? 'Everyday' : t('more.businessSection'),
-      money: personal ? 'Books' : t('more.accountingSection'),
       shop: t('cafe.tables'),
-      team: t('more.staffSection'),
+      setup: t('settings.title'),
+      beta: 'Beta',
     };
 
     const itemLabelMap: Record<string, { label: string; subtitle: string }> = {
@@ -303,11 +323,10 @@ export default function MoreScreen() {
         subtitle: personal ? 'Income, expenses, and what you saved' : 'Spending, categories, and cash out',
       },
       tasks: {
-        label: personal ? 'Notes & reminders' : t('tasks.title'),
-        subtitle: personal ? 'Water, focus, notes — earn coins' : 'To-dos, reminders, and notes',
+        label: personal ? 'Notes & reminders' : 'Tasks',
+        subtitle: personal ? 'Water, focus, notes — earn coins' : 'To-dos for you and your team',
       },
       coins: { label: t('habits.coins'), subtitle: 'History and merch you can redeem' },
-      services: { label: t('inventory.services'), subtitle: 'Jobs, orders, and deliveries' },
       inventory: { label: t('inventory.title'), subtitle: 'Stock, products, and low alerts' },
       purchases: { label: t('nav.purchases'), subtitle: 'Supplier bills and stock buying' },
       ledger: {
@@ -323,7 +342,6 @@ export default function MoreScreen() {
       tables: { label: t('cafe.manageTables'), subtitle: 'Layout and seating setup' },
       cashier: { label: 'Cashier', subtitle: 'Close dining bills' },
       staff: { label: t('staff.title'), subtitle: 'Team, payroll, and access' },
-      attendance: { label: t('staff.attendance'), subtitle: 'Check-in and check-out' },
     };
 
     return MENU_GROUPS.map((group) => ({
@@ -332,6 +350,10 @@ export default function MoreScreen() {
       items: group.items
         .filter((item) => {
           if (item.id === 'coins') return personal;
+          // Personal workspaces already get notes on the tasks row.
+          if (item.id === 'notes') return !personal;
+          // Shops without services already have Sale in the tab bar.
+          if (item.id === 'pos' && !canAccessSegment(context, 'services')) return false;
           return canAccessSegment(context, item.segment);
         })
         .map((item) => {

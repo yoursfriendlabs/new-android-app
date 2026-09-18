@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 
+import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
 import { AppProviders } from '@/src/providers/AppProviders';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette, useThemeStore } from '@/src/stores/theme-store';
@@ -32,8 +33,12 @@ export default function RootLayout() {
   });
   const status = useAuthStore((state) => state.status);
   const themeStatus = useThemeStore((state) => state.status);
+  // Wait for the tour flag too, so the app never mounts and then flips to the tour.
+  const onboardingStatus = useOnboardingStore((state) => state.status);
   const [timedOut, setTimedOut] = useState(false);
-  const ready = fontsLoaded && (timedOut || (status !== 'booting' && themeStatus !== 'booting'));
+  const ready =
+    fontsLoaded &&
+    (timedOut || (status !== 'booting' && themeStatus !== 'booting' && onboardingStatus !== 'unknown'));
 
   useEffect(() => {
     const timer = setTimeout(() => setTimedOut(true), 4000);

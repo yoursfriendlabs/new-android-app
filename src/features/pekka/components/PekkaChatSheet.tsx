@@ -101,6 +101,14 @@ export function PekkaChatSheet() {
     setPending(question);
   };
 
+  // Wipe the conversation and start over from the greeting and guide.
+  const handleClear = () => {
+    void Haptics.selectionAsync();
+    setMessages([]);
+    setAwaiting(null);
+    setPending(null);
+  };
+
   const handleGuide = (route?: string) => {
     if (!route) return;
     void Haptics.selectionAsync();
@@ -153,6 +161,19 @@ export function PekkaChatSheet() {
         </View>
       }>
       <View style={styles.body}>
+        {messages.length > 0 || awaiting ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('pekka.clearChat')}
+            hitSlop={8}
+            onPress={handleClear}
+            style={[styles.clearButton, { borderColor: colors.border }]}>
+            <MaterialCommunityIcons name="restart" size={15} color={colors.textMuted} />
+            <Text variant="label" tone="muted">
+              {t('pekka.clearChat')}
+            </Text>
+          </Pressable>
+        ) : null}
         <PekkaMessage
           message={{ id: 'greeting', role: 'pekka', text: t('pekka.greeting', { name: greetingName }) }}
         />
@@ -219,6 +240,17 @@ function periodCommonKey(value: DatePeriod): string {
 const styles = StyleSheet.create({
   body: {
     paddingBottom: spacing.md,
+  },
+  clearButton: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxs,
+    paddingVertical: spacing.xxs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: spacing.xs,
   },
   guide: {
     marginTop: spacing.sm,

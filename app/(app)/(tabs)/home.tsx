@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { PersonalHomeScreen } from '@/src/features/home/components/PersonalHomeScreen';
 import { ShopHomeScreen } from '@/src/features/home/components/ShopHomeScreen';
 import { Screen } from '@/src/shared/layout/Screen';
-import { isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
+import { ATTENDANCE_ENABLED, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 
@@ -28,7 +28,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (isGeneralStaff) {
-      router.replace('/(app)/attendance');
+      router.replace(ATTENDANCE_ENABLED ? '/(app)/attendance' : '/(app)/(tabs)/salary-tab');
     }
   }, [isGeneralStaff]);
 

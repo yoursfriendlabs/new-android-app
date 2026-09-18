@@ -32,10 +32,12 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskFormScreen() {
   const businessProfile = useAuthStore((state) => state.businessProfile);
+  const { scope } = useLocalSearchParams<{ scope?: string }>();
   const personal = isPersonalWorkspace({
     businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
   });
-  if (personal) return <PersonalComposer />;
+  // Shops reach notes from the More > Beta list; those links carry scope=note.
+  if (personal || scope === 'note') return <PersonalComposer />;
   return <BusinessTaskFormScreen />;
 }
 

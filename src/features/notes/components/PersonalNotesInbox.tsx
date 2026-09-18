@@ -162,7 +162,7 @@ export function PersonalNotesInbox() {
     return (
       <Pressable
         style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => router.push({ pathname: '/tasks/detail' as any, params: { id: item.id } })}>
+        onPress={() => router.push({ pathname: '/tasks/detail' as any, params: { id: item.id, scope: 'note' } })}>
         <View style={styles.cardTop}>
           <View style={[styles.kindDot, { backgroundColor: kind === 'note' ? colors.purpleSoft : colors.accentSoft }]}>
             <MaterialCommunityIcons
@@ -425,13 +425,13 @@ export function PersonalNotesInbox() {
             id: 'note',
             label: 'New note',
             icon: 'notebook-outline',
-            onPress: () => router.push({ pathname: '/tasks/form' as any, params: { kind: 'note' } }),
+            onPress: () => router.push({ pathname: '/tasks/form' as any, params: { kind: 'note', scope: 'note' } }),
           },
           {
             id: 'reminder',
             label: 'New reminder',
             icon: 'bell-plus-outline',
-            onPress: () => router.push({ pathname: '/tasks/form' as any, params: { kind: 'reminder' } }),
+            onPress: () => router.push({ pathname: '/tasks/form' as any, params: { kind: 'reminder', scope: 'note' } }),
           },
           {
             id: 'interval',

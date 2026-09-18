@@ -25,10 +25,12 @@ type TabDef = {
   isCenterFab?: boolean;
 };
 
+// Shop bar: Home, Services, Parties, More. Inventory, quick entry, expenses and
+// purchases live at the top of More. Shops without services get the sale screen instead.
 const PRIMARY_TABS: TabDef[] = [
   { name: 'home', titleKey: 'nav.home', fallbackTitle: 'Home', inactiveIcon: 'home-outline', activeIcon: 'home' },
+  { name: 'services', titleKey: 'nav.services', fallbackTitle: 'Services', inactiveIcon: 'toolbox-outline', activeIcon: 'toolbox' },
   { name: 'pos', titleKey: 'nav.pos', fallbackTitle: 'Sale', inactiveIcon: 'cash-register', activeIcon: 'cash-register' },
-  { name: 'quick-entry', titleKey: 'common.add', fallbackTitle: 'Add', inactiveIcon: 'plus', activeIcon: 'plus', isCenterFab: true },
   { name: 'parties', titleKey: 'nav.parties', fallbackTitle: 'Parties', inactiveIcon: 'account-group-outline', activeIcon: 'account-group' },
   { name: 'more', titleKey: 'nav.more', fallbackTitle: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
 ];
@@ -44,22 +46,32 @@ const PERSONAL_TABS: TabDef[] = [
 const STAFF_TABS: TabDef[] = [
   { name: 'attendance-tab', titleKey: 'nav.attendance', fallbackTitle: 'Attendance', inactiveIcon: 'map-marker-radius', activeIcon: 'map-marker-radius' },
   { name: 'salary-tab', titleKey: 'nav.salaries', fallbackTitle: 'Salary', inactiveIcon: 'wallet-outline', activeIcon: 'wallet' },
+  { name: 'more', titleKey: 'nav.more', fallbackTitle: 'More', inactiveIcon: 'dots-horizontal', activeIcon: 'dots-horizontal-circle' },
 ];
 
 const ALL_TAB_SCREENS = [
   'home',
+  'services',
   'pos',
   'expenses',
   'quick-entry',
   'parties',
+  // Staff tabs sit before More so a staff bar reads Salary, More.
+  'attendance-tab',
+  'salary-tab',
   'more',
   'orders',
   'inventory',
   'tasks',
-  'services',
-  'attendance-tab',
-  'salary-tab',
 ] as const;
+
+function shopTabs(accessContext: Parameters<typeof canAccessSegment>[0]) {
+  const hasServices = canAccessSegment(accessContext, 'services');
+  return PRIMARY_TABS.filter((tab) => {
+    if (tab.name === 'pos' && hasServices) return false;
+    return canAccessSegment(accessContext, tab.name);
+  });
+}
 
 /** Tab icon with a pill that springs in behind it when the tab becomes active. */
 function TabIcon({
@@ -165,10 +177,10 @@ export default function TabsLayout() {
 
   const isGeneralStaff = isGeneralStaffUser(accessContext);
   const visibleTabs = isGeneralStaff
-    ? STAFF_TABS
+    ? STAFF_TABS.filter((tab) => canAccessSegment(accessContext, tab.name))
     : isPersonalWorkspace(accessContext)
       ? PERSONAL_TABS
-      : PRIMARY_TABS.filter((tab) => canAccessSegment(accessContext, tab.name));
+      : shopTabs(accessContext);
   const visibleNames = new Set(visibleTabs.map((tab) => tab.name));
   const tabByName = new Map([...PRIMARY_TABS, ...PERSONAL_TABS, ...STAFF_TABS].map((tab) => [tab.name, tab]));
   const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 10 : 6);

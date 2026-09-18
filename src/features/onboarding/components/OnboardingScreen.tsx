@@ -1,6 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -63,10 +62,15 @@ export function OnboardingScreen() {
 
   const isLast = index === SLIDES.length - 1;
 
+  const finishing = useRef(false);
+
+  // Marking the tour done flips the Stack.Protected guard in the app layout, which
+  // moves them to the app on its own. Navigating here too would race it.
   async function finish() {
+    if (finishing.current) return;
+    finishing.current = true;
     haptics.success();
     await complete();
-    router.replace('/(app)/(tabs)/home');
   }
 
   function goNext() {
@@ -100,7 +104,8 @@ export function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => {
-          setIndex(Math.round(event.nativeEvent.contentOffset.x / width));
+          const next = Math.max(0, Math.min(SLIDES.length - 1, Math.round(event.nativeEvent.contentOffset.x / width)));
+          setIndex((current) => (current === next ? current : next));
         }}>
         {SLIDES.map((slide) => (
           <View key={slide.key} style={[styles.slide, { width }]}>

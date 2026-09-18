@@ -12,7 +12,13 @@ import { ThemeModeSelector } from '@/src/shared/ui/ThemeModeSelector';
 import { ThemeSelector } from '@/src/shared/ui/ThemeSelector';
 import { LanguageSelector } from '@/src/shared/ui/LanguageSelector';
 import { DateFormatSelector } from '@/src/shared/ui/DateFormatSelector';
-import { getCapabilitySummary, hasAppCapability, isPersonalWorkspace } from '@/src/shared/lib/business';
+import {
+  ATTENDANCE_ENABLED,
+  canAccessSegment,
+  getCapabilitySummary,
+  hasAppCapability,
+  isPersonalWorkspace,
+} from '@/src/shared/lib/business';
 import { Snackbar } from '@/src/shared/feedback/Snackbar';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -81,6 +87,12 @@ export default function SettingsScreen() {
   const permissionBadges = getCapabilitySummary(accessContext as any);
   const canOpenOwnerTools = hasAppCapability(accessContext as any, 'owner-tools');
   const isPersonal = isPersonalWorkspace(accessContext as any);
+  const setupLinks = [
+    { segment: 'banks', label: 'Banks', route: '/(app)/banks' },
+    { segment: 'expenses', label: 'Expense categories', route: '/(app)/expense-categories' },
+    { segment: 'units', label: 'Units', route: '/(app)/units' },
+    { segment: 'attributes', label: 'Attributes', route: '/(app)/attributes' },
+  ].filter((link) => !isPersonal && canAccessSegment(accessContext as any, link.segment));
 
   const toggles = [
     {
@@ -218,7 +230,7 @@ export default function SettingsScreen() {
         </Pressable>
       </SurfaceCard>
 
-      {canOpenOwnerTools ? (
+      {canOpenOwnerTools && ATTENDANCE_ENABLED ? (
         <SurfaceCard
           title={t('settings.geofencingTitle')}
           subtitle={t('settings.geofencingSubtitle')}>
@@ -251,6 +263,18 @@ export default function SettingsScreen() {
           <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleGeofencingSave()}>
             <Text style={styles.primaryButtonLabel}>{t('settings.saveGeofencing')}</Text>
           </Pressable>
+        </SurfaceCard>
+      ) : null}
+
+      {setupLinks.length ? (
+        <SurfaceCard title="Business setup" subtitle="Lists the rest of the app picks from.">
+          <View style={styles.setupList}>
+            {setupLinks.map((link) => (
+              <Pressable key={link.route} style={styles.secondaryButton} onPress={() => router.push(link.route as never)}>
+                <Text style={styles.secondaryButtonLabel}>{link.label}</Text>
+              </Pressable>
+            ))}
+          </View>
         </SurfaceCard>
       ) : null}
 
@@ -390,6 +414,9 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     color: colors.onPrimary,
     fontSize: typography.body,
     fontWeight: '800',
+  },
+  setupList: {
+    gap: spacing.sm,
   },
   secondaryButton: {
     minHeight: 48,

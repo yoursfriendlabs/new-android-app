@@ -444,6 +444,7 @@ export const en = {
     guideTitle: 'New here? Quick guide',
     periodPrompt: 'For which period?',
     loading: 'Crunching the numbers…',
+    clearChat: 'Clear chat',
     noData: "I couldn't find the data just now. Please try again in a moment.",
     q: {
       income: "What's my total income?",

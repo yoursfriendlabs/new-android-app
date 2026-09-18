@@ -69,7 +69,7 @@ export function PersonalNoteDetail() {
   const topBarRight = (
     <Pressable
       style={styles.headerButton}
-      onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: note.id } })}>
+      onPress={() => router.push({ pathname: '/tasks/form' as any, params: { id: note.id, scope: 'note' } })}>
       <MaterialCommunityIcons color={colors.onPrimary} name="pencil" size={20} />
     </Pressable>
   );

@@ -40,12 +40,13 @@ import type { AppPalette } from '@/src/theme/app-palette';
 
 export default function TaskDetailScreen() {
   const businessProfile = useAuthStore((state) => state.businessProfile);
+  const { scope } = useLocalSearchParams<{ scope?: string }>();
   const personal = isPersonalWorkspace({
     businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
   });
   // Personal workspaces get a clean, dedicated note/reminder view instead of the
   // task chrome (priority, status, assignees, timeline).
-  if (personal) return <PersonalNoteDetail />;
+  if (personal || scope === 'note') return <PersonalNoteDetail />;
   return <BusinessTaskDetailScreen />;
 }
 

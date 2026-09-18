@@ -262,6 +262,9 @@ const PERSONAL_CAPABILITIES = new Set<AppCapability>([
   'tasks',
 ]);
 
+/** Attendance is hidden for the Play Store launch. Flip to true to bring it back everywhere. */
+export const ATTENDANCE_ENABLED = false;
+
 const PERSONAL_BLOCKED_SEGMENTS = new Set([
   'pos',
   'orders',
@@ -275,6 +278,8 @@ const PERSONAL_BLOCKED_SEGMENTS = new Set([
   'purchases',
   'purchase-create',
   'inventory',
+  'units',
+  'attributes',
   'owner-tools',
   'staff',
   'staff-salary',
@@ -370,10 +375,9 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
   if (segment === 'welcome') return true;
 
   if (isGeneralStaffUser(user)) {
+    if (segment === 'attendance-tab' || segment === 'attendance') return ATTENDANCE_ENABLED;
     return (
-      segment === 'attendance-tab' ||
       segment === 'salary-tab' ||
-      segment === 'attendance' ||
       segment === 'staff-salary' ||
       segment === 'change-password' ||
       segment === 'more' ||
@@ -415,11 +419,14 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
     case 'ledger':
       return hasAppCapability(user, 'ledger');
     case 'inventory':
+    case 'units':
       return hasAppCapability(user, 'inventory');
     case 'owner-tools':
     case 'staff':
+    case 'attributes':
       return hasAppCapability(user, 'owner-tools');
     case 'tasks':
+    case 'notes':
     case 'tasks/inbox':
     case 'tasks/detail':
     case 'tasks/form':
@@ -427,7 +434,7 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
       return hasAppCapability(user, 'tasks');
     case 'attendance':
     case 'attendance-tab':
-      return isOwnerUser(user) || hasGrantedFeature(user, 'attendance');
+      return ATTENDANCE_ENABLED && (isOwnerUser(user) || hasGrantedFeature(user, 'attendance'));
     case 'salary-tab':
     case 'staff-salary':
       return isOwnerUser(user);

@@ -19,10 +19,11 @@ export default function AppLayout() {
 
   const currentLeafSegment = segments[segments.length - 1];
 
-  // First run: show the tour once before the app shell.
-  if (onboardingStatus === 'pending' && currentLeafSegment !== 'welcome') {
-    return <Redirect href="/(app)/welcome" />;
-  }
+  // First run: the tour is the only screen until it is finished. This is done with
+  // Stack.Protected rather than a <Redirect>, because swapping the stack out for a
+  // redirect while login is also navigating looped into "Maximum update depth exceeded".
+  const showTour = onboardingStatus === 'pending';
+
   const accessContext = {
     role: session?.role ?? user?.role ?? null,
     permissions: accessControl?.permissions ?? user?.permissions,
@@ -33,13 +34,13 @@ export default function AppLayout() {
 
   const isGeneralStaff = isGeneralStaffUser(accessContext);
 
-  if (isGeneralStaff && (currentLeafSegment === 'home' || currentLeafSegment === '(tabs)' || (currentLeafSegment as string) === 'index' || !currentLeafSegment)) {
+  if (!showTour && isGeneralStaff && (currentLeafSegment === 'home' || currentLeafSegment === '(tabs)' || (currentLeafSegment as string) === 'index' || !currentLeafSegment)) {
     const membershipId = accessControl?.membershipId || '';
     const name = user?.name || '';
     return <Redirect href={`/(app)/staff-salary?membershipId=${membershipId}&name=${encodeURIComponent(name)}` as any} />;
   }
 
-  if (typeof currentLeafSegment === 'string' && !canAccessSegment(accessContext, currentLeafSegment)) {
+  if (!showTour && typeof currentLeafSegment === 'string' && !canAccessSegment(accessContext, currentLeafSegment)) {
     if (isGeneralStaff) {
       const membershipId = accessControl?.membershipId || '';
       const name = user?.name || '';
@@ -50,37 +51,44 @@ export default function AppLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="service-create" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="purchase-create" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="invoice" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="print-preview" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="expense-categories" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="tasks/inbox" />
-      <Stack.Screen name="tasks/detail" />
-      <Stack.Screen name="tasks/form" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="tasks/notifications" />
-      <Stack.Screen name="coins" />
-      <Stack.Screen name="purchases" />
-      <Stack.Screen name="sales" />
-      <Stack.Screen name="parties" />
-      <Stack.Screen name="banks" />
-      <Stack.Screen name="ledger" />
-      <Stack.Screen name="inventory" />
-      <Stack.Screen name="settings" />
-      <Stack.Screen name="workspaces" />
-      <Stack.Screen name="owner-tools" />
-      <Stack.Screen name="staff" />
-      <Stack.Screen name="staff-salary" />
-      <Stack.Screen name="attendance" />
-      <Stack.Screen name="budgets" />
-      <Stack.Screen name="money-insights" />
-      <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
-      <Stack.Screen name="cashier" />
-      <Stack.Screen name="tables" />
-      <Stack.Screen name="item-form" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="item-detail" />
+      <Stack.Protected guard={!showTour}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="service-create" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="purchase-create" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="invoice" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="print-preview" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="expense-categories" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="units" />
+        <Stack.Screen name="notes" />
+        <Stack.Screen name="attributes" />
+        <Stack.Screen name="tasks/inbox" />
+        <Stack.Screen name="tasks/detail" />
+        <Stack.Screen name="tasks/form" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="tasks/notifications" />
+        <Stack.Screen name="coins" />
+        <Stack.Screen name="purchases" />
+        <Stack.Screen name="sales" />
+        <Stack.Screen name="parties" />
+        <Stack.Screen name="banks" />
+        <Stack.Screen name="ledger" />
+        <Stack.Screen name="inventory" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="workspaces" />
+        <Stack.Screen name="owner-tools" />
+        <Stack.Screen name="staff" />
+        <Stack.Screen name="staff-salary" />
+        <Stack.Screen name="attendance" />
+        <Stack.Screen name="budgets" />
+        <Stack.Screen name="money-insights" />
+        <Stack.Screen name="cashier" />
+        <Stack.Screen name="tables" />
+        <Stack.Screen name="item-form" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="item-detail" />
+      </Stack.Protected>
+      <Stack.Protected guard={showTour}>
+        <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />
+      </Stack.Protected>
     </Stack>
   );
 }

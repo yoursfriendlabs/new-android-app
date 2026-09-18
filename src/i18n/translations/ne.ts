@@ -446,6 +446,7 @@ export const ne: TranslationDictionary = {
     guideTitle: 'नयाँ हुनुहुन्छ? छिटो गाइड',
     periodPrompt: 'कुन अवधिको लागि?',
     loading: 'हिसाब निकाल्दै…',
+    clearChat: 'च्याट मेटाउनुहोस्',
     noData: 'अहिले डाटा भेटिएन। कृपया केही बेरमा फेरि प्रयास गर्नुहोस्।',
     q: {
       income: 'मेरो कुल आम्दानी कति छ?',
