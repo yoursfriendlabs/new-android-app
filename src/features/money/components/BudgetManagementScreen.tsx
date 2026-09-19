@@ -1,9 +1,27 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { budgetsApi } from '@/src/api';
+import { BudgetRing } from '@/src/features/money/components/BudgetRing';
+import {
+  BUDGET_TEMPLATES,
+  BUDGET_TONE_LABEL,
+  budgetAmountChips,
+  budgetHeadline,
+  budgetRemaining,
+  budgetTone,
+  clampPercent,
+  expectedPercent,
+  periodDays,
+  safeDailySpend,
+  sortBudgets,
+  type BudgetTone,
+} from '@/src/features/money/lib/budget';
+import { getCategoryVisual } from '@/src/features/money/lib/category-visuals';
+import { haptics } from '@/src/shared/lib/haptics';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { isInvalidSessionError } from '@/src/api/client';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
@@ -17,7 +35,7 @@ import { useBudgets, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { useAuthStore } from '@/src/stores/auth-store';
-import { usePalette } from '@/src/stores/theme-store';
+import { usePalette, useThemeMode } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -50,15 +68,16 @@ function budgetForm(budget?: Budget | null) {
   };
 }
 
-function toneFor(budget: Budget, colors: AppPalette) {
-  if (budget.status === 'over') return { color: colors.danger, soft: colors.dangerSoft, label: 'Over budget' };
-  if (budget.status === 'warning') return { color: colors.warning, soft: colors.warningSoft, label: 'Nearly used' };
-  if (budget.projectedStatus === 'over') return { color: colors.warning, soft: colors.warningSoft, label: 'Pacing over' };
-  return { color: colors.success, soft: colors.successSoft, label: 'On track' };
+type PeriodFilter = 'all' | BudgetPeriod;
+
+function toneColors(tone: BudgetTone, colors: AppPalette) {
+  if (tone === 'over') return { color: colors.danger, soft: colors.dangerSoft };
+  if (tone === 'warning' || tone === 'pacing') return { color: colors.warning, soft: colors.warningSoft };
+  return { color: colors.success, soft: colors.successSoft };
 }
 
 function progressWidth(percent = 0) {
-  return `${Math.min(Math.max(percent, 0), 100)}%` as const;
+  return `${clampPercent(percent)}%` as const;
 }
 
 export function BudgetManagementScreen() {
@@ -76,22 +95,39 @@ export function BudgetManagementScreen() {
   const [form, setForm] = useState(emptyBudgetForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+  const [seed, setSeed] = useState<Partial<ReturnType<typeof emptyBudgetForm>> | null>(null);
+  const mode = useThemeMode();
 
   const categories = useMemo(
     () => Array.from(new Set((categoriesQuery.data ?? []).map((category) => category.name.trim()).filter(Boolean))).sort(),
     [categoriesQuery.data],
   );
-  const budgets = budgetsQuery.data?.items ?? [];
+  const allBudgets = budgetsQuery.data?.items ?? [];
   const summary = budgetsQuery.data?.summary;
+  const periodsInUse = useMemo(() => new Set(allBudgets.map((budget) => budget.period)), [allBudgets]);
+  const budgets = useMemo(
+    () => sortBudgets(periodFilter === 'all' ? allBudgets : allBudgets.filter((budget) => budget.period === periodFilter)),
+    [allBudgets, periodFilter],
+  );
+  // The overall cap (or, failing that, the fullest budget) drives the "per day" hint in the header.
+  const leadBudget = useMemo(
+    () => allBudgets.find((budget) => budget.scope === 'total' && budget.period === 'monthly') ?? sortBudgets(allBudgets)[0],
+    [allBudgets],
+  );
+  const heroTone: BudgetTone = summary?.overCount ? 'over' : summary?.warningCount ? 'warning' : summary?.projectedOverCount ? 'pacing' : 'ok';
+  const hero = toneColors(heroTone, colors);
 
   useEffect(() => {
     if (!sheetOpen) return;
-    setForm(budgetForm(editing));
+    setForm({ ...budgetForm(editing), ...(editing ? {} : seed ?? {}) });
     setFormError('');
-  }, [editing, sheetOpen]);
+  }, [editing, seed, sheetOpen]);
 
-  const openCreate = () => {
+  const openCreate = (template?: Partial<ReturnType<typeof emptyBudgetForm>>) => {
+    haptics.tapLight();
     setEditing(null);
+    setSeed(template ?? null);
     setSheetOpen(true);
   };
 
@@ -109,10 +145,12 @@ export function BudgetManagementScreen() {
     const amount = Number(form.amount);
     const categoryName = form.categoryName.trim();
     if (!Number.isFinite(amount) || amount <= 0) {
+      haptics.warning();
       setFormError('Enter a budget amount greater than zero.');
       return;
     }
     if (form.scope === 'category' && !categoryName) {
+      haptics.warning();
       setFormError('Choose the expense category this budget covers.');
       return;
     }
@@ -137,6 +175,7 @@ export function BudgetManagementScreen() {
         await withWorkspaceRetry(() => budgetsApi.create(payload));
         toast.success('Budget created.');
       }
+      haptics.success();
       await invalidate();
       setSheetOpen(false);
     } catch (error) {
@@ -180,28 +219,38 @@ export function BudgetManagementScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void Promise.all([budgetsQuery.refetch(), categoriesQuery.refetch()])} />}>
+
         <PageHeading title="Budgets" subtitle="Set spending limits and spot trouble before the month ends." />
 
         {summary?.budgetCount ? (
-          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.summaryTop}>
-              <View>
-                <Text style={[styles.summaryKicker, { color: colors.textMuted }]}>CURRENT CAPS</Text>
-                <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(summary.totalRemaining, currency)} left</Text>
+          <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <BudgetRing percent={summary.percentUsed} color={hero.color} trackColor={colors.backgroundAlt}>
+              <Text style={[styles.ringValue, { color: colors.text }]}>{Math.round(summary.percentUsed)}%</Text>
+              <Text style={[styles.ringLabel, { color: colors.textMuted }]}>used</Text>
+            </BudgetRing>
+            <View style={styles.heroCopy}>
+              <View style={[styles.statusPill, { alignSelf: 'flex-start', backgroundColor: hero.soft }]}>
+                <Text style={[styles.statusText, { color: hero.color }]}>{BUDGET_TONE_LABEL[heroTone]}</Text>
               </View>
-              <View style={[styles.summaryBadge, { backgroundColor: summary.overCount ? colors.dangerSoft : colors.successSoft }]}>
-                <Text style={[styles.summaryBadgeText, { color: summary.overCount ? colors.danger : colors.success }]}>
-                  {summary.overCount ? `${summary.overCount} over` : 'On track'}
+              <Text style={[styles.heroValue, { color: summary.totalRemaining < 0 ? colors.danger : colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
+                {summary.totalRemaining < 0
+                  ? `${formatCurrency(Math.abs(summary.totalRemaining), currency)} over`
+                  : `${formatCurrency(summary.totalRemaining, currency)} left`}
+              </Text>
+              <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
+                {formatCurrency(summary.totalSpent, currency)} of {formatCurrency(summary.totalBudgeted, currency)}
+              </Text>
+              {leadBudget && safeDailySpend(leadBudget) > 0 ? (
+                <Text style={[styles.heroDaily, { color: colors.primary }]}>
+                  {formatCurrency(Math.floor(safeDailySpend(leadBudget)), currency)}/day keeps {leadBudget.scope === 'total' ? 'you' : leadBudget.name} on track
                 </Text>
-              </View>
+              ) : null}
             </View>
-            <View style={[styles.progressTrack, { backgroundColor: colors.backgroundAlt }]}>
-              <View style={[styles.progressFill, { width: progressWidth(summary.percentUsed), backgroundColor: summary.overCount ? colors.danger : colors.primary }]} />
-            </View>
-            <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
-              {formatCurrency(summary.totalSpent, currency)} of {formatCurrency(summary.totalBudgeted, currency)} planned · {Math.round(summary.percentUsed)}% used
-            </Text>
           </View>
+        ) : null}
+
+        {summary?.budgetCount ? (
+          <Text style={[styles.headline, { color: colors.textMuted }]}>{budgetHeadline(summary)}</Text>
         ) : null}
 
         <View style={styles.listHeader}>
@@ -209,45 +258,73 @@ export function BudgetManagementScreen() {
             <Text style={[styles.sectionKicker, { color: colors.primary }]}>SPENDING PLAN</Text>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Active budgets</Text>
           </View>
-          <Pressable style={[styles.addButton, { backgroundColor: colors.primary }]} onPress={openCreate}>
+          <Pressable style={[styles.addButton, { backgroundColor: colors.primary }]} onPress={() => openCreate()}>
             <MaterialCommunityIcons name="plus" size={18} color={colors.onPrimary} />
             <Text style={[styles.addButtonText, { color: colors.onPrimary }]}>Add</Text>
           </Pressable>
         </View>
 
+        {periodsInUse.size > 1 ? (
+          <SegmentedTabs
+            value={periodFilter}
+            onChange={setPeriodFilter}
+            options={[{ value: 'all' as PeriodFilter, label: 'All' }, ...PERIOD_OPTIONS.filter((option) => periodsInUse.has(option.value))]}
+          />
+        ) : null}
+
         {budgetsQuery.isLoading ? (
-          <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>
+          <SkeletonList count={3} />
         ) : budgets.length ? budgets.map((budget) => {
-          const tone = toneFor(budget, colors);
+          const toneKey = budgetTone(budget);
+          const tone = toneColors(toneKey, colors);
           const spent = budget.spent ?? 0;
-          const remaining = budget.remaining ?? budget.amount - spent;
+          const remaining = budgetRemaining(budget);
+          const pace = expectedPercent(budget);
+          const visual = budget.scope === 'total'
+            ? { icon: 'wallet-outline' as const, color: tone.color, background: tone.soft }
+            : getCategoryVisual(budget.categoryName || '', mode);
+          const perDay = safeDailySpend(budget);
           return (
             <Pressable
               key={budget.id}
               onPress={() => openEdit(budget)}
               style={({ pressed }) => [styles.budgetCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.78 }]}>
               <View style={styles.budgetTop}>
-                <View style={[styles.iconBox, { backgroundColor: tone.soft }]}>
-                  <MaterialCommunityIcons name={budget.scope === 'total' ? 'wallet-outline' : 'shape-outline'} size={21} color={tone.color} />
+                <View style={[styles.iconBox, { backgroundColor: visual.background }]}>
+                  <MaterialCommunityIcons name={visual.icon} size={21} color={visual.color} />
                 </View>
                 <View style={styles.budgetTitleWrap}>
                   <Text numberOfLines={1} style={[styles.budgetName, { color: colors.text }]}>{budget.name}</Text>
                   <Text numberOfLines={1} style={[styles.budgetMeta, { color: colors.textMuted }]}>{budget.periodLabel || budget.period} · {budget.scope === 'total' ? 'All spending' : budget.categoryName}</Text>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: tone.soft }]}>
-                  <Text style={[styles.statusText, { color: tone.color }]}>{tone.label}</Text>
+                  <Text style={[styles.statusText, { color: tone.color }]}>{BUDGET_TONE_LABEL[toneKey]}</Text>
                 </View>
               </View>
               <View style={styles.amountRow}>
                 <Text style={[styles.spentText, { color: colors.text }]}>{formatCurrency(spent, currency)} spent</Text>
                 <Text style={[styles.remainingText, { color: tone.color }]}>{remaining >= 0 ? `${formatCurrency(remaining, currency)} left` : `${formatCurrency(Math.abs(remaining), currency)} over`}</Text>
               </View>
-              <View style={[styles.progressTrack, { backgroundColor: colors.backgroundAlt }]}>
-                <View style={[styles.progressFill, { width: progressWidth(budget.percentUsed), backgroundColor: tone.color }]} />
+              <View>
+                <View style={[styles.progressTrack, { backgroundColor: colors.backgroundAlt }]}>
+                  <View style={[styles.progressFill, { width: progressWidth(budget.percentUsed), backgroundColor: tone.color }]} />
+                </View>
+                {/* Where spending would be today if spread evenly across the period. */}
+                {pace !== null && pace > 0 && pace < 100 ? (
+                  <View style={[styles.paceMarker, { left: `${pace}%`, backgroundColor: colors.text }]} />
+                ) : null}
               </View>
               <View style={styles.budgetFooter}>
                 <Text style={[styles.budgetHint, { color: colors.textMuted }]}>{Math.round(budget.percentUsed ?? 0)}% of {formatCurrency(budget.amount, currency)}</Text>
-                {budget.projectedStatus === 'over' ? <Text style={[styles.budgetHint, { color: colors.warning }]}>At this pace: {formatCurrency(budget.projectedSpend ?? 0, currency)}</Text> : <Text style={[styles.budgetHint, { color: colors.textMuted }]}>{budget.daysLeft ?? 0} days left</Text>}
+                {toneKey === 'over' ? (
+                  <Text style={[styles.budgetHint, styles.hintRight, { color: colors.danger }]}>{budget.daysLeft ?? 0} days to go</Text>
+                ) : budget.projectedStatus === 'over' ? (
+                  <Text style={[styles.budgetHint, styles.hintRight, { color: colors.warning }]}>At this pace: {formatCurrency(budget.projectedSpend ?? 0, currency)}</Text>
+                ) : (
+                  <Text style={[styles.budgetHint, styles.hintRight, { color: colors.textMuted }]}>
+                    {perDay > 0 ? `${formatCurrency(Math.floor(perDay), currency)}/day · ` : ''}{budget.daysLeft ?? 0} days left
+                  </Text>
+                )}
               </View>
             </Pressable>
           );
@@ -255,8 +332,18 @@ export function BudgetManagementScreen() {
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}><MaterialCommunityIcons name="target" size={28} color={colors.primary} /></View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>Give every rupee a limit</Text>
-            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>Start with a monthly total or the category you want to keep closest to hand.</Text>
-            <Pressable style={[styles.emptyButton, { backgroundColor: colors.primary }]} onPress={openCreate}><Text style={[styles.emptyButtonText, { color: colors.onPrimary }]}>Set your first budget</Text></Pressable>
+            <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>Pick a starting point. PM counts your expenses against it and warns you before you go over.</Text>
+            <View style={styles.templateGrid}>
+              {BUDGET_TEMPLATES.map((template) => (
+                <Pressable
+                  key={template.label}
+                  onPress={() => openCreate({ scope: template.scope, categoryName: template.categoryName })}
+                  style={({ pressed }) => [styles.templateChip, { borderColor: colors.border, backgroundColor: colors.backgroundAlt }, pressed && { opacity: 0.75 }]}>
+                  <MaterialCommunityIcons name={template.icon} size={16} color={colors.primary} />
+                  <Text style={[styles.categoryChipText, { color: colors.text }]}>{template.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -277,15 +364,36 @@ export function BudgetManagementScreen() {
           {form.scope === 'category' ? <View style={styles.categoryBlock}>
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>EXPENSE CATEGORY</Text>
             <View style={styles.categoryChips}>
-              {categories.map((category) => {
+              {(form.categoryName && !categories.includes(form.categoryName) ? [form.categoryName, ...categories] : categories).map((category) => {
                 const selected = form.categoryName === category;
                 return <Pressable key={category} onPress={() => setForm((current) => ({ ...current, categoryName: category }))} style={[styles.categoryChip, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.accentSoft : colors.backgroundAlt }]}><Text style={[styles.categoryChipText, { color: selected ? colors.primary : colors.text }]}>{category}</Text></Pressable>;
               })}
             </View>
-            {!categories.length ? <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>Add an expense category first, then come back to set its limit.</Text> : null}
+            {!categories.length && !form.categoryName ? <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>Add an expense category first, then come back to set its limit.</Text> : null}
           </View> : null}
           <SegmentedTabs value={form.period} onChange={(period) => setForm((current) => ({ ...current, period }))} options={PERIOD_OPTIONS} />
           <FormField label="Budget amount" value={form.amount} onChangeText={(amount) => setForm((current) => ({ ...current, amount }))} placeholder="0" keyboardType="decimal-pad" icon="cash" />
+          <View style={styles.categoryChips}>
+            {budgetAmountChips(form.period).map((value) => {
+              const selected = Number(form.amount) === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => {
+                    haptics.selection();
+                    setForm((current) => ({ ...current, amount: String(value) }));
+                  }}
+                  style={[styles.categoryChip, { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.accentSoft : colors.backgroundAlt }]}>
+                  <Text style={[styles.categoryChipText, { color: selected ? colors.primary : colors.text }]}>{formatCurrency(value, currency)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {Number(form.amount) > 0 ? (
+            <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>
+              About {formatCurrency(Math.floor(Number(form.amount) / periodDays(form.period)), currency)} a day.
+            </Text>
+          ) : null}
           <FormField label="Name (optional)" value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} placeholder={form.scope === 'total' ? 'Overall spending' : 'For example, Food spending'} maxLength={80} />
         </View>
       </BottomSheet>
@@ -304,12 +412,22 @@ const createStyles = (_colors: AppPalette) => StyleSheet.create({
   progressTrack: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: radius.pill },
   summaryHint: { fontSize: typography.caption, lineHeight: 18 },
+  heroCard: { borderWidth: 1, borderRadius: radius.lg, padding: spacing.md, gap: spacing.md, flexDirection: 'row', alignItems: 'center' },
+  heroCopy: { flex: 1, gap: 4 },
+  heroValue: { fontSize: typography.subheading + 2, fontWeight: '800' },
+  heroDaily: { fontSize: typography.caption, fontWeight: '700', lineHeight: 18 },
+  ringValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
+  ringLabel: { fontSize: 11, fontWeight: '700' },
+  headline: { fontSize: typography.caption, lineHeight: 19, marginTop: -spacing.sm },
+  paceMarker: { position: 'absolute', top: -3, width: 2, height: 14, borderRadius: 1, marginLeft: -1, opacity: 0.55 },
+  hintRight: { textAlign: 'right' },
+  templateGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center', marginTop: spacing.xs },
+  templateChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 9 },
   listHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   sectionKicker: { fontSize: 11, letterSpacing: 0.7, fontWeight: '800' },
   sectionTitle: { fontSize: typography.subheading, fontWeight: '800', marginTop: 2 },
   addButton: { flexDirection: 'row', gap: 3, alignItems: 'center', borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: spacing.sm },
   addButtonText: { fontSize: typography.caption, fontWeight: '800' },
-  loading: { minHeight: 140, justifyContent: 'center' },
   budgetCard: { borderWidth: 1, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm },
   budgetTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   iconBox: { width: 42, height: 42, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
@@ -327,8 +445,6 @@ const createStyles = (_colors: AppPalette) => StyleSheet.create({
   emptyIcon: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: typography.subheading, fontWeight: '800', textAlign: 'center' },
   emptyCopy: { fontSize: typography.caption, lineHeight: 19, textAlign: 'center', maxWidth: 290 },
-  emptyButton: { borderRadius: radius.pill, paddingVertical: 11, paddingHorizontal: spacing.lg, marginTop: spacing.xs },
-  emptyButtonText: { fontSize: typography.caption, fontWeight: '800' },
   sheetFooter: { flexDirection: 'row', gap: spacing.sm },
   deleteButton: { minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.md, justifyContent: 'center', alignItems: 'center' },
   deleteButtonText: { fontSize: typography.body, fontWeight: '800' },
