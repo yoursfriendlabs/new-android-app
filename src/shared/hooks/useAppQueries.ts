@@ -70,6 +70,7 @@ import {
   readQuickExpensesFromCache,
 } from '@/src/data/cache';
 import { todayIso } from '@/src/shared/lib/format';
+import { toPage, usePagedList } from '@/src/shared/hooks/usePagedList';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import type {
   BankAccount,
@@ -102,7 +103,7 @@ import type {
   Unit,
   User,
 } from '@/src/types/models';
-import type { ProductStats } from '@/src/types/contracts';
+import type { ProductStats, PurchaseStatsResponse, SaleStatsResponse, ServiceStatsResponse } from '@/src/types/contracts';
 
 async function withFallback<T>(loader: () => Promise<T>, fallback: () => Promise<T>) {
   try {
@@ -1009,5 +1010,185 @@ export function useSalesList(query = {}) {
       return extractListItems<Sale>(response).map(normalizeSale).filter((item) => item.id);
     },
     staleTime: 10_000,
+  });
+}
+
+/*
+ * Paged lists. List screens load PAGE_SIZE rows at a time and fetch the next page as the
+ * user scrolls, instead of pulling hundreds of rows up front (the server caps a single
+ * request anyway, so the old bulk loads also silently dropped rows past the cap).
+ * Keys start with the same first segment as the bulk hooks so existing invalidation covers them.
+ */
+
+export interface PurchaseListFilters {
+  entryType?: 'purchase' | 'expense' | 'income';
+  from?: string;
+  to?: string;
+  search?: string;
+  payment?: 'due' | 'paid';
+}
+
+/** One page of purchases/expenses/income. Also used by exports that need every row. */
+export async function fetchPurchasePage(filters: PurchaseListFilters, page: { limit: number; offset: number }) {
+  return toPage(
+    await purchasesApi.list({
+      ...page,
+      entryType: filters.entryType,
+      from: filters.from || undefined,
+      to: filters.to || undefined,
+      search: filters.search?.trim() || undefined,
+      payment: filters.payment,
+      sort: 'date',
+    }),
+    normalizePurchase,
+  );
+}
+
+export function usePagedPurchases(filters: PurchaseListFilters = {}) {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return usePagedList<Purchase>({
+    queryKey: ['purchases', 'paged', businessId, filters],
+    enabled: Boolean(businessId),
+    fetchPage: (page) => fetchPurchasePage(filters, page),
+  });
+}
+
+/** Server-side counts and dues for purchases and expenses (rows on screen may be only a page). */
+export function usePurchaseStats(range: { from?: string; to?: string } = {}) {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return useQuery<PurchaseStatsResponse | null>({
+    queryKey: ['purchases', 'stats', businessId, range.from ?? '', range.to ?? ''],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const stats = unwrapEntity<PurchaseStatsResponse>(await purchasesApi.stats(range)) ?? {};
+      // Older servers ignore the date range and lack the due counts; callers then sum loaded rows.
+      return stats.purchaseDueCount === undefined ? null : stats;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function usePagedParties(search = '', type = 'both') {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
+  return usePagedList<Party>({
+    queryKey: ['parties', businessId, 'paged', search.trim(), type],
+    enabled: Boolean(token && businessId),
+    fetchPage: async (page) => {
+      try {
+        const result = toPage(
+          await partiesApi.list({
+            ...page,
+            type: type === 'both' ? undefined : type,
+            search: search.trim() || undefined,
+          }),
+          normalizeParty,
+        );
+        if (page.offset === 0 && !search.trim()) await cacheParties(result.items);
+        return result;
+      } catch (error) {
+        if (page.offset > 0 || isInvalidSessionError(error)) throw error;
+        // Offline: show what the phone saved last time.
+        const cached = await readPartiesFromCache(search, 200);
+        if (!cached.length) throw error;
+        const items = type === 'both' ? cached : cached.filter((party) => party.type === type || party.type === 'both');
+        return { items, total: items.length };
+      }
+    },
+  });
+}
+
+export function usePagedProducts(filters: { search?: string; stock?: string; categoryId?: string } = {}) {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
+  return usePagedList<Product>({
+    queryKey: ['products', businessId, 'paged', filters],
+    enabled: Boolean(token && businessId),
+    fetchPage: async (page) => {
+      try {
+        const result = toPage(
+          await productsApi.list({
+            ...page,
+            search: filters.search?.trim() || undefined,
+            stock: filters.stock || undefined,
+            categoryId: filters.categoryId || undefined,
+          }),
+          normalizeProduct,
+        );
+        if (page.offset === 0 && !filters.search?.trim() && !filters.stock && !filters.categoryId) {
+          await cacheProducts(result.items);
+        }
+        return result;
+      } catch (error) {
+        if (page.offset > 0 || isInvalidSessionError(error)) throw error;
+        const cached = await readProductsFromCache(filters.search, 200);
+        if (!cached.length) throw error;
+        return { items: cached, total: cached.length };
+      }
+    },
+  });
+}
+
+export function usePagedSales(
+  filters: { from?: string; to?: string; status?: string; partyId?: string; search?: string; payment?: 'due' | 'paid' } = {},
+) {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return usePagedList<Sale>({
+    queryKey: ['sales-list', 'paged', businessId, filters],
+    enabled: Boolean(businessId),
+    fetchPage: async (page) =>
+      toPage(
+        await salesApi.list({
+          ...page,
+          from: filters.from || undefined,
+          to: filters.to || undefined,
+          status: filters.status || undefined,
+          partyId: filters.partyId || undefined,
+          search: filters.search?.trim() || undefined,
+          payment: filters.payment,
+        }),
+        normalizeSale,
+      ),
+  });
+}
+
+/** Server-side sale counts; null on older servers that lack the paid/credit split. */
+export function useSaleStats() {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return useQuery<SaleStatsResponse | null>({
+    queryKey: ['sales-list', 'stats', businessId],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const stats = unwrapEntity<SaleStatsResponse>(await salesApi.stats()) ?? {};
+      return stats.dueCount === undefined ? null : stats;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function usePagedServices(filters: { stage?: 'open' | 'overdue' | 'closed'; search?: string } = {}) {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return usePagedList<Service>({
+    queryKey: ['services-list', 'paged', businessId, filters],
+    enabled: Boolean(businessId),
+    fetchPage: async (page) =>
+      toPage(
+        await servicesApi.list({ ...page, stage: filters.stage, search: filters.search?.trim() || undefined }),
+        normalizeService,
+      ),
+  });
+}
+
+/** Server-side service counts; null on older servers that lack the overdue split. */
+export function useServiceStats() {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  return useQuery<ServiceStatsResponse | null>({
+    queryKey: ['services-list', 'stats', businessId],
+    enabled: Boolean(businessId),
+    queryFn: async () => {
+      const stats = unwrapEntity<ServiceStatsResponse>(await servicesApi.stats()) ?? {};
+      return stats.overdueCount === undefined ? null : stats;
+    },
+    staleTime: 30_000,
   });
 }

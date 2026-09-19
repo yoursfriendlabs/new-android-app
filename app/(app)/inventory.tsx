@@ -34,9 +34,10 @@ import {
   useInventorySummary,
   useCategories,
   useLowStockProducts,
+  usePagedProducts,
   useProductStats,
-  useProducts,
 } from '@/src/shared/hooks/useAppQueries';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Product } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -45,6 +46,15 @@ import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type StockFilter = 'all' | 'low' | 'out' | 'expiring' | 'expired';
+
+/** The server's names for each stock chip. */
+const SERVER_STOCK_FILTER: Record<StockFilter, string | undefined> = {
+  all: undefined,
+  low: 'low',
+  out: 'out',
+  expiring: 'nearexpiry',
+  expired: 'expired',
+};
 
 function openItemForm(id?: string) {
   router.push({ pathname: '/(app)/item-form' as any, params: id ? { id } : {} });
@@ -68,12 +78,17 @@ export default function InventoryScreen() {
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [menuProduct, setMenuProduct] = useState<Product | null>(null);
   const debouncedSearch = useDebouncedValue(search);
-  const productsQuery = useProducts(debouncedSearch);
+  const productsQuery = usePagedProducts({
+    search: debouncedSearch,
+    stock: SERVER_STOCK_FILTER[stockFilter],
+    categoryId: categoryId || undefined,
+  });
+  const hasFilter = Boolean(debouncedSearch.trim()) || stockFilter !== 'all' || categoryId !== undefined;
   const statsQuery = useProductStats();
   const summaryQuery = useInventorySummary();
   const lowStockQuery = useLowStockProducts();
   const categoriesQuery = useCategories();
-  const products = productsQuery.data ?? [];
+  const products = productsQuery.items;
   const categories = categoriesQuery.data ?? [];
   const summary = summaryQuery.data;
   const stats = statsQuery.data;
@@ -84,18 +99,12 @@ export default function InventoryScreen() {
     return categories.find((category) => category.id === categoryId)?.name || 'Category';
   }, [categories, categoryId]);
 
+  // The server filters by search, stock and category. "Uncategorized" has no server filter,
+  // so that one is applied to the rows loaded so far.
   const visibleProducts = useMemo(() => {
-    return products.filter((product) => {
-      const status = getStockStatus(product);
-      if (stockFilter === 'low' && status !== 'low') return false;
-      if (stockFilter === 'out' && status !== 'out') return false;
-      if (stockFilter === 'expiring' && !isNearExpiryProduct(product)) return false;
-      if (stockFilter === 'expired' && status !== 'expired' && !product.hasExpiredStock) return false;
-      if (categoryId === '' && (product.categoryId || product.categoryName)) return false;
-      if (categoryId && product.categoryId !== categoryId) return false;
-      return true;
-    });
-  }, [categoryId, products, stockFilter]);
+    if (categoryId !== '') return products;
+    return products.filter((product) => !product.categoryId && !product.categoryName);
+  }, [categoryId, products]);
 
   const lowStockPreview = (lowStockQuery.data ?? []).slice(0, 3);
   const localExpiringCount = products.filter(isNearExpiryProduct).length;
@@ -183,7 +192,8 @@ export default function InventoryScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={productsQuery.isRefetching} onRefresh={() => void handleRefresh()} />}
+        {...loadMoreOnScroll(productsQuery.loadMore)}
+        refreshControl={<RefreshControl refreshing={productsQuery.isRefreshing} onRefresh={() => void handleRefresh()} />}
         contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
@@ -201,7 +211,7 @@ export default function InventoryScreen() {
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.primary }]}>Products</Text>
             <Text style={[styles.summaryValue, { color: colors.primary }]}>
-              {String(summary?.totalProducts ?? products.length)}
+              {String(summary?.totalProducts ?? (hasFilter ? products.length : productsQuery.total))}
             </Text>
           </Pressable>
           <Pressable
@@ -287,17 +297,17 @@ export default function InventoryScreen() {
 
         {productsQuery.isLoading && !products.length ? <SkeletonList count={6} /> : null}
 
-        {!productsQuery.isLoading && !visibleProducts.length ? (
+        {!productsQuery.isLoading && !visibleProducts.length && !productsQuery.hasNextPage ? (
           <EmptyState
             icon="package-variant-closed"
-            title={products.length ? 'No matching products' : 'No products yet'}
+            title={hasFilter ? 'No matching products' : 'No products yet'}
             message={
-              products.length
+              hasFilter
                 ? 'Try a different search or stock filter.'
                 : 'Add your first item with photo, unit, opening stock, and price.'
             }
-            actionLabel={products.length ? undefined : 'New product'}
-            onAction={products.length ? undefined : () => openItemForm()}
+            actionLabel={hasFilter ? undefined : 'New product'}
+            onAction={hasFilter ? undefined : () => openItemForm()}
           />
         ) : null}
 
@@ -415,6 +425,7 @@ export default function InventoryScreen() {
             );
           })}
         </View>
+        <ListFooterLoader list={productsQuery} />
       </ScrollView>
 
       <ActionSheet

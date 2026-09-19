@@ -28,7 +28,16 @@ import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { buildExpenseReportHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
-import { useBanks, useParties, usePurchaseById, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import {
+  fetchPurchasePage,
+  invalidateAfterBill,
+  usePagedPurchases,
+  useParties,
+  usePurchaseById,
+  usePurchaseStats,
+} from '@/src/shared/hooks/useAppQueries';
+import { fetchAllPages } from '@/src/shared/hooks/usePagedList';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Party, Purchase } from '@/src/types/models';
@@ -118,17 +127,24 @@ export default function PurchasesScreen() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const purchasesQuery = usePurchases('purchase');
+  const debouncedSearch = useDebouncedValue(search);
+  const listFilters = useMemo(
+    () => ({
+      entryType: 'purchase' as const,
+      search: debouncedSearch,
+      payment: dueFilter === 'all' ? undefined : dueFilter,
+    }),
+    [debouncedSearch, dueFilter],
+  );
+  const purchasesQuery = usePagedPurchases(listFilters);
+  const statsQuery = usePurchaseStats();
   const partiesQuery = useParties('', 'both');
   const { data: purchaseDetail, isLoading: isDetailLoading } = usePurchaseById(selectedPurchaseId ?? undefined);
-  const { data: banks } = useBanks();
-  const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
   const partyMap = useMemo(() => {
     return new Map((partiesQuery.data ?? []).map((p) => [p.id, p]));
   }, [partiesQuery.data]);
 
-  const debouncedSearch = useDebouncedValue(search);
   const routeFilter = useMemo(
     () => (Array.isArray(params.filter) ? params.filter[0] : params.filter),
     [params.filter],
@@ -138,7 +154,7 @@ export default function PurchasesScreen() {
     [params.openId],
   );
 
-  const purchases = purchasesQuery.data ?? [];
+  const purchases = purchasesQuery.items;
 
   const counts = useMemo(() => {
     let dueCount = 0;
@@ -158,14 +174,26 @@ export default function PurchasesScreen() {
       }
     }
 
+    // Loaded rows are only a page; prefer the server's counts when it sends them.
+    const stats = statsQuery.data;
+    if (stats?.purchaseDueCount !== undefined && stats.purchaseCount !== undefined) {
+      return {
+        all: stats.purchaseCount,
+        due: stats.purchaseDueCount,
+        paid: Math.max(0, stats.purchaseCount - stats.purchaseDueCount),
+        totalBilled: Number(stats.totalPurchases ?? totalBilled),
+        totalDue: Number(stats.purchaseDue ?? totalDue),
+      };
+    }
+
     return {
-      all: purchases.length,
+      all: dueFilter === 'all' && !debouncedSearch.trim() ? purchasesQuery.total : purchases.length,
       due: dueCount,
       paid: paidCount,
       totalBilled,
       totalDue,
     };
-  }, [purchases]);
+  }, [debouncedSearch, dueFilter, purchases, purchasesQuery.total, statsQuery.data]);
 
   const visiblePurchases = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -196,12 +224,20 @@ export default function PurchasesScreen() {
   }, [routeFilter]);
 
   useEffect(() => {
+    // The bill may sit on a page that has not loaded yet; the sheet fetches it by id.
     if (!routeOpenId || handledOpenId === routeOpenId) return;
-    const selected = purchases.find((item) => item.id === routeOpenId);
-    if (!selected) return;
     openPurchase(routeOpenId);
     setHandledOpenId(routeOpenId);
-  }, [handledOpenId, purchases, routeOpenId]);
+  }, [handledOpenId, routeOpenId]);
+
+  useEffect(() => {
+    if (!purchaseDetail || purchaseDetail.id !== selectedPurchaseId) return;
+    if (purchases.some((item) => item.id === purchaseDetail.id)) return;
+    setAmountPaidDraft(String(purchaseDetail.amountReceived ?? 0));
+    setStatusDraft(purchaseDetail.status ?? 'received');
+    setPaymentMethod((purchaseDetail.paymentMethod as 'cash' | 'bank') ?? 'cash');
+    setBankId(purchaseDetail.bankId ?? '');
+  }, [purchaseDetail, purchases, selectedPurchaseId]);
 
   function openPurchase(purchaseId: string) {
     const selected = purchases.find((item) => item.id === purchaseId);
@@ -222,10 +258,10 @@ export default function PurchasesScreen() {
         paymentMethod,
         bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
       });
+      // Paying a bill moves the supplier balance, bank balance and dashboard too.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['purchases', 'purchase'] }),
+        invalidateAfterBill(queryClient, [purchaseDetail?.partyId]),
         queryClient.invalidateQueries({ queryKey: ['purchase', selectedPurchaseId] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
       ]);
       setSelectedPurchaseId(null);
     } catch (error) {
@@ -249,10 +285,8 @@ export default function PurchasesScreen() {
     if (!selectedPurchaseId) return;
     try {
       await purchasesApi.remove(selectedPurchaseId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['purchases', 'purchase'] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
-      ]);
+      // Deleting a bill takes its stock back out and reverses what was owed.
+      await invalidateAfterBill(queryClient, [purchaseDetail?.partyId]);
       setSelectedPurchaseId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
@@ -262,7 +296,12 @@ export default function PurchasesScreen() {
   async function handleShareReport() {
     try {
       setExporting(true);
-      const visibleTotals = visiblePurchases.reduce(
+      const reportRows = (await fetchAllPages((page) => fetchPurchasePage(listFilters, page))).filter((item) => {
+        if (dueFilter === 'due') return !isPaid(item);
+        if (dueFilter === 'paid') return isPaid(item);
+        return true;
+      });
+      const visibleTotals = reportRows.reduce(
         (acc, item) => {
           acc.total += Number(item.grandTotal || 0);
           acc.due += dueAmount(item.grandTotal, item.amountReceived);
@@ -275,7 +314,7 @@ export default function PurchasesScreen() {
           businessName,
           currency,
           periodLabel: dueFilter === 'all' ? 'All purchases' : dueFilter === 'due' ? 'Unpaid bills' : 'Paid bills',
-          items: visiblePurchases,
+          items: reportRows,
           total: visibleTotals.total,
           due: visibleTotals.due,
           title: 'Purchase report',
@@ -320,11 +359,13 @@ export default function PurchasesScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={true}
+        {...loadMoreOnScroll(purchasesQuery.loadMore)}
         refreshControl={
           <RefreshControl
-            refreshing={purchasesQuery.isRefetching || partiesQuery.isRefetching}
+            refreshing={purchasesQuery.isRefreshing}
             onRefresh={() => {
               void purchasesQuery.refetch();
+              void statsQuery.refetch();
               void partiesQuery.refetch();
             }}
           />
@@ -386,16 +427,16 @@ export default function PurchasesScreen() {
         />
 
         {/* Empty State */}
-        {!purchasesQuery.isLoading && !visiblePurchases.length ? (
+        {!purchasesQuery.isLoading && !visiblePurchases.length && !purchasesQuery.hasNextPage ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
               <MaterialCommunityIcons name="truck-delivery-outline" size={32} color={colors.accent} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {purchases.length ? 'No matching purchase bills' : 'No purchases yet'}
+              {debouncedSearch.trim() || dueFilter !== 'all' ? 'No matching purchase bills' : 'No purchases yet'}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {purchases.length
+              {debouncedSearch.trim() || dueFilter !== 'all'
                 ? 'Try a different supplier name, phone number, or payment status filter.'
                 : 'Add a supplier purchase bill to track inventory costs, stock intake, and amounts you owe.'}
             </Text>
@@ -522,6 +563,8 @@ export default function PurchasesScreen() {
             );
           })}
         </View>
+        {purchasesQuery.isLoading ? <SkeletonList count={5} /> : null}
+        <ListFooterLoader list={purchasesQuery} />
       </ScrollView>
 
       {/* Purchase Detail and Payment Sheet */}

@@ -30,7 +30,16 @@ import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { buildServiceReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { partyInitials } from '@/src/features/parties/lib/party';
-import { useBanks, useParties, useServiceById, useServicesList } from '@/src/shared/hooks/useAppQueries';
+import {
+  invalidateAfterBill,
+  useBanks,
+  usePagedServices,
+  useParties,
+  useServiceById,
+  useServiceStats,
+} from '@/src/shared/hooks/useAppQueries';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
+import { todayIso } from '@/src/shared/lib/format';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Party, Service, ServiceStatus } from '@/src/types/models';
@@ -50,11 +59,18 @@ function isClosedStatus(status: string) {
   return ['closed', 'completed', 'delivered', 'cancelled'].includes(String(status || '').toLowerCase());
 }
 
+/** Overdue once the delivery day has passed; a job due today is not late yet. */
 function isOverdue(service: Service) {
   if (isClosedStatus(service.status) || !service.deliveryDate || !service.deliveryDate.trim()) return false;
-  const date = new Date(service.deliveryDate);
-  return Number.isFinite(date.getTime()) && date < new Date();
+  return service.deliveryDate.slice(0, 10) < todayIso();
 }
+
+const SERVER_STAGE: Record<ServiceFilter, 'open' | 'overdue' | 'closed' | undefined> = {
+  all: undefined,
+  in_progress: 'open',
+  overdue: 'overdue',
+  closed: 'closed',
+};
 
 function getServiceDisplay(service: Service, isGym: boolean) {
   if (isClosedStatus(service.status)) {
@@ -156,10 +172,8 @@ export default function ServicesScreen() {
   const { businessProfile } = useAuthStore();
   const isGym = businessProfile?.businessType === 'gym' || businessProfile?.type === 'gym';
 
-  const servicesQuery = useServicesList();
   const partiesQuery = useParties('', 'both');
   const { data: banks } = useBanks();
-  const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
   const partyMap = useMemo(() => {
     return new Map((partiesQuery.data ?? []).map((p) => [p.id, p]));
@@ -177,8 +191,10 @@ export default function ServicesScreen() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search);
+  const servicesQuery = usePagedServices({ stage: SERVER_STAGE[filter], search: debouncedSearch });
+  const statsQuery = useServiceStats();
 
-  const services = servicesQuery.data ?? [];
+  const services = servicesQuery.items;
 
   const counts = useMemo(() => {
     let inProgress = 0;
@@ -199,6 +215,21 @@ export default function ServicesScreen() {
       }
     }
 
+    // Loaded rows are only a page; prefer the server's counts when it sends them.
+    const stats = statsQuery.data;
+    if (stats) {
+      const finished = Number(stats.finishedCount ?? 0);
+      const overdueCount = Number(stats.overdueCount ?? 0);
+      const total = Number(stats.totalOrders ?? 0);
+      return {
+        all: total,
+        inProgress: Math.max(0, total - finished - overdueCount),
+        overdue: overdueCount,
+        closed: finished,
+        totalDue: Number(stats.pendingCollection ?? 0),
+      };
+    }
+
     return {
       all: services.length,
       inProgress,
@@ -206,7 +237,7 @@ export default function ServicesScreen() {
       closed,
       totalDue,
     };
-  }, [services]);
+  }, [services, statsQuery.data]);
 
   const visibleServices = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -273,10 +304,10 @@ export default function ServicesScreen() {
         paymentMethod,
         bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
       });
+      // Money received moves the customer's balance, the bank and the dashboard too.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['services-list'] }),
+        invalidateAfterBill(queryClient, [serviceDetail?.partyId]),
         queryClient.invalidateQueries({ queryKey: ['service', selectedServiceId] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-services'] }),
       ]);
       setSelectedServiceId(null);
     } catch (error) {
@@ -332,11 +363,13 @@ export default function ServicesScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={true}
+        {...loadMoreOnScroll(servicesQuery.loadMore)}
         refreshControl={
           <RefreshControl
-            refreshing={servicesQuery.isRefetching || partiesQuery.isRefetching}
+            refreshing={servicesQuery.isRefreshing}
             onRefresh={() => {
               void servicesQuery.refetch();
+              void statsQuery.refetch();
               void partiesQuery.refetch();
             }}
           />
@@ -399,16 +432,17 @@ export default function ServicesScreen() {
         />
 
         {/* Empty State */}
-        {!servicesQuery.isLoading && !visibleServices.length ? (
+        {servicesQuery.isLoading ? <SkeletonList count={5} /> : null}
+        {!servicesQuery.isLoading && !visibleServices.length && !servicesQuery.hasNextPage ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
               <MaterialCommunityIcons name="tools" size={32} color={colors.accent} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {services.length ? 'No matching service jobs' : 'No service jobs yet'}
+              {debouncedSearch.trim() || filter !== 'all' ? 'No matching service jobs' : 'No service jobs yet'}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {services.length
+              {debouncedSearch.trim() || filter !== 'all'
                 ? 'Try a different customer name, phone number, or status filter.'
                 : 'Create your first service job to track repairs, customer items, labor, and balance due.'}
             </Text>
@@ -567,6 +601,7 @@ export default function ServicesScreen() {
             );
           })}
         </View>
+        <ListFooterLoader list={servicesQuery} />
       </ScrollView>
 
       {/* Service Detail and Payment Sheet */}

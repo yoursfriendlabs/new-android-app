@@ -8,11 +8,13 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
-import { expenseCategory, expenseDue, isInCurrentMonth } from '@/src/features/money/lib/expense';
-import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
+import { expenseCategory, expenseDue } from '@/src/features/money/lib/expense';
+import { formatCurrency, getRangeForPeriod, prettyDate, todayIso } from '@/src/shared/lib/format';
 import { moneyCategoryFromPurchase, moneyRemarkFromNote } from '@/src/features/money/lib/money';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { useParties, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import { useDashboardSummary, usePagedPurchases } from '@/src/shared/hooks/useAppQueries';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 import { usePalette } from '@/src/stores/theme-store';
@@ -23,20 +25,32 @@ import { buildExpenseReceipt, openReceiptPreview } from '@/src/shared/lib/receip
 
 type MoneyFilter = 'all' | 'in' | 'out';
 
+/** "All" totals still need a range for the summary endpoint; start well before any real data. */
+const ALL_TIME_FROM = '2000-01-01';
+
 export function PersonalMoneyScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ entry?: string | string[]; filter?: string | string[] }>();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
-  const expensesQuery = usePurchases('expense');
-  const incomesQuery = usePurchases('income');
-  const partiesQuery = useParties('', 'both');
   const [period, setPeriod] = useState<'month' | 'all'>('month');
   const [filter, setFilter] = useState<MoneyFilter>('all');
   const [search, setSearch] = useState('');
   const [entryKind, setEntryKind] = useState<MoneyEntryKind | null>(null);
   const debouncedSearch = useDebouncedValue(search);
+  const range = useMemo(
+    () => (period === 'month' ? getRangeForPeriod('this_month') : { from: ALL_TIME_FROM, to: todayIso() }),
+    [period],
+  );
+  // The server filters, pages and totals; the phone only renders what has loaded so far.
+  const listQuery = usePagedPurchases({
+    entryType: filter === 'in' ? 'income' : filter === 'out' ? 'expense' : undefined,
+    from: period === 'month' ? range.from : undefined,
+    to: period === 'month' ? range.to : undefined,
+    search: debouncedSearch,
+  });
+  const summaryQuery = useDashboardSummary(range);
   const routeEntry = Array.isArray(params.entry) ? params.entry[0] : params.entry;
   const routeFilter = Array.isArray(params.filter) ? params.filter[0] : params.filter;
 
@@ -54,39 +68,25 @@ export function PersonalMoneyScreen() {
 
   const businessProfile = useAuthStore((state) => state.businessProfile);
 
-  const partyById = useMemo(() => {
-    return new Map((partiesQuery.data ?? []).map((party) => [party.id, party]));
-  }, [partiesQuery.data]);
-
   const rows = useMemo(() => {
-    const expenses = (expensesQuery.data ?? [])
-      .filter((item) => (period === 'all' ? true : isInCurrentMonth(item.purchaseDate)))
-      .map((item) => ({
-        id: `out-${item.id}`,
-        kind: 'out' as const,
-        title: expenseCategory(item),
-        note: moneyRemarkFromNote(item.notes),
-        method: item.paymentMethod === 'bank' ? 'Bank' : 'Cash',
-        date: item.purchaseDate,
-        amount: Number(item.grandTotal || 0),
-        due: expenseDue(item),
-        raw: item,
-      }));
-    const incomes = (incomesQuery.data ?? [])
-      .filter((item) => (period === 'all' ? true : isInCurrentMonth(item.purchaseDate)))
-      .map((item) => ({
-        id: `in-${item.id}`,
-        kind: 'in' as const,
-        title: moneyCategoryFromPurchase(item),
-        note: moneyRemarkFromNote(item.notes),
-        method: item.paymentMethod === 'bank' ? 'Bank' : 'Cash',
-        date: item.purchaseDate,
-        amount: Number(item.grandTotal || 0),
-        due: 0,
-        raw: item,
-      }));
-    return [...incomes, ...expenses].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [expensesQuery.data, incomesQuery.data, partyById, period]);
+    return listQuery.items
+      .filter((item) => item.entryType === 'income' || item.entryType === 'expense')
+      .filter((item) => (period === 'all' ? true : !item.purchaseDate || (item.purchaseDate >= range.from && item.purchaseDate <= range.to)))
+      .map((item) => {
+        const kind = item.entryType === 'income' ? ('in' as const) : ('out' as const);
+        return {
+          id: `${kind}-${item.id}`,
+          kind,
+          title: kind === 'in' ? moneyCategoryFromPurchase(item) : expenseCategory(item),
+          note: moneyRemarkFromNote(item.notes),
+          method: item.paymentMethod === 'bank' ? 'Bank' : 'Cash',
+          date: item.purchaseDate,
+          amount: Number(item.grandTotal || 0),
+          due: kind === 'out' ? expenseDue(item) : 0,
+          raw: item,
+        };
+      });
+  }, [listQuery.items, period, range.from, range.to]);
 
   const handleOpenReceipt = (row: (typeof rows)[number]) => {
     const { input, html } = buildExpenseReceipt(row.raw, businessProfile);
@@ -94,27 +94,19 @@ export function PersonalMoneyScreen() {
   };
 
   const visibleRows = useMemo(() => {
+    // Older servers ignore `search`, so match locally as well.
     const query = debouncedSearch.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (filter !== 'all' && row.kind !== filter) return false;
-      if (!query) return true;
-      return [row.title, row.note].some((value) => value.toLowerCase().includes(query));
-    });
-  }, [debouncedSearch, filter, rows]);
+    if (!query) return rows;
+    return rows.filter((row) => [row.title, row.note].some((value) => value.toLowerCase().includes(query)));
+  }, [debouncedSearch, rows]);
 
-  const totals = useMemo(() => {
-    return rows.reduce(
-      (acc, row) => {
-        if (row.kind === 'in') acc.income += row.amount;
-        else acc.expense += row.amount;
-        return acc;
-      },
-      { income: 0, expense: 0 },
-    );
-  }, [rows]);
+  const totals = {
+    income: Number(summaryQuery.data?.incomeTotal ?? 0),
+    expense: Number(summaryQuery.data?.expenseTotal ?? 0),
+  };
 
   async function handleRefresh() {
-    await Promise.all([expensesQuery.refetch(), incomesQuery.refetch(), partiesQuery.refetch()]);
+    await Promise.all([listQuery.refetch(), summaryQuery.refetch()]);
   }
 
   return (
@@ -140,11 +132,9 @@ export function PersonalMoneyScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        {...loadMoreOnScroll(listQuery.loadMore)}
         refreshControl={
-          <RefreshControl
-            refreshing={expensesQuery.isRefetching || incomesQuery.isRefetching}
-            onRefresh={() => void handleRefresh()}
-          />
+          <RefreshControl refreshing={listQuery.isRefreshing} onRefresh={() => void handleRefresh()} />
         }
         contentContainerStyle={styles.scroll}>
         <View style={styles.summaryRow}>
@@ -178,7 +168,9 @@ export function PersonalMoneyScreen() {
           ]}
         />
 
-        {!visibleRows.length ? (
+        {listQuery.isLoading ? (
+          <SkeletonList count={5} />
+        ) : !visibleRows.length ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('money.nothingRecordedYet')}</Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
@@ -232,6 +224,7 @@ export function PersonalMoneyScreen() {
             ))}
           </View>
         )}
+        <ListFooterLoader list={listQuery} />
       </ScrollView>
 
       <MoneyEntrySheet

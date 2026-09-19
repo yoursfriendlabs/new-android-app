@@ -26,11 +26,21 @@ import {
   isExpensePaid,
   isInCurrentMonth,
 } from '@/src/features/money/lib/expense';
-import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
+import { formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { buildExpenseReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { buildExpenseReportHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
-import { useBanks, usePurchaseById, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import {
+  fetchPurchasePage,
+  invalidateMoneyQueries,
+  useExpenseInsights,
+  usePagedPurchases,
+  usePurchaseById,
+  usePurchaseStats,
+} from '@/src/shared/hooks/useAppQueries';
+import { fetchAllPages } from '@/src/shared/hooks/usePagedList';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Purchase } from '@/src/types/models';
@@ -65,9 +75,6 @@ function ShopExpensesScreen() {
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const currency = businessProfile?.currencyCode || 'NPR';
   const businessName = businessProfile?.businessName || 'PM';
-  const expensesQuery = usePurchases('expense');
-  const { data: banks } = useBanks();
-  const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<PeriodFilter>('month');
   const [dueFilter, setDueFilter] = useState<DueFilter>('all');
@@ -79,13 +86,28 @@ function ShopExpensesScreen() {
   const [exporting, setExporting] = useState(false);
   const { data: expenseDetail } = usePurchaseById(selectedExpenseId ?? undefined);
   const debouncedSearch = useDebouncedValue(search);
-  const expenses = expensesQuery.data ?? [];
+  const monthRange = useMemo(() => getRangeForPeriod('this_month'), []);
+  const listFilters = useMemo(
+    () => ({
+      entryType: 'expense' as const,
+      from: period === 'month' ? monthRange.from : undefined,
+      to: period === 'month' ? monthRange.to : undefined,
+      search: debouncedSearch,
+      payment: dueFilter === 'all' ? undefined : dueFilter,
+    }),
+    [debouncedSearch, dueFilter, monthRange, period],
+  );
+  const expensesQuery = usePagedPurchases(listFilters);
+  const statsQuery = usePurchaseStats(period === 'month' ? monthRange : {});
+  const insightsQuery = useExpenseInsights(period === 'month' ? monthRange : { from: '2000-01-01', to: monthRange.to });
+  const expenses = expensesQuery.items;
 
   const periodExpenses = useMemo(() => {
     return expenses.filter((item) => (period === 'all' ? true : isInCurrentMonth(item.purchaseDate)));
   }, [expenses, period]);
 
   const visibleExpenses = useMemo(() => {
+    // The server already filters; this keeps older servers (which ignore the filters) correct.
     const query = debouncedSearch.trim().toLowerCase();
     return periodExpenses.filter((item) => {
       if (dueFilter === 'due' && isExpensePaid(item)) return false;
@@ -98,6 +120,12 @@ function ShopExpensesScreen() {
   }, [debouncedSearch, dueFilter, periodExpenses]);
 
   const totals = useMemo(() => {
+    const stats = statsQuery.data;
+    if (stats) {
+      const total = Number(stats.totalExpenses ?? 0);
+      const due = Number(stats.expenseDue ?? 0);
+      return { total, paid: Math.max(0, total - due), due };
+    }
     return periodExpenses.reduce(
       (acc, item) => {
         acc.total += Number(item.grandTotal || 0);
@@ -107,9 +135,21 @@ function ShopExpensesScreen() {
       },
       { total: 0, paid: 0, due: 0 },
     );
-  }, [periodExpenses]);
+  }, [periodExpenses, statsQuery.data]);
 
   const breakdown = useMemo(() => {
+    const serverRows = insightsQuery.data?.categories?.breakdown ?? [];
+    if (serverRows.length) {
+      const sum = serverRows.reduce((acc, row) => acc + Number(row.total || 0), 0);
+      return [...serverRows]
+        .sort((a, b) => Number(b.total || 0) - Number(a.total || 0))
+        .slice(0, 5)
+        .map((row) => ({
+          name: row.categoryName,
+          total: Number(row.total || 0),
+          share: sum > 0 ? Number(row.total || 0) / sum : 0,
+        }));
+    }
     const totalsByCategory: Record<string, number> = {};
     periodExpenses.forEach((item) => {
       const name = expenseCategory(item);
@@ -123,7 +163,7 @@ function ShopExpensesScreen() {
       }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
-  }, [periodExpenses, totals.total]);
+  }, [insightsQuery.data, periodExpenses, totals.total]);
 
   function openExpense(item: Purchase) {
     setSelectedExpenseId(item.id);
@@ -141,9 +181,8 @@ function ShopExpensesScreen() {
         bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
       });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['purchases'] }),
+        invalidateMoneyQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ['purchase', selectedExpenseId] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
       ]);
       setSelectedExpenseId(null);
     } catch (error) {
@@ -165,10 +204,7 @@ function ShopExpensesScreen() {
     if (!selectedExpenseId) return;
     try {
       await purchasesApi.remove(selectedExpenseId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['purchases'] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-purchases'] }),
-      ]);
+      await invalidateMoneyQueries(queryClient);
       setSelectedExpenseId(null);
       toast.success('Expense deleted');
     } catch (error) {
@@ -189,7 +225,13 @@ function ShopExpensesScreen() {
   async function handleShareReport() {
     try {
       setExporting(true);
-      const visibleTotals = visibleExpenses.reduce(
+      const reportRows = (await fetchAllPages((page) => fetchPurchasePage(listFilters, page))).filter((item) => {
+        if (period === 'month' && !isInCurrentMonth(item.purchaseDate)) return false;
+        if (dueFilter === 'due') return !isExpensePaid(item);
+        if (dueFilter === 'paid') return isExpensePaid(item);
+        return true;
+      });
+      const visibleTotals = reportRows.reduce(
         (acc, item) => {
           acc.total += Number(item.grandTotal || 0);
           acc.due += expenseDue(item);
@@ -202,7 +244,7 @@ function ShopExpensesScreen() {
           businessName,
           currency,
           periodLabel: period === 'month' ? 'This month' : 'All time',
-          items: visibleExpenses,
+          items: reportRows,
           total: visibleTotals.total,
           due: visibleTotals.due,
           title: 'Expense report',
@@ -244,8 +286,16 @@ function ShopExpensesScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        {...loadMoreOnScroll(expensesQuery.loadMore)}
         refreshControl={
-          <RefreshControl refreshing={expensesQuery.isRefetching} onRefresh={() => void expensesQuery.refetch()} />
+          <RefreshControl
+            refreshing={expensesQuery.isRefreshing}
+            onRefresh={() => {
+              void expensesQuery.refetch();
+              void statsQuery.refetch();
+              void insightsQuery.refetch();
+            }}
+          />
         }
         contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
@@ -340,16 +390,17 @@ function ShopExpensesScreen() {
           ]}
         />
 
-        {!expensesQuery.isLoading && !visibleExpenses.length ? (
+        {expensesQuery.isLoading ? <SkeletonList count={5} /> : null}
+        {!expensesQuery.isLoading && !visibleExpenses.length && !expensesQuery.hasNextPage ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.accentSoft }]}>
               <MaterialCommunityIcons name="wallet-plus-outline" size={28} color={colors.primary} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {expenses.length ? 'No matching expenses' : 'No expenses yet'}
+              {debouncedSearch.trim() || dueFilter !== 'all' ? 'No matching expenses' : 'No expenses yet'}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {expenses.length
+              {debouncedSearch.trim() || dueFilter !== 'all'
                 ? 'Try a different search, period, or paid/due filter.'
                 : 'Record rent, tea, fuel, and other shop spending in a few taps.'}
             </Text>
@@ -405,6 +456,7 @@ function ShopExpensesScreen() {
             );
           })}
         </View>
+        <ListFooterLoader list={expensesQuery} />
       </ScrollView>
 
       <ExpenseFormSheet visible={createVisible} onClose={() => setCreateVisible(false)} />

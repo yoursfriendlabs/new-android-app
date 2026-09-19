@@ -31,14 +31,17 @@ import type {
   ProductBatchDestroyPayload,
   ProductStats,
   PurchaseCreatePayload,
+  PurchaseStatsResponse,
   PurchaseUpdatePayload,
   QuickExpenseCreatePayload,
   QuickExpenseUpdatePayload,
   RegisterPayload,
   ResetPasswordPayload,
   SaleCreatePayload,
+  SaleStatsResponse,
   SaleUpdatePayload,
   ServiceCreatePayload,
+  ServiceStatsResponse,
   ServiceUpdatePayload,
   StaffCreatePayload,
   StaffListResponse,
@@ -98,7 +101,6 @@ import type {
   Subscription,
   SubscriptionPaymentSetup,
   Unit,
-  UploadResult,
   User,
   Task,
   TaskActivity,
@@ -378,6 +380,7 @@ export const unitsApi = {
 
 export const salesApi = {
   list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<Sale>>({ path: '/api/sales', query }),
+  stats: () => apiRequest<SaleStatsResponse>({ path: '/api/sales/stats' }),
   get: (id: string) => apiRequest<Sale>({ path: `/api/sales/${id}` }),
   create: (payload: SaleCreatePayload) =>
     apiRequest<Sale, SaleCreatePayload>({ method: 'POST', path: '/api/sales', body: payload }),
@@ -390,6 +393,8 @@ export const salesApi = {
 
 export const purchasesApi = {
   list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<Purchase>>({ path: '/api/purchases', query }),
+  stats: (query: { from?: string; to?: string } = {}) =>
+    apiRequest<PurchaseStatsResponse>({ path: '/api/purchases/stats', query }),
   get: (id: string) => apiRequest<Purchase>({ path: `/api/purchases/${id}` }),
   create: (payload: PurchaseCreatePayload) =>
     apiRequest<Purchase, PurchaseCreatePayload>({ method: 'POST', path: '/api/purchases', body: payload }),
@@ -402,6 +407,7 @@ export const purchasesApi = {
 
 export const servicesApi = {
   list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<Service>>({ path: '/api/services', query }),
+  stats: () => apiRequest<ServiceStatsResponse>({ path: '/api/services/stats' }),
   get: (id: string) => apiRequest<Service>({ path: `/api/services/${id}` }),
   create: (payload: ServiceCreatePayload) =>
     apiRequest<Service, ServiceCreatePayload>({ method: 'POST', path: '/api/services', body: payload }),

@@ -14,7 +14,10 @@ import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { useParties } from '@/src/shared/hooks/useAppQueries';
+import { useDashboardSummary, usePagedParties } from '@/src/shared/hooks/useAppQueries';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
+import { partiesApi } from '@/src/api';
+import { extractListItems, normalizeParty } from '@/src/api/normalize';
 import { pickNativeDeviceContact, type DeviceContactDraft } from '@/src/features/parties/lib/device-contacts';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { visibleMoneyParties } from '@/src/features/money/lib/money';
@@ -22,7 +25,6 @@ import {
   getBalanceColor,
   getBalanceSoftColor,
   getPartyBalanceMeta,
-  partyInitials,
   partyTypeLabel,
 } from '@/src/features/parties/lib/party';
 import { formatCurrency } from '@/src/shared/lib/format';
@@ -54,10 +56,12 @@ export default function PartiesScreen() {
   const [phoneSheetVisible, setPhoneSheetVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
-  const partiesQuery = useParties(debouncedSearch, personal ? 'both' : type);
+  const partiesQuery = usePagedParties(debouncedSearch, personal ? 'both' : type);
+  // Balances cover every party, not just the pages loaded so far.
+  const summaryQuery = useDashboardSummary();
   const parties = useMemo(
-    () => (personal ? visibleMoneyParties(partiesQuery.data) : partiesQuery.data ?? []),
-    [partiesQuery.data, personal],
+    () => (personal ? visibleMoneyParties(partiesQuery.items) : partiesQuery.items),
+    [partiesQuery.items, personal],
   );
 
   const visibleParties = useMemo(() => {
@@ -69,31 +73,40 @@ export default function PartiesScreen() {
   }, [balanceFilter, parties, personal]);
 
   const totals = useMemo(() => {
-    return parties.reduce(
-      (acc, party) => {
-        const meta = getPartyBalanceMeta(party, undefined, personal);
-        if (meta.tone === 'receive') acc.receive += meta.absoluteAmount;
-        if (meta.tone === 'pay') acc.give += meta.absoluteAmount;
-        return acc;
-      },
-      { receive: 0, give: 0 },
-    );
-  }, [parties, personal]);
+    if (summaryQuery.data) {
+      return { receive: Number(summaryQuery.data.toReceive ?? 0), give: Number(summaryQuery.data.toPay ?? 0) };
+    }
+    return sumBalances(parties, personal);
+  }, [parties, personal, summaryQuery.data]);
 
   async function handleRefresh() {
-    await partiesQuery.refetch();
+    await Promise.all([partiesQuery.refetch(), summaryQuery.refetch()]);
+  }
+
+  /** The shared PDF lists everyone, so page through the whole book once, on demand. */
+  async function loadAllParties() {
+    const all: Party[] = [];
+    for (let offset = 0; offset < 5000; offset += 100) {
+      const response = await partiesApi.list({ limit: 100, offset });
+      const page = extractListItems<Party>(response).map(normalizeParty).filter((party) => party.id);
+      all.push(...page);
+      if (page.length < 100) break;
+    }
+    return personal ? visibleMoneyParties(all) : all;
   }
 
   async function handleShareBalances() {
     try {
       setExporting(true);
+      const everyone = await loadAllParties();
+      const allTotals = sumBalances(everyone, personal);
       await shareHtmlAsPdf(
         buildPartyBalancesHtml({
           businessName,
           currency,
-          toReceive: totals.receive,
-          toGive: totals.give,
-          parties: parties.map((party) => {
+          toReceive: allTotals.receive,
+          toGive: allTotals.give,
+          parties: everyone.map((party) => {
             const meta = getPartyBalanceMeta(party);
             return {
               name: party.name,
@@ -152,7 +165,8 @@ export default function PartiesScreen() {
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={partiesQuery.isRefetching} onRefresh={() => void handleRefresh()} />}
+        {...loadMoreOnScroll(partiesQuery.loadMore)}
+        refreshControl={<RefreshControl refreshing={partiesQuery.isRefreshing} onRefresh={() => void handleRefresh()} />}
         contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
           <Text style={[styles.subtitle, { color: colors.textMuted }]}>
@@ -200,11 +214,11 @@ export default function PartiesScreen() {
           />
         )}
 
-        {(partiesQuery.isLoading || (partiesQuery.isFetching && !partiesQuery.data)) && !visibleParties.length ? (
+        {partiesQuery.isLoading && !visibleParties.length ? (
           <SkeletonList count={7} />
         ) : null}
 
-        {!partiesQuery.isLoading && !partiesQuery.isFetching && !visibleParties.length ? (
+        {!partiesQuery.isLoading && !partiesQuery.isFetching && !visibleParties.length && !partiesQuery.hasNextPage ? (
           <EmptyState
             icon="account-plus-outline"
             title={personal ? t('parties.noContactsYet') : t('parties.noPartiesYet')}
@@ -228,6 +242,7 @@ export default function PartiesScreen() {
             />
           ))}
         </View>
+        <ListFooterLoader list={partiesQuery} />
       </ScrollView>
 
       <PartyFormSheet
@@ -247,6 +262,18 @@ export default function PartiesScreen() {
         }}
       />
     </Screen>
+  );
+}
+
+function sumBalances(parties: Party[], personal: boolean) {
+  return parties.reduce(
+    (acc, party) => {
+      const meta = getPartyBalanceMeta(party, undefined, personal);
+      if (meta.tone === 'receive') acc.receive += meta.absoluteAmount;
+      if (meta.tone === 'pay') acc.give += meta.absoluteAmount;
+      return acc;
+    },
+    { receive: 0, give: 0 },
   );
 }
 

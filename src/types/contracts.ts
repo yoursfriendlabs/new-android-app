@@ -256,6 +256,52 @@ export interface ListQuery {
   productId?: string;
   kind?: 'expense' | 'income' | string;
   period?: 'weekly' | 'monthly' | 'yearly' | string;
+  /** Purchases: `date` orders by purchase date, newest first. Products: name | quantity | … */
+  sort?: string;
+  /** Products: in | out | low | nearexpiry | expired */
+  stock?: string;
+  categoryId?: string;
+  /** Purchases and sales: due | paid */
+  payment?: 'due' | 'paid' | string;
+  /** Services: open | overdue | closed */
+  stage?: 'open' | 'overdue' | 'closed' | string;
+}
+
+export interface ServiceStatsResponse {
+  totalOrders?: number;
+  closedCount?: number;
+  inProgressCount?: number;
+  pendingCollection?: number;
+  /** Newer servers only. */
+  finishedCount?: number;
+  overdueCount?: number;
+}
+
+export interface SaleStatsResponse {
+  totalCount?: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  dueAmount?: number;
+  avgOrderValue?: number;
+  /** Newer servers only. */
+  dueCount?: number;
+  paidCount?: number;
+}
+
+export interface PurchaseStatsResponse {
+  purchaseCount?: number;
+  expenseCount?: number;
+  incomeCount?: number;
+  totalPurchases?: number;
+  totalExpenses?: number;
+  totalIncome?: number;
+  totalPaid?: number;
+  totalDue?: number;
+  /** Newer servers only. */
+  purchaseDueCount?: number;
+  purchaseDue?: number;
+  expenseDueCount?: number;
+  expenseDue?: number;
 }
 
 export interface AuthResponseShape {

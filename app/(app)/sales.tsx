@@ -28,7 +28,15 @@ import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
 import { shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
-import { useBanks, useParties, useSalesList } from '@/src/shared/hooks/useAppQueries';
+import {
+  invalidateAfterBill,
+  usePagedSales,
+  useParties,
+  useSaleStats,
+} from '@/src/shared/hooks/useAppQueries';
+import { normalizeSale } from '@/src/api/normalize';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
+import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import type { Party, Sale } from '@/src/types/models';
@@ -115,17 +123,20 @@ export default function DetailedSalesScreen() {
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
 
-  const salesQuery = useSalesList({ limit: 150 });
+  const debouncedSearch = useDebouncedValue(search);
+  const salesQuery = usePagedSales({
+    search: debouncedSearch,
+    payment: filter === 'paid' || filter === 'due' ? filter : undefined,
+    status: filter === 'cancelled' ? 'cancelled' : undefined,
+  });
+  const statsQuery = useSaleStats();
   const partiesQuery = useParties('', 'both');
-  const { data: banks } = useBanks();
-  const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
   const partyMap = useMemo(() => {
     return new Map((partiesQuery.data ?? []).map((p) => [p.id, p]));
   }, [partiesQuery.data]);
 
-  const debouncedSearch = useDebouncedValue(search);
-  const sales = salesQuery.data ?? [];
+  const sales = salesQuery.items;
 
   const counts = useMemo(() => {
     let paidCount = 0;
@@ -146,6 +157,18 @@ export default function DetailedSalesScreen() {
       }
     }
 
+    // Loaded rows are only a page; prefer the server's counts when it sends them.
+    const stats = statsQuery.data;
+    if (stats) {
+      return {
+        all: Number(stats.totalCount ?? 0),
+        paid: Number(stats.paidCount ?? 0),
+        due: Number(stats.dueCount ?? 0),
+        totalSales: Number(stats.totalAmount ?? 0),
+        totalDue: Number(stats.dueAmount ?? 0),
+      };
+    }
+
     return {
       all: sales.length,
       paid: paidCount,
@@ -153,7 +176,7 @@ export default function DetailedSalesScreen() {
       totalSales,
       totalDue,
     };
-  }, [sales]);
+  }, [sales, statsQuery.data]);
 
   const visibleSales = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -194,10 +217,8 @@ export default function DetailedSalesScreen() {
         paymentMethod,
         bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
       });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-sales'] }),
-      ]);
+      // A payment moves the customer's balance, the bank and the dashboard too.
+      await invalidateAfterBill(queryClient, [selectedSale.partyId]);
       setSelectedSale(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
@@ -206,7 +227,18 @@ export default function DetailedSalesScreen() {
     }
   }
 
-  function handlePrintReceipt(sale: Sale) {
+  /** List rows come without line items; receipts need the full bill. */
+  async function loadFullSale(sale: Sale) {
+    if (sale.items?.length) return sale;
+    try {
+      return normalizeSale(await salesApi.get(sale.id));
+    } catch {
+      return sale;
+    }
+  }
+
+  async function handlePrintReceipt(listSale: Sale) {
+    const sale = await loadFullSale(listSale);
     const customer = resolveSaleCustomer(sale, partyMap);
     const receiptData = {
       heading: 'Tax Invoice / Bill',
@@ -236,9 +268,10 @@ export default function DetailedSalesScreen() {
     router.push('/(app)/print-preview');
   }
 
-  async function handleShareReceiptPdf(sale: Sale) {
+  async function handleShareReceiptPdf(listSale: Sale) {
     try {
       setSharing(true);
+      const sale = await loadFullSale(listSale);
       const customer = resolveSaleCustomer(sale, partyMap);
       const html = buildReceiptHtml({
         heading: 'Sales Invoice',
@@ -288,11 +321,13 @@ export default function DetailedSalesScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets={true}
+        {...loadMoreOnScroll(salesQuery.loadMore)}
         refreshControl={
           <RefreshControl
-            refreshing={salesQuery.isRefetching || partiesQuery.isRefetching}
+            refreshing={salesQuery.isRefreshing}
             onRefresh={() => {
               void salesQuery.refetch();
+              void statsQuery.refetch();
               void partiesQuery.refetch();
             }}
           />
@@ -357,17 +392,18 @@ export default function DetailedSalesScreen() {
         />
 
         {/* Empty State */}
-        {!salesQuery.isLoading && !visibleSales.length ? (
+        {salesQuery.isLoading ? <SkeletonList count={5} /> : null}
+        {!salesQuery.isLoading && !visibleSales.length && !salesQuery.hasNextPage ? (
           <EmptyState
             icon="cash-register"
-            title={sales.length ? 'No matching sales' : 'No sales recorded yet'}
+            title={debouncedSearch.trim() || filter !== 'all' ? 'No matching sales' : 'No sales recorded yet'}
             message={
-              sales.length
+              debouncedSearch.trim() || filter !== 'all'
                 ? 'Try a different search or filter.'
                 : 'Bills you ring up on the POS register show up here.'
             }
-            actionLabel={sales.length ? undefined : 'Open POS'}
-            onAction={sales.length ? undefined : () => router.push('/(app)/(tabs)/pos')}
+            actionLabel={debouncedSearch.trim() || filter !== 'all' ? undefined : 'Open POS'}
+            onAction={debouncedSearch.trim() || filter !== 'all' ? undefined : () => router.push('/(app)/(tabs)/pos')}
           />
         ) : null}
 
@@ -478,7 +514,7 @@ export default function DetailedSalesScreen() {
                   <View style={styles.quickActions}>
                     <Pressable
                       style={[styles.quickActionBtn, { backgroundColor: colors.accentSoft }]}
-                      onPress={() => handlePrintReceipt(item)}>
+                      onPress={() => void handlePrintReceipt(item)}>
                       <MaterialCommunityIcons name="printer-outline" size={14} color={colors.accent} />
                       <Text style={[styles.quickActionText, { color: colors.accent }]}>Receipt</Text>
                     </Pressable>
@@ -496,6 +532,7 @@ export default function DetailedSalesScreen() {
             );
           })}
         </View>
+        <ListFooterLoader list={salesQuery} />
       </ScrollView>
 
       {/* Sale Detail and Settlement Sheet */}
