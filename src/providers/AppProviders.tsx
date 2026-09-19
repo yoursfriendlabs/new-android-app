@@ -71,7 +71,7 @@ function BootstrapRuntime() {
       })
       .finally(() => {
         if (isMounted) {
-          void flushQueuedMutations();
+          void syncQueuedAndRefresh();
         }
       });
 
@@ -79,7 +79,7 @@ function BootstrapRuntime() {
       const isOnline = Boolean(state.isConnected && state.isInternetReachable !== false);
       useSyncStore.getState().setOnline(isOnline);
       if (isOnline) {
-        void flushQueuedMutations();
+        void syncQueuedAndRefresh();
       }
     });
 
@@ -128,6 +128,12 @@ function SessionStateBridge() {
   }, [businessId, queryClient, status]);
 
   return null;
+}
+
+/** Offline bills that just reached the server change lists, stock and balances everywhere. */
+async function syncQueuedAndRefresh() {
+  const synced = await flushQueuedMutations();
+  if (synced > 0) await queryClient.invalidateQueries();
 }
 
 export function AppProviders({ children }: PropsWithChildren) {

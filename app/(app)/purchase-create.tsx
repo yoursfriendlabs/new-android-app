@@ -22,7 +22,8 @@ import { TotalsCard } from '@/src/shared/ui/TotalsCard';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
 import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
-import { useBanks, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
+import { invalidateAfterBill, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { generateId } from '@/src/shared/lib/id';
@@ -79,9 +80,8 @@ export default function PurchaseCreateScreen() {
   const debouncedProductSearch = useDebouncedValue(productSearch);
   const { data: parties } = useParties(debouncedPartySearch, 'supplier');
   const { data: products } = useProducts(debouncedProductSearch);
-  const { data: banks } = useBanks();
   const { data: nextSequences } = useNextSequences();
-  const activeBanks = (banks ?? []).filter((bank) => bank.isActive);
+  const queryClient = useQueryClient();
   const draft = useDraftState<PurchaseDraft>('draft:purchase', createPurchaseDraft());
 
   useEffect(() => {
@@ -209,6 +209,8 @@ export default function PurchaseCreateScreen() {
 
       if (result.data) {
         await cacheRecentPurchases([normalizePurchase(unwrapEntity(result.data))]);
+        // New stock, the supplier's balance and the purchase list all changed.
+        await invalidateAfterBill(queryClient, [draft.value.supplier.id]);
       }
 
       await draft.reset(createPurchaseDraft());

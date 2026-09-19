@@ -20,12 +20,19 @@ import { Screen } from '@/src/shared/layout/Screen';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
-import { TotalsCard } from '@/src/shared/ui/TotalsCard';
-import { buildReceiptHtml, buildServiceReceipt } from '@/src/shared/lib/receipt';
+import { buildServiceReceipt } from '@/src/shared/lib/receipt';
 import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
-import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
+import {
+  invalidateAfterBill,
+  useBanks,
+  useNextSequences,
+  useOrderAttributes,
+  useParties,
+  useProducts,
+} from '@/src/shared/hooks/useAppQueries';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { generateId } from '@/src/shared/lib/id';
@@ -99,7 +106,7 @@ export default function ServiceCreateScreen() {
   const { data: banks } = useBanks();
   const { data: nextSequences } = useNextSequences();
   const { data: orderAttributes } = useOrderAttributes('service');
-  const activeBanks = (banks ?? []).filter((bank) => bank.isActive);
+  const queryClient = useQueryClient();
   const draft = useDraftState<ServiceDraft>('draft:service', createEmptyServiceDraft());
 
   useEffect(() => {
@@ -367,6 +374,8 @@ export default function ServiceCreateScreen() {
 
       if (result.data) {
         await cacheRecentServices([normalizeService(unwrapEntity(result.data))]);
+        // Parts used, the customer's balance and the job list all changed.
+        await invalidateAfterBill(queryClient, [draft.value.customer.id]);
       }
 
       await draft.reset(createEmptyServiceDraft());

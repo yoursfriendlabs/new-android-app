@@ -29,7 +29,15 @@ import { buildReceiptHtml } from '@/src/shared/lib/receipt';
 import { uploadAttachments } from '@/src/shared/lib/uploads';
 import { todayIso } from '@/src/shared/lib/format';
 import { isCafeWorkspace } from '@/src/shared/lib/business';
-import { useBanks, useNextSequences, useOrderAttributes, useParties, useProducts, useTables } from '@/src/shared/hooks/useAppQueries';
+import {
+  invalidateAfterBill,
+  useBanks,
+  useNextSequences,
+  useOrderAttributes,
+  useParties,
+  useProducts,
+  useTables,
+} from '@/src/shared/hooks/useAppQueries';
 import { salesApi, tablesApi } from '@/src/api';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
@@ -477,6 +485,8 @@ export default function PosScreen() {
 
       if (result.data) {
         await cacheRecentSales([normalizeSale(unwrapEntity(result.data))]);
+        // Stock on the grid, the customer's balance and today's sales all changed.
+        await invalidateAfterBill(queryClient, [value.party?.id]);
       }
 
       setActiveTableId(null);

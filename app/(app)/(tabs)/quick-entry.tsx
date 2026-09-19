@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { purchasesApi, quickExpensesApi } from '@/src/api';
+import { quickExpensesApi } from '@/src/api';
 import { clearDraft } from '@/src/data/database';
 import { addQuickExpenseLocally } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';

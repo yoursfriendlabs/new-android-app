@@ -55,11 +55,13 @@ export async function submitWithOfflineQueue<TResponse, TBody extends Record<str
   }
 }
 
+/** Sends saved offline actions in order. Resolves with how many reached the server. */
 export async function flushQueuedMutations() {
   const { isOnline, isSyncing } = useSyncStore.getState();
-  if (!isOnline || isSyncing) return;
+  if (!isOnline || isSyncing) return 0;
 
   useSyncStore.getState().setSyncing(true);
+  let synced = 0;
 
   try {
     const queuedMutations = await listQueuedMutations();
@@ -72,6 +74,7 @@ export async function flushQueuedMutations() {
           body: mutation.body,
         });
         await removeQueuedMutation(mutation.id);
+        synced += 1;
       } catch (error) {
         if (!isOfflineLikeError(error)) {
           await updateQueuedMutationError(
@@ -86,4 +89,5 @@ export async function flushQueuedMutations() {
     await useSyncStore.getState().refreshPendingCount();
     useSyncStore.getState().setSyncing(false);
   }
+  return synced;
 }

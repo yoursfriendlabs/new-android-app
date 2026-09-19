@@ -426,6 +426,10 @@ export function invalidatePartyQueries(queryClient: QueryClient, partyIds: strin
   const jobs: Array<Promise<unknown>> = [
     queryClient.invalidateQueries({ queryKey: ['parties'] }),
     queryClient.invalidateQueries({ queryKey: ['party-report'] }),
+    // To-receive / to-pay totals and bank balances follow party balances.
+    queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+    queryClient.invalidateQueries({ queryKey: ['party-transactions'] }),
+    queryClient.invalidateQueries({ queryKey: ['banks'] }),
   ];
 
   uniquePartyIds.forEach((partyId) => {
@@ -450,6 +454,29 @@ export function invalidateMoneyQueries(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: ['budget-summary'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+    // Money paid or received by bank moves that bank's balance.
+    queryClient.invalidateQueries({ queryKey: ['banks'] }),
+  ]);
+}
+
+/**
+ * A sale, purchase or service bill touches stock, the party's balance, the bank, the
+ * dashboard and the next document number. Refresh all of it after saving one.
+ */
+export function invalidateAfterBill(queryClient: QueryClient, partyIds: Array<string | null | undefined> = []) {
+  return Promise.all([
+    invalidateMoneyQueries(queryClient),
+    invalidatePartyQueries(queryClient, partyIds.filter((id): id is string => Boolean(id))),
+    queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
+    queryClient.invalidateQueries({ queryKey: ['recent-sales'] }),
+    queryClient.invalidateQueries({ queryKey: ['services-list'] }),
+    queryClient.invalidateQueries({ queryKey: ['recent-services'] }),
+    queryClient.invalidateQueries({ queryKey: ['products'] }),
+    queryClient.invalidateQueries({ queryKey: ['product'] }),
+    queryClient.invalidateQueries({ queryKey: ['product-stats'] }),
+    queryClient.invalidateQueries({ queryKey: ['inventory-summary'] }),
+    queryClient.invalidateQueries({ queryKey: ['low-stock-products'] }),
+    queryClient.invalidateQueries({ queryKey: ['next-sequences'] }),
   ]);
 }
 
