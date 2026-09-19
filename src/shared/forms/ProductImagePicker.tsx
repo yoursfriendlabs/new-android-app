@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
   StyleProp,
   StyleSheet,
@@ -93,10 +94,14 @@ export function ProductImagePicker({
 
   async function handleLaunchLibrary() {
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        toast.error('Photo library access is needed to choose a picture.');
-        return;
+      // Android opens the system photo picker, which needs no storage permission
+      // (and the app no longer declares one), so only iOS asks first.
+      if (Platform.OS === 'ios') {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          toast.error('Photo library access is needed to choose a picture.');
+          return;
+        }
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({

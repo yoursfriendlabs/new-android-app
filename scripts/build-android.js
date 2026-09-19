@@ -45,6 +45,9 @@ const gradleEnv = {
 };
 
 console.log(`Using EXPO_PUBLIC_API_BASE_URL=${process.env.EXPO_PUBLIC_API_BASE_URL}`);
+if (/\bdev|localhost|127\.0\.0\.1/i.test(process.env.EXPO_PUBLIC_API_BASE_URL)) {
+  console.log('Warning: EXPO_PUBLIC_API_BASE_URL looks like a development server. Set the production URL in .env.production before uploading to Play.');
+}
 
 // Detect Java 17 Home
 let javaHome;
@@ -113,8 +116,12 @@ if (keystoreFile && keystorePassword && keyAlias && keyPassword) {
   gradleProperties += `android.injected.signing.key.password=${keyPassword}\n`;
   
   console.log('Signing properties configured successfully.');
+} else if (!process.argv.includes('apk')) {
+  // Play Console rejects bundles signed with the debug key, so an unsigned AAB is never useful.
+  console.error('Error: RELEASE_KEYSTORE_FILE, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD must be set to build a Play Store AAB.');
+  process.exit(1);
 } else {
-  console.log('Warning: Release signing environment variables not complete. Build will be signed with debug key.');
+  console.log('Warning: Release signing environment variables not complete. APK will be signed with debug key.');
 }
 
 fs.writeFileSync(gradlePropertiesPath, gradleProperties, 'utf8');
