@@ -117,6 +117,10 @@ export function PersonalComposer() {
 
       if (isEdit) {
         await updateNoteMutation.mutateAsync(payload);
+        if (kind === 'note' && params.id) {
+          // Turned from a reminder into a plain note: drop the pending alert.
+          await useHabitStore.getState().cancelPing(`note:${params.id}`);
+        }
         if (kind === 'reminder' && params.id) {
           await useHabitStore.getState().schedulePing({
             id: `note:${params.id}`,
@@ -134,8 +138,9 @@ export function PersonalComposer() {
           reason: kind === 'note' ? 'note' : 'reminder',
           label: kind === 'note' ? 'Captured a note' : 'Set a reminder',
         });
+        let alertsOnPhone = false;
         if (kind === 'reminder') {
-          await useHabitStore.getState().schedulePing({
+          alertsOnPhone = await useHabitStore.getState().schedulePing({
             id: `note:${createdId || Date.now()}`,
             title: payload.title,
             body: body.trim() || payload.title,
@@ -154,9 +159,11 @@ export function PersonalComposer() {
             message:
               kind === 'note'
                 ? 'A quiet place for the thought. Coins for showing up.'
-                : nativeRemindersAvailable()
+                : alertsOnPhone
                   ? `Notification set for ${formatDueStamp(dueAt)}.`
-                  : `We'll ping you at ${formatDueStamp(dueAt)}. Lock-screen alerts need a development build.`,
+                  : nativeRemindersAvailable()
+                    ? `Saved for ${formatDueStamp(dueAt)}. Turn on notifications for PM in phone settings to get an alert.`
+                    : `We'll ping you at ${formatDueStamp(dueAt)}. Lock-screen alerts need a development build.`,
             coins,
             icon: kind === 'note' ? 'notebook-outline' : 'bell-ring-outline',
           }),

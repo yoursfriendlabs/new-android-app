@@ -5,6 +5,7 @@ import {
   nativeRemindersAvailable,
   type IntervalHabit,
 } from '@/src/features/habits/lib/interval-habits';
+import { reminderTargetUrl } from '@/src/features/habits/lib/reminder-links';
 
 export {
   CUSTOM_INTERVAL_CHIPS,
@@ -136,7 +137,7 @@ export async function scheduleIntervalNotification(habit: IntervalHabit) {
         body: habit.message,
         sound: true,
         data: {
-          url: '/tasks/inbox',
+          url: '/notes',
           habitId: habit.id,
           kind: habit.kind,
         },
@@ -172,7 +173,7 @@ export async function scheduleOneShotReminder(options: {
         body: options.body || 'Time for your reminder.',
         sound: true,
         data: {
-          url: '/tasks/inbox',
+          url: '/notes',
         },
         ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
       },
@@ -192,6 +193,7 @@ export async function scheduleExactReminder(options: {
   title: string;
   body?: string;
   at: Date;
+  url?: string;
 }) {
   const Notifications = notifications();
   if (!Notifications) return false;
@@ -209,7 +211,7 @@ export async function scheduleExactReminder(options: {
         body: options.body || 'Time for your reminder.',
         sound: true,
         data: {
-          url: '/tasks/inbox',
+          url: options.url ?? reminderTargetUrl(options.id),
           reminderId: options.id,
         },
         ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
@@ -230,7 +232,7 @@ export async function scheduleExactReminder(options: {
           body: options.body || 'Time for your reminder.',
           sound: true,
           data: {
-            url: '/tasks/inbox',
+            url: options.url ?? reminderTargetUrl(options.id),
             reminderId: options.id,
           },
           ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
@@ -254,6 +256,7 @@ export async function scheduleDailyReminder(options: {
   body?: string;
   hour: number;
   minute: number;
+  url?: string;
 }) {
   const Notifications = notifications();
   if (!Notifications) return false;
@@ -266,6 +269,7 @@ export async function scheduleDailyReminder(options: {
     title: options.title,
     body: options.body || 'Time for your reminder.',
     sound: true,
+    data: { url: options.url ?? '/notes', reminderId: options.id },
     ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
   };
 
@@ -316,6 +320,7 @@ export async function scheduleDailyReminder(options: {
     title: options.title,
     body: options.body,
     at: next,
+    url: options.url,
   });
 }
 

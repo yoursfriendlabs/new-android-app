@@ -15,6 +15,7 @@ import {
 import {
   DAILY_MONEY_REMINDER_COPY,
   DAILY_MONEY_REMINDER_ID,
+  DAILY_MONEY_REMINDER_URL,
   DEFAULT_DAILY_MONEY_REMINDER,
   normalizeDailyMoneyReminder,
   type DailyMoneyReminderSettings,
@@ -84,7 +85,8 @@ interface HabitState extends PersistedHabits, PersistedRewards, PersistedCoinboo
   setIntervalEnabled: (id: string, enabled: boolean) => Promise<void>;
   checkInInterval: (id: string) => Promise<{ habit: IntervalHabit | null; awarded: number }>;
   removeIntervalHabit: (id: string) => Promise<void>;
-  schedulePing: (ping: Omit<ScheduledPing, 'fired'>) => Promise<void>;
+  /** Resolves true when the phone itself will alert (native build + permission granted). */
+  schedulePing: (ping: Omit<ScheduledPing, 'fired'>) => Promise<boolean>;
   cancelPing: (id: string) => Promise<void>;
   markPingFired: (id: string) => Promise<void>;
   setDailyMoneyReminder: (patch: Partial<DailyMoneyReminderSettings>) => Promise<void>;
@@ -395,21 +397,24 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     set({ intervalHabits });
   },
   schedulePing: async (ping) => {
-    const scheduledPings = [
-      { ...ping, fired: false },
-      ...get().scheduledPings.filter((item) => item.id !== ping.id),
-    ].slice(0, 30);
-    await persistCoinbook({ ...get(), scheduledPings });
-    set({ scheduledPings });
+    let native = false;
     if (nativeRemindersAvailable()) {
       const { scheduleExactReminder } = await import('@/src/features/habits/lib/interval-reminders');
-      await scheduleExactReminder({
+      native = await scheduleExactReminder({
         id: ping.id,
         title: ping.title,
         body: ping.body,
         at: new Date(ping.at),
       });
     }
+    // `native` tells ReminderWatch the phone will alert, so it should not toast a second time.
+    const scheduledPings = [
+      { ...ping, native, fired: false },
+      ...get().scheduledPings.filter((item) => item.id !== ping.id),
+    ].slice(0, 30);
+    await persistCoinbook({ ...get(), scheduledPings });
+    set({ scheduledPings });
+    return native;
   },
   cancelPing: async (id) => {
     const scheduledPings = get().scheduledPings.filter((item) => item.id !== id);
@@ -459,6 +464,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       body: DAILY_MONEY_REMINDER_COPY.body,
       hour: reminder.hour,
       minute: reminder.minute,
+      url: DAILY_MONEY_REMINDER_URL,
     });
   },
   markDailyReminderFired: async (day) => {
@@ -476,6 +482,7 @@ export const useHabitStore = create<HabitState>((set, get) => ({
         body: DAILY_MONEY_REMINDER_COPY.body,
         hour: dailyMoneyReminder.hour,
         minute: dailyMoneyReminder.minute,
+        url: DAILY_MONEY_REMINDER_URL,
       });
     }
   },

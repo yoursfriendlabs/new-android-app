@@ -1,6 +1,8 @@
 import { todayIso } from '@/src/shared/lib/format';
 
 export const DAILY_MONEY_REMINDER_ID = 'personal-daily-money';
+/** Tapping the daily nudge opens Money with the expense form ready. */
+export const DAILY_MONEY_REMINDER_URL = '/expenses?entry=expense';
 
 export const DAILY_MONEY_REMINDER_COPY = {
   title: 'Daily Reminder: Record Transactions',
