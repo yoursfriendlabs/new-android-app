@@ -2,6 +2,27 @@ import type { Budget, BudgetSummary } from '@/src/types/models';
 
 export type BudgetTone = 'over' | 'warning' | 'pacing' | 'ok';
 
+export function isSavingsGoal(budget: Pick<Budget, 'scope'>) {
+  return budget.scope === 'savings';
+}
+
+export type SavingsTone = 'reached' | 'ontrack' | 'behind' | 'negative';
+
+/** Reads the server's status for a saving goal. */
+export function savingsTone(budget: Pick<Budget, 'status' | 'reached'>): SavingsTone {
+  if (budget.reached) return 'reached';
+  if (budget.status === 'over') return 'negative';
+  if (budget.status === 'warning') return 'behind';
+  return 'ontrack';
+}
+
+export const SAVINGS_TONE_LABEL: Record<SavingsTone, string> = {
+  reached: 'Goal reached',
+  ontrack: 'On track',
+  behind: 'Behind',
+  negative: 'Spending > income',
+};
+
 /** Over the cap beats nearly used, which beats "on course to go over". */
 export function budgetTone(budget: Pick<Budget, 'status' | 'projectedStatus'>): BudgetTone {
   if (budget.status === 'over') return 'over';
@@ -69,6 +90,7 @@ export function budgetHeadline(summary?: Pick<BudgetSummary, 'budgetCount' | 'ov
 
 /** Starter budgets offered when the list is empty; tapping one fills the form. */
 export const BUDGET_TEMPLATES = [
+  { label: 'Save every month', scope: 'savings' as const, categoryName: '', icon: 'piggy-bank-outline' as const },
   { label: 'Monthly total', scope: 'total' as const, categoryName: '', icon: 'wallet-outline' as const },
   { label: 'Food', scope: 'category' as const, categoryName: 'Food', icon: 'food-fork-drink' as const },
   { label: 'Transport', scope: 'category' as const, categoryName: 'Transport', icon: 'car' as const },

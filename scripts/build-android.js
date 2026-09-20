@@ -32,7 +32,7 @@ function loadEnv() {
   return env;
 }
 
-const DEFAULT_API_BASE_URL = 'https://api-dev.yoursfriend.com/';
+const DEFAULT_API_BASE_URL = 'https://api.yoursfriend.com/';
 const env = loadEnv();
 Object.assign(process.env, env);
 process.env.NODE_ENV = 'production';

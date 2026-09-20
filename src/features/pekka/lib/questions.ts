@@ -28,11 +28,7 @@ export interface PekkaQuestion {
 
 /** Income the way the home dashboard shows it, so Pekka's numbers match. */
 function resolveIncome(summary: DashboardSummary): number {
-  const sales = Number(summary.salesTotal ?? 0);
-  const services = Number(summary.serviceTotal ?? 0);
-  const composed = sales + services;
-  const income = Number(summary.incomeTotal ?? 0);
-  return composed > 0 ? composed : income || composed;
+  return Number(summary.revenueTotal ?? summary.incomeTotal ?? 0);
 }
 
 function resolveExpense(summary: DashboardSummary): number {

@@ -300,6 +300,8 @@ export function normalizeDashboardSummary(raw: unknown): DashboardSummary {
     serviceTotal: asNumber(record.serviceTotal),
     expenseTotal: asNumber(record.expenseTotal),
     incomeTotal: asNumber(firstDefined(record.incomeTotal, record.totalIncome)),
+    revenueTotal: record.revenueTotal === undefined ? undefined : asNumber(record.revenueTotal),
+    bankBalanceTotal: record.bankBalanceTotal === undefined ? undefined : asNumber(record.bankBalanceTotal),
     toReceive: asNumber(firstDefined(record.toReceive, record.partyToReceive)),
     toPay: asNumber(firstDefined(record.toPay, record.partyToPay)),
     profitOrLoss: asNumber(record.profitOrLoss),
@@ -368,7 +370,8 @@ export function normalizeQuickExpense(raw: unknown): QuickExpense {
 
 export function normalizeBudget(raw: unknown): Budget {
   const record = asRecord(raw) ?? {};
-  const scope = asString(record.scope, 'category') === 'total' ? 'total' : 'category';
+  const scopeValue = asString(record.scope, 'category');
+  const scope: Budget['scope'] = scopeValue === 'total' || scopeValue === 'savings' ? scopeValue : 'category';
   const periodValue = asString(record.period, 'monthly');
   const period = ['weekly', 'monthly', 'yearly'].includes(periodValue)
     ? periodValue as Budget['period']
@@ -378,7 +381,7 @@ export function normalizeBudget(raw: unknown): Budget {
   return {
     ...(record as Budget),
     id: asString(firstDefined(record.id, record._id), ''),
-    name: asString(record.name, scope === 'total' ? 'Overall spending' : 'Budget'),
+    name: asString(record.name, scope === 'total' ? 'Overall spending' : scope === 'savings' ? 'Saving goal' : 'Budget'),
     scope,
     categoryKey: asString(record.categoryKey, '') || null,
     categoryName: asString(record.categoryName, '') || null,
@@ -399,6 +402,14 @@ export function normalizeBudget(raw: unknown): Budget {
     periodStart: asString(record.periodStart, ''),
     periodEnd: asString(record.periodEnd, ''),
     periodLabel: asString(record.periodLabel, ''),
+    ...(scope === 'savings'
+      ? {
+          income: asNumber(record.income),
+          saved: asNumber(record.saved),
+          spendRoom: asNumber(record.spendRoom),
+          reached: record.reached === true,
+        }
+      : {}),
   };
 }
 
@@ -416,6 +427,11 @@ export function normalizeBudgetSummary(raw: unknown): BudgetSummary {
     overCount: asNumber(record.overCount),
     projectedOverCount: asNumber(record.projectedOverCount),
     attention: attention ? normalizeBudget(attention) : null,
+    savings: {
+      goalCount: asNumber(asRecord(record.savings)?.goalCount),
+      reachedCount: asNumber(asRecord(record.savings)?.reachedCount),
+      behindCount: asNumber(asRecord(record.savings)?.behindCount),
+    },
   };
 }
 

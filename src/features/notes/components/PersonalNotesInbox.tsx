@@ -20,6 +20,7 @@ import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
 import { CoinChip } from '@/src/features/habits/components/CoinChip';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
 import { Screen } from '@/src/shared/layout/Screen';
+import { usePekkaLift } from '@/src/features/pekka/hooks/usePekkaLift';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -62,6 +63,9 @@ export function PersonalNotesInbox() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { data: notesData, isLoading, refetch, isFetching } = useNotes({ q: search });
+  // Pekka normally sits 74 from the bottom; lift it to clear the add button
+  // (styles.fab: 56 tall, spacing.xl from the bottom) with a spacing.md gap.
+  usePekkaLift(spacing.xl + 56 + spacing.md - 74);
 
   useFocusEffect(
     useCallback(() => {

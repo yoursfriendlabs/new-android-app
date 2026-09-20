@@ -52,11 +52,13 @@ type Shortcut = {
 const SHORTCUTS: Shortcut[] = [
   { key: 'pos', labelKey: 'nav.pos', fallbackLabel: 'Sale', icon: 'cash-register', route: '/(app)/(tabs)/pos', segment: 'pos' },
   { key: 'party', labelKey: 'parties.addParty', fallbackLabel: 'Add party', icon: 'account-plus-outline', route: '/(app)/(tabs)/parties', segment: 'parties' },
-  { key: 'in', labelKey: 'parties.gotMoney', fallbackLabel: 'Payment in', icon: 'arrow-down-bold-circle-outline', route: '/(app)/ledger', segment: 'ledger' },
-  { key: 'out', labelKey: 'parties.giveMoney', fallbackLabel: 'Payment out', icon: 'arrow-up-bold-circle-outline', route: '/(app)/ledger', segment: 'ledger' },
+  // Payment in and out open the same ledger, so they share one button.
+  { key: 'payment', labelKey: 'home.payment', fallbackLabel: 'Payment', icon: 'swap-vertical-circle-outline', route: '/(app)/ledger', segment: 'ledger' },
   { key: 'expense', labelKey: 'money.addExpense', fallbackLabel: 'Expense', icon: 'wallet-outline', route: '/(app)/(tabs)/expenses', segment: 'expenses' },
-  { key: 'note', labelKey: 'tasks.addTask', fallbackLabel: 'Note', icon: 'note-plus-outline', route: '/(app)/tasks/form', segment: 'tasks' },
 ];
+
+/** Four at most, so each gets a fair share of the row on small phones. */
+const MAX_SHORTCUTS = 4;
 
 export function ShopHomeScreen() {
   const colors = usePalette();
@@ -92,23 +94,24 @@ export function ShopHomeScreen() {
   const banksQuery = useBanks();
 
   const summary = summaryQuery.data;
-  const salesTotal = Number(summary?.salesTotal ?? 0);
-  const expenseTotalFromDashboard = Number(summary?.expenseTotal ?? 0);
-  const serviceTotal = Number(summary?.serviceTotal ?? 0);
-  const incomeTotal = salesTotal + serviceTotal;
-  const expenseTotal = expenseTotalFromDashboard;
+  // All totals come from the server for the chosen period. The fallbacks only
+  // cover servers older than revenueTotal / bankBalanceTotal. salesTotal
+  // already includes services, so services are not added again.
+  const incomeTotal = Number(summary?.revenueTotal ?? Number(summary?.salesTotal ?? 0) + Number(summary?.incomeTotal ?? 0));
+  const expenseTotal = Number(summary?.expenseTotal ?? 0);
   const pendingReceivable = Number(summary?.pendingReceivable ?? 0);
   const pendingPayable = Number(summary?.pendingPayable ?? 0);
-  const net = Number(summary?.profitOrLoss ?? incomeTotal - expenseTotal);
-  const cashBankTotal = (banksQuery.data ?? []).reduce(
-    (sum, bank) => sum + Number(bank.currentBalance ?? 0),
-    0,
+  const net = Number(summary?.profitOrLoss ?? 0);
+  const cashBankTotal = Number(
+    summary?.bankBalanceTotal
+      ?? (banksQuery.data ?? []).filter((bank) => bank.isActive).reduce((sum, bank) => sum + Number(bank.currentBalance ?? 0), 0),
   );
+  const periodLabel = PERIODS.find((item) => item.value === selectedPeriod)?.label;
   const currency = businessProfile?.currencyCode || 'NPR';
   const workspaceName = businessProfile?.businessName || 'PM';
   const greetingName = user?.name?.split(' ')[0] || 'there';
 
-  const shortcuts = SHORTCUTS.filter((item) => canAccessSegment(accessContext, item.segment));
+  const shortcuts = SHORTCUTS.filter((item) => canAccessSegment(accessContext, item.segment)).slice(0, MAX_SHORTCUTS);
 
   const recentTransactions = useMemo(() => {
     const list = [
@@ -171,18 +174,18 @@ export function ShopHomeScreen() {
   const metrics = [
     {
       key: 'income',
-      label: t('home.todayIncome'),
+      label: t('home.income'),
       value: incomeTotal,
-      hint: PERIODS.find((item) => item.value === selectedPeriod)?.label,
+      hint: periodLabel,
       tone: 'success' as const,
       onPress: () =>
         router.push(canAccessSegment(accessContext, 'pos') ? '/(app)/(tabs)/pos' : '/(app)/ledger'),
     },
     {
       key: 'expense',
-      label: t('home.todayExpenses'),
+      label: t('home.expenses'),
       value: expenseTotal,
-      hint: PERIODS.find((item) => item.value === selectedPeriod)?.label,
+      hint: periodLabel,
       tone: 'danger' as const,
       onPress: () => router.push('/(app)/(tabs)/expenses'),
     },
@@ -212,9 +215,9 @@ export function ShopHomeScreen() {
     },
     {
       key: 'net',
-      label: net >= 0 ? t('home.netWorth') : 'Loss',
+      label: net >= 0 ? t('home.profit') : t('home.loss'),
       value: Math.abs(net),
-      hint: PERIODS.find((item) => item.value === selectedPeriod)?.label || t('common.thisMonth'),
+      hint: periodLabel,
       tone: net >= 0 ? ('success' as const) : ('danger' as const),
       onPress: () => router.push('/(app)/ledger'),
     },
@@ -558,11 +561,11 @@ const styles = StyleSheet.create({
   },
   shortcutRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   shortcut: {
+    flex: 1,
     alignItems: 'center',
-    width: 64,
     gap: spacing.xs,
   },
   shortcutIcon: {

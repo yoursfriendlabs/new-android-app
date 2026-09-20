@@ -4,11 +4,14 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { askPekka, type PekkaChoice, type PekkaReply } from '@/src/api/pekka';
+import { PekkaIntroduction } from './PekkaIntroduction';
+import { PekkaComposer } from './PekkaComposer';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Text } from '@/src/shared/ui/Text';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
-import { getRangeForPeriod, type DatePeriod } from '@/src/shared/lib/format';
+import { formatCurrency, getRangeForPeriod, type DatePeriod } from '@/src/shared/lib/format';
 import { useDashboardSummary } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -49,12 +52,20 @@ export function PekkaChatSheet() {
   const guideTopics = useMemo(() => guideForWorkspace(isPersonal), [isPersonal]);
 
   const [messages, setMessages] = useState<PekkaChatMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [choices, setChoices] = useState<PekkaChoice[]>([]);
+  const lastQuestion = useRef('');
+  const requestVersion = useRef(0);
+  const inFlight = useRef(false);
+  useEffect(() => () => { requestVersion.current += 1; }, []);
+
   const [period, setPeriod] = useState<DatePeriod>('this_month');
   const [awaiting, setAwaiting] = useState<PekkaQuestion | null>(null);
   const [pending, setPending] = useState<PekkaQuestion | null>(null);
 
   const range = useMemo(() => getRangeForPeriod(period), [period]);
-  const summaryQuery = useDashboardSummary(range);
+  const summaryQuery = useDashboardSummary(range, open && Boolean(pending));
 
   const counter = useRef(0);
   const nextId = () => `m${counter.current++}`;
@@ -104,6 +115,11 @@ export function PekkaChatSheet() {
   // Wipe the conversation and start over from the greeting and guide.
   const handleClear = () => {
     void Haptics.selectionAsync();
+    requestVersion.current += 1;
+    inFlight.current = false;
+    setAsking(false);
+    setChoices([]);
+    setDraft('');
     setMessages([]);
     setAwaiting(null);
     setPending(null);
@@ -116,7 +132,40 @@ export function PekkaChatSheet() {
     router.push(route as never);
   };
 
-  const busy = Boolean(pending);
+  function replyText(reply: PekkaReply) {
+    if (reply.status === 'choose') return t('pekka.chooseMatch');
+    if (reply.status === 'not-found') return t('pekka.noMatch');
+    if (reply.status === 'personal') return t('pekka.personalLookup');
+    if (reply.status !== 'answer') return t('pekka.lookupHelp');
+    const value = formatCurrency(reply.amount ?? 0, reply.currency || businessProfile?.currencyCode || 'NPR');
+    if (reply.kind === 'product') return t('pekka.productAnswer', { name: reply.name || '', value, unit: reply.unit ? ` / ${reply.unit}` : '' });
+    return t(`pekka.partyAnswer.${reply.direction || 'settled'}`, { name: reply.name || '', value });
+  }
+
+  async function handleAsk(choice?: PekkaChoice) {
+    if (inFlight.current || pending) return;
+    const question = choice ? lastQuestion.current : draft.trim();
+    if (!question) return;
+    inFlight.current = true;
+    const version = ++requestVersion.current;
+    setAsking(true);
+    setAwaiting(null);
+    setChoices([]);
+    pushMessage('user', choice ? choice.name : question);
+    if (!choice) { setDraft(''); lastQuestion.current = question; }
+    try {
+      const reply = await askPekka(question, choice ? { id: choice.id, kind: choice.kind } : undefined);
+      if (requestVersion.current !== version) return;
+      pushMessage('pekka', replyText(reply));
+      setChoices(reply.candidates ?? []);
+    } catch (error) {
+      if (requestVersion.current === version) pushMessage('pekka', error instanceof Error ? error.message : t('pekka.noData'));
+    } finally {
+      if (requestVersion.current === version) { inFlight.current = false; setAsking(false); }
+    }
+  }
+
+  const busy = Boolean(pending) || asking;
   const periodOptions = PERIOD_ORDER.map((value) => ({
     value,
     label: t(`common.${periodCommonKey(value)}`),
@@ -158,6 +207,7 @@ export function PekkaChatSheet() {
               ))}
             </ScrollView>
           )}
+          <PekkaComposer value={draft} onChange={setDraft} onSend={() => void handleAsk()} open={open} busy={busy} />
         </View>
       }>
       <View style={styles.body}>
@@ -175,40 +225,27 @@ export function PekkaChatSheet() {
           </Pressable>
         ) : null}
         <PekkaMessage
-          message={{ id: 'greeting', role: 'pekka', text: t('pekka.greeting', { name: greetingName }) }}
+          message={{ id: 'greeting', role: 'pekka', text: t(isPersonal ? 'pekka.greetingPersonal' : 'pekka.greeting', { name: greetingName }) }}
         />
 
         {messages.length === 0 ? (
-          <View style={styles.guide}>
-            <Text variant="overline" tone="muted" style={styles.guideHeading}>
-              {t('pekka.guideTitle')}
-            </Text>
-            {guideTopics.map((topic) => (
-              <Pressable
-                key={topic.id}
-                onPress={() => handleGuide(topic.route)}
-                style={[styles.guideCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={[styles.guideIcon, { backgroundColor: colors.backgroundAlt }]}>
-                  <MaterialCommunityIcons name={topic.icon} size={18} color={colors.primaryText} />
-                </View>
-                <View style={styles.guideText}>
-                  <Text variant="bodyStrong">{t(topic.titleKey)}</Text>
-                  <Text variant="caption" tone="muted">
-                    {t(topic.bodyKey)}
-                  </Text>
-                </View>
-                {topic.route ? (
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
+          <PekkaIntroduction personal={isPersonal} topics={guideTopics} onOpen={handleGuide} />
         ) : null}
 
         {messages.map((message) => (
           <PekkaMessage key={message.id} message={message} />
         ))}
 
+        {choices.map((choice) => (
+          <Pressable key={`${choice.kind}-${choice.id}`} onPress={() => void handleAsk(choice)} disabled={busy}
+            style={[styles.guideCard, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
+            <MaterialCommunityIcons name={choice.kind === 'product' ? 'package-variant' : 'account-outline'} size={20} color={colors.primary} />
+            <View style={styles.guideText}><Text variant="bodyStrong">{choice.name}</Text>
+              {choice.detail ? <Text variant="caption" tone="muted">{choice.detail}</Text> : null}
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+          </Pressable>
+        ))}
         {busy ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator size="small" color={colors.primary} />

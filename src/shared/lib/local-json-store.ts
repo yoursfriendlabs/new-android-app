@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { clearDraft, initializeDatabase, readDraft, saveDraft } from '@/src/data/database';
@@ -7,7 +8,7 @@ export async function readLocalJson<T>(draftKey: string, legacySecureKey?: strin
   const current = await readDraft<T>(draftKey);
   if (current !== null) return current;
 
-  if (!legacySecureKey) return null;
+  if (!legacySecureKey || Platform.OS === 'web') return null;
 
   const legacyRaw = await SecureStore.getItemAsync(legacySecureKey);
   if (!legacyRaw) return null;

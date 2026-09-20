@@ -14,7 +14,11 @@ import {
   budgetTone,
   clampPercent,
   expectedPercent,
+  isSavingsGoal,
   periodDays,
+  SAVINGS_TONE_LABEL,
+  savingsTone,
+  type SavingsTone,
   safeDailySpend,
   sortBudgets,
   type BudgetTone,
@@ -76,6 +80,12 @@ function toneColors(tone: BudgetTone, colors: AppPalette) {
   return { color: colors.success, soft: colors.successSoft };
 }
 
+function savingsColors(tone: SavingsTone, colors: AppPalette) {
+  if (tone === 'negative') return { color: colors.danger, soft: colors.dangerSoft };
+  if (tone === 'behind') return { color: colors.warning, soft: colors.warningSoft };
+  return { color: colors.success, soft: colors.successSoft };
+}
+
 function progressWidth(percent = 0) {
   return `${clampPercent(percent)}%` as const;
 }
@@ -106,13 +116,16 @@ export function BudgetManagementScreen() {
   const allBudgets = budgetsQuery.data?.items ?? [];
   const summary = budgetsQuery.data?.summary;
   const periodsInUse = useMemo(() => new Set(allBudgets.map((budget) => budget.period)), [allBudgets]);
-  const budgets = useMemo(
-    () => sortBudgets(periodFilter === 'all' ? allBudgets : allBudgets.filter((budget) => budget.period === periodFilter)),
+  const visible = useMemo(
+    () => (periodFilter === 'all' ? allBudgets : allBudgets.filter((budget) => budget.period === periodFilter)),
     [allBudgets, periodFilter],
   );
+  const budgets = useMemo(() => sortBudgets(visible.filter((budget) => !isSavingsGoal(budget))), [visible]);
+  const goals = useMemo(() => visible.filter(isSavingsGoal), [visible]);
   // The overall cap (or, failing that, the fullest budget) drives the "per day" hint in the header.
   const leadBudget = useMemo(
-    () => allBudgets.find((budget) => budget.scope === 'total' && budget.period === 'monthly') ?? sortBudgets(allBudgets)[0],
+    () => allBudgets.find((budget) => budget.scope === 'total' && budget.period === 'monthly')
+      ?? sortBudgets(allBudgets.filter((budget) => !isSavingsGoal(budget)))[0],
     [allBudgets],
   );
   const heroTone: BudgetTone = summary?.overCount ? 'over' : summary?.warningCount ? 'warning' : summary?.projectedOverCount ? 'pacing' : 'ok';
@@ -146,7 +159,7 @@ export function BudgetManagementScreen() {
     const categoryName = form.categoryName.trim();
     if (!Number.isFinite(amount) || amount <= 0) {
       haptics.warning();
-      setFormError('Enter a budget amount greater than zero.');
+      setFormError(form.scope === 'savings' ? 'Enter how much you want to save.' : 'Enter a budget amount greater than zero.');
       return;
     }
     if (form.scope === 'category' && !categoryName) {
@@ -155,7 +168,9 @@ export function BudgetManagementScreen() {
       return;
     }
 
-    const name = form.name.trim() || (form.scope === 'total' ? 'Overall spending' : `${categoryName} spending`);
+    const periodWord = PERIOD_OPTIONS.find((option) => option.value === form.period)?.label ?? 'Monthly';
+    const name = form.name.trim()
+      || (form.scope === 'total' ? 'Overall spending' : form.scope === 'savings' ? `${periodWord} savings` : `${categoryName} spending`);
     const payload = {
       name,
       scope: form.scope,
@@ -170,10 +185,10 @@ export function BudgetManagementScreen() {
     try {
       if (editing?.id) {
         await withWorkspaceRetry(() => budgetsApi.update(editing.id, payload));
-        toast.success('Budget updated.');
+        toast.success(form.scope === 'savings' ? 'Saving goal updated.' : 'Budget updated.');
       } else {
         await withWorkspaceRetry(() => budgetsApi.create(payload));
-        toast.success('Budget created.');
+        toast.success(form.scope === 'savings' ? 'Saving goal created.' : 'Budget created.');
       }
       haptics.success();
       await invalidate();
@@ -220,7 +235,7 @@ export function BudgetManagementScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void Promise.all([budgetsQuery.refetch(), categoriesQuery.refetch()])} />}>
 
-        <PageHeading title="Budgets" subtitle="Set spending limits and spot trouble before the month ends." />
+        <PageHeading title="Budgets & goals" subtitle="Set spending limits and saving goals, and spot trouble before the month ends." />
 
         {summary?.budgetCount ? (
           <View style={[styles.heroCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -253,6 +268,59 @@ export function BudgetManagementScreen() {
           <Text style={[styles.headline, { color: colors.textMuted }]}>{budgetHeadline(summary)}</Text>
         ) : null}
 
+        {goals.length ? (
+          <>
+            <View>
+              <Text style={[styles.sectionKicker, { color: colors.primary }]}>SAVING GOALS</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>What you keep</Text>
+            </View>
+            {goals.map((goalItem) => {
+              const toneKey = savingsTone(goalItem);
+              const tone = savingsColors(toneKey, colors);
+              const saved = goalItem.saved ?? 0;
+              const spendRoom = goalItem.spendRoom ?? 0;
+              return (
+                <Pressable
+                  key={goalItem.id}
+                  onPress={() => openEdit(goalItem)}
+                  style={({ pressed }) => [styles.budgetCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && { opacity: 0.78 }]}>
+                  <View style={styles.budgetTop}>
+                    <View style={[styles.iconBox, { backgroundColor: tone.soft }]}>
+                      <MaterialCommunityIcons name="piggy-bank-outline" size={21} color={tone.color} />
+                    </View>
+                    <View style={styles.budgetTitleWrap}>
+                      <Text numberOfLines={1} style={[styles.budgetName, { color: colors.text }]}>{goalItem.name}</Text>
+                      <Text numberOfLines={1} style={[styles.budgetMeta, { color: colors.textMuted }]}>{goalItem.periodLabel || goalItem.period} · Income minus expenses</Text>
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: tone.soft }]}>
+                      <Text style={[styles.statusText, { color: tone.color }]}>{SAVINGS_TONE_LABEL[toneKey]}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.amountRow}>
+                    <Text style={[styles.spentText, { color: saved < 0 ? colors.danger : colors.text }]}>
+                      {saved < 0 ? `${formatCurrency(Math.abs(saved), currency)} more spent than earned` : `${formatCurrency(saved, currency)} saved`}
+                    </Text>
+                    <Text style={[styles.remainingText, { color: colors.textMuted }]}>of {formatCurrency(goalItem.amount, currency)}</Text>
+                  </View>
+                  <View style={[styles.progressTrack, { backgroundColor: colors.backgroundAlt }]}>
+                    <View style={[styles.progressFill, { width: progressWidth(goalItem.percentUsed), backgroundColor: tone.color }]} />
+                  </View>
+                  <View style={styles.budgetFooter}>
+                    <Text style={[styles.budgetHint, { color: colors.textMuted }]}>
+                      In {formatCurrency(goalItem.income ?? 0, currency)} · Out {formatCurrency(goalItem.spent ?? 0, currency)}
+                    </Text>
+                    <Text style={[styles.budgetHint, styles.hintRight, { color: spendRoom >= 0 ? colors.success : colors.warning }]}>
+                      {spendRoom >= 0
+                        ? `${formatCurrency(spendRoom, currency)} left to spend`
+                        : `${formatCurrency(goalItem.remaining ?? 0, currency)} to go · ${goalItem.daysLeft ?? 0} days left`}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </>
+        ) : null}
+
         <View style={styles.listHeader}>
           <View>
             <Text style={[styles.sectionKicker, { color: colors.primary }]}>SPENDING PLAN</Text>
@@ -274,7 +342,7 @@ export function BudgetManagementScreen() {
 
         {budgetsQuery.isLoading ? (
           <SkeletonList count={3} />
-        ) : budgets.length ? budgets.map((budget) => {
+        ) : budgets.length || goals.length ? budgets.map((budget) => {
           const toneKey = budgetTone(budget);
           const tone = toneColors(toneKey, colors);
           const spent = budget.spent ?? 0;
@@ -350,17 +418,19 @@ export function BudgetManagementScreen() {
 
       <BottomSheet
         visible={sheetOpen}
-        title={editing ? 'Edit budget' : 'New budget'}
-        subtitle="Actual spending is counted automatically from your expenses."
+        title={form.scope === 'savings' ? (editing ? 'Edit saving goal' : 'New saving goal') : editing ? 'Edit budget' : 'New budget'}
+        subtitle={form.scope === 'savings'
+          ? 'Saved = your income minus your expenses for the period, counted automatically.'
+          : 'Actual spending is counted automatically from your expenses.'}
         onClose={() => setSheetOpen(false)}
         fullHeight
         footer={<View style={styles.sheetFooter}>
           {editing ? <Pressable disabled={saving} style={[styles.deleteButton, { backgroundColor: colors.dangerSoft }]} onPress={() => void deleteBudget()}><Text style={[styles.deleteButtonText, { color: colors.danger }]}>Delete</Text></Pressable> : null}
-          <Pressable disabled={saving} style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={() => void saveBudget()}><Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>{saving ? 'Saving…' : editing ? 'Save budget' : 'Create budget'}</Text></Pressable>
+          <Pressable disabled={saving} style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={() => void saveBudget()}><Text style={[styles.saveButtonText, { color: colors.onPrimary }]}>{saving ? 'Saving…' : form.scope === 'savings' ? (editing ? 'Save goal' : 'Create goal') : editing ? 'Save budget' : 'Create budget'}</Text></Pressable>
         </View>}>
         <View style={styles.form}>
           {formError ? <Text style={[styles.formError, { color: colors.danger }]}>{formError}</Text> : null}
-          <SegmentedTabs value={form.scope} onChange={(scope) => setForm((current) => ({ ...current, scope, categoryName: scope === 'total' ? '' : current.categoryName }))} options={[{ label: 'Category', value: 'category' }, { label: 'Overall', value: 'total' }]} />
+          <SegmentedTabs value={form.scope} onChange={(scope) => setForm((current) => ({ ...current, scope, categoryName: scope === 'category' ? current.categoryName : '' }))} options={[{ label: 'Category', value: 'category' }, { label: 'Overall', value: 'total' }, { label: 'Save', value: 'savings' }]} />
           {form.scope === 'category' ? <View style={styles.categoryBlock}>
             <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>EXPENSE CATEGORY</Text>
             <View style={styles.categoryChips}>
@@ -372,7 +442,7 @@ export function BudgetManagementScreen() {
             {!categories.length && !form.categoryName ? <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>Add an expense category first, then come back to set its limit.</Text> : null}
           </View> : null}
           <SegmentedTabs value={form.period} onChange={(period) => setForm((current) => ({ ...current, period }))} options={PERIOD_OPTIONS} />
-          <FormField label="Budget amount" value={form.amount} onChangeText={(amount) => setForm((current) => ({ ...current, amount }))} placeholder="0" keyboardType="decimal-pad" icon="cash" />
+          <FormField label={form.scope === 'savings' ? 'Amount to save' : 'Budget amount'} value={form.amount} onChangeText={(amount) => setForm((current) => ({ ...current, amount }))} placeholder="0" keyboardType="decimal-pad" icon="cash" />
           <View style={styles.categoryChips}>
             {budgetAmountChips(form.period).map((value) => {
               const selected = Number(form.amount) === value;
@@ -391,10 +461,12 @@ export function BudgetManagementScreen() {
           </View>
           {Number(form.amount) > 0 ? (
             <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>
-              About {formatCurrency(Math.floor(Number(form.amount) / periodDays(form.period)), currency)} a day.
+              {form.scope === 'savings'
+                ? `Put aside about ${formatCurrency(Math.floor(Number(form.amount) / periodDays(form.period)), currency)} a day.`
+                : `About ${formatCurrency(Math.floor(Number(form.amount) / periodDays(form.period)), currency)} a day.`}
             </Text>
           ) : null}
-          <FormField label="Name (optional)" value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} placeholder={form.scope === 'total' ? 'Overall spending' : 'For example, Food spending'} maxLength={80} />
+          <FormField label="Name (optional)" value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} placeholder={form.scope === 'total' ? 'Overall spending' : form.scope === 'savings' ? 'For example, New phone fund' : 'For example, Food spending'} maxLength={80} />
         </View>
       </BottomSheet>
     </Screen>

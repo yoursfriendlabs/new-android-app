@@ -7,7 +7,9 @@ import type {
   BudgetUpdatePayload,
   CategoryCreatePayload,
   CategoryUpdatePayload,
+  AccountDeletionPlan,
   ChangePasswordPayload,
+  DeleteAccountPayload,
   CreateBusinessPayload,
   ExpenseAnalyticsResponse,
   InventorySummaryResponse,
@@ -77,12 +79,15 @@ import type {
   Note,
   BankAccount,
   Budget,
+  BudgetImpact,
   BudgetSummary,
   BusinessProfile,
   BusinessSettings,
   BusinessTypeOption,
   Category,
   DashboardSummary,
+  MoneyActivity,
+  MoneyFeedResponse,
   InventorySummary,
   LedgerEntry,
   OrderAttribute,
@@ -197,6 +202,15 @@ export const authApi = {
       body: payload,
       businessScoped: false,
     }),
+  accountDeletionPlan: () =>
+    apiRequest<AccountDeletionPlan>({ path: '/api/auth/delete-account', businessScoped: false }),
+  deleteAccount: (payload: DeleteAccountPayload) =>
+    apiRequest<AccountDeletionPlan & { message?: string }, DeleteAccountPayload>({
+      method: 'POST',
+      path: '/api/auth/delete-account',
+      body: payload,
+      businessScoped: false,
+    }),
 };
 
 export const metaApi = {
@@ -217,6 +231,8 @@ export const metaApi = {
   nextSequences: () => apiRequest<SequenceMap>({ path: '/api/meta/next-sequences' }),
   dashboardSummary: (query: { from: string; to: string }) =>
     apiRequest<DashboardSummary>({ path: '/api/dashboard/summary', query }),
+  dashboardActivity: (query: { to: string; days?: number; recentLimit?: number }) =>
+    apiRequest<MoneyActivity>({ path: '/api/dashboard/activity', query }),
 };
 
 export const subscriptionApi = {
@@ -454,7 +470,7 @@ export const partyTransactionsApi = {
 };
 
 export const banksApi = {
-  list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<BankAccount>>({ path: '/api/banks', query }),
+  list: (query: ListQuery = {}) => apiRequest<PaginatedResponse<BankAccount> & { totalBalance: number }>({ path: '/api/banks', query }),
   get: (id: string) => apiRequest<BankAccount>({ path: `/api/banks/${id}` }),
   create: (payload: BankCreatePayload) =>
     apiRequest<BankAccount, BankCreatePayload>({ method: 'POST', path: '/api/banks', body: payload }),
@@ -469,6 +485,8 @@ export const budgetsApi = {
   list: (query: ListQuery = {}) =>
     apiRequest<PaginatedResponse<Budget> & { summary?: BudgetSummary }>({ path: '/api/budgets', query }),
   summary: () => apiRequest<BudgetSummary>({ path: '/api/budgets/summary' }),
+  impact: (query: { kind: 'income' | 'expense'; amount: number; categoryKey?: string; date?: string }) =>
+    apiRequest<BudgetImpact>({ path: '/api/budgets/impact', query }),
   get: (id: string) => apiRequest<Budget>({ path: `/api/budgets/${id}` }),
   create: (payload: BudgetCreatePayload) =>
     apiRequest<Budget, BudgetCreatePayload>({ method: 'POST', path: '/api/budgets', body: payload }),
@@ -521,7 +539,10 @@ export const reportsApi = {
     apiRequest<PaginatedResponse<LedgerEntry>>({ path: '/api/reports/party-statement', query }),
   partyDetail: (partyId: string) =>
     apiRequest<PartyDetailResponse>({ path: `/api/reports/party-detail/${partyId}` }),
-  ledger: (query: ListQuery) => apiRequest<PaginatedResponse<LedgerEntry>>({ path: '/api/reports/ledger', query }),
+  ledger: (query: ListQuery) =>
+    apiRequest<PaginatedResponse<LedgerEntry> & { totals?: { debit: number; credit: number } }>({ path: '/api/reports/ledger', query }),
+  moneyFeed: (query: Record<string, string | number | boolean | undefined>) =>
+    apiRequest<MoneyFeedResponse>({ path: '/api/reports/money-feed', query }),
   stockLedger: (query: ListQuery) =>
     apiRequest<PaginatedResponse<StockLedgerEntry>>({ path: '/api/reports/stock-ledger', query }),
   salesReport: (query: ListQuery) => apiRequest<PaginatedResponse<Sale>>({ path: '/api/reports/sales-report', query }),

@@ -24,6 +24,8 @@ export interface HabitWin {
   icon: IconName;
   tone: 'streak' | 'badge' | 'saved' | 'coin';
   coins?: number;
+  /** Why no coin was given, e.g. over a spending budget. */
+  coinNote?: string;
 }
 
 export interface HabitSnapshot {
@@ -127,6 +129,18 @@ export function buildCoinWin(options: {
 }
 
 export function buildWinMoment(options: {
+  kind: 'income' | 'expense';
+  amountLabel: string;
+  previous: HabitStreak;
+  next: HabitStreak;
+  newBadges: HabitBadge[];
+  coins?: number;
+  coinNote?: string;
+}): HabitWin {
+  return { ...pickWinMoment(options), coinNote: options.coinNote };
+}
+
+function pickWinMoment(options: {
   kind: 'income' | 'expense';
   amountLabel: string;
   previous: HabitStreak;

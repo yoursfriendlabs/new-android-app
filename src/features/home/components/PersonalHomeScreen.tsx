@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
+import { format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -10,18 +11,19 @@ import { formatClockTime } from '@/src/features/habits/lib/daily-money-reminder'
 import { uniqueLogDays } from '@/src/features/habits/lib/habits';
 import { MoneyCharts } from '@/src/features/home/components/MoneyCharts';
 import { PersonalPulseStrip } from '@/src/features/home/components/PersonalPulseStrip';
-import { buildSevenDayFlow } from '@/src/features/home/lib/flow-series';
-import { buildPersonalPulse } from '@/src/features/home/lib/personal-pulse';
+import { useMoneyActivity } from '@/src/features/home/hooks/useMoneyActivity';
+import type { FlowPoint } from '@/src/features/home/lib/flow-series';
+import type { PersonalPulse } from '@/src/features/home/lib/personal-pulse';
 import { MoneyEntrySheet, type MoneyEntryKind } from '@/src/features/money/components/MoneyEntrySheet';
 import { expenseCategory } from '@/src/features/money/lib/expense';
-import { moneyCategoryFromPurchase, moneyPersonLabel, moneyRemarkFromNote } from '@/src/features/money/lib/money';
+import { isHiddenMoneyParty, moneyCategoryFromPurchase, moneyPersonLabel, moneyRemarkFromNote } from '@/src/features/money/lib/money';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
-import { useDashboardSummary, useParties, usePartyTransactions, usePurchases } from '@/src/shared/hooks/useAppQueries';
+import { useDashboardSummary } from '@/src/shared/hooks/useAppQueries';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -29,6 +31,7 @@ import { useTranslation } from '@/src/i18n';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
+import type { Party } from '@/src/types/models';
 
 type Shortcut = {
   key: string;
@@ -72,85 +75,71 @@ export function PersonalHomeScreen() {
   const storedLogDates = useHabitStore((state) => state.logDates);
   const dailyReminder = useHabitStore((state) => state.dailyMoneyReminder);
 
-  const expensesQuery = usePurchases('expense');
-  const incomesQuery = usePurchases('income');
-  const partyTxQuery = usePartyTransactions();
-  const partiesQuery = useParties('', 'both');
+  // Chart, streak days, counts, party leaders and latest entries all come from
+  // the server; month totals come from the dashboard summary.
+  const activityQuery = useMoneyActivity(7);
+  const activity = activityQuery.data;
   const monthRange = getRangeForPeriod('this_month');
   const summaryQuery = useDashboardSummary(monthRange);
 
   const currency = businessProfile?.currencyCode || 'NPR';
   const workspaceName = businessProfile?.businessName || 'PM';
   const greetingName = user?.name?.split(' ')[0] || 'there';
-  const partyById = useMemo(
-    () => new Map((partiesQuery.data ?? []).map((party) => [party.id, party])),
-    [partiesQuery.data],
-  );
 
   useEffect(() => {
     void useHabitStore.getState().applyDailyMoneyReminder(true);
   }, []);
 
-  const pulse = useMemo(() => {
-    const local = buildPersonalPulse({
-      expenses: expensesQuery.data ?? [],
-      incomes: incomesQuery.data ?? [],
-      parties: partiesQuery.data ?? [],
-    });
+  const pulse = useMemo<PersonalPulse>(() => {
     const summary = summaryQuery.data;
+    const monthIncome = Number(summary?.incomeTotal ?? 0);
+    const monthExpense = Number(summary?.expenseTotal ?? 0);
+    const balances = activity?.partyBalances;
+    const topName = (parties?: Party[]) => parties?.find((party) => !isHiddenMoneyParty(party))?.name ?? null;
     return {
-      ...local,
-      monthIncome: summary?.incomeTotal ?? local.monthIncome,
-      monthExpense: summary?.expenseTotal ?? local.monthExpense,
-      theyOweYou: summary?.toReceive ?? local.theyOweYou,
-      youOweThem: summary?.toPay ?? local.youOweThem,
+      todaySpent: activity?.flow.at(-1)?.expense ?? 0,
+      monthIncome,
+      monthExpense,
+      monthSaved: monthIncome - monthExpense,
+      theyOweYou: Number(summary?.toReceive ?? 0),
+      youOweThem: Number(summary?.toPay ?? 0),
+      oweCount: balances?.receiveCount ?? 0,
+      payCount: balances?.payCount ?? 0,
+      topOwedBy: topName(balances?.topReceive),
+      topOwedTo: topName(balances?.topPay),
     };
-  }, [expensesQuery.data, incomesQuery.data, partiesQuery.data, summaryQuery.data]);
+  }, [activity, summaryQuery.data]);
 
   const activityDates = useMemo(
-    () =>
-      uniqueLogDays([
-        ...storedLogDates,
-        ...(expensesQuery.data ?? []).map((item) => item.purchaseDate),
-        ...(incomesQuery.data ?? []).map((item) => item.purchaseDate),
-        ...(partyTxQuery.data ?? []).map((item) => item.txDate),
-      ]),
-    [expensesQuery.data, incomesQuery.data, partyTxQuery.data, storedLogDates],
+    () => uniqueLogDays([...storedLogDates, ...(activity?.activityDates ?? [])]),
+    [activity?.activityDates, storedLogDates],
   );
   const allTimeCounts = useMemo(() => {
-    const expenseCount = expensesQuery.data?.length ?? 0;
-    const incomeCount = incomesQuery.data?.length ?? 0;
+    const counts = activity?.counts;
+    const incomeCount = counts?.incomeCount ?? 0;
+    const expenseCount = counts?.expenseCount ?? 0;
     return {
-      entryCount: expenseCount + incomeCount + (partyTxQuery.data?.length ?? 0),
+      entryCount: incomeCount + expenseCount + (counts?.partyTransactionCount ?? 0),
       incomeCount,
       expenseCount,
     };
-  }, [expensesQuery.data, incomesQuery.data, partyTxQuery.data]);
+  }, [activity?.counts]);
 
-  const personalWeekFlow = useMemo(
+  const personalWeekFlow = useMemo<FlowPoint[]>(
     () =>
-      buildSevenDayFlow({
-        expenses: expensesQuery.data ?? [],
-        incomes: incomesQuery.data ?? [],
-      }),
-    [incomesQuery.data, expensesQuery.data],
+      (activity?.flow ?? []).map((point) => ({
+        key: point.date,
+        label: format(parseISO(point.date), 'EEEEE'),
+        income: point.income,
+        expense: point.expense,
+      })),
+    [activity?.flow],
   );
-  const personalWeekTotals = useMemo(
-    () =>
-      personalWeekFlow.reduce(
-        (acc, point) => {
-          acc.income += point.income;
-          acc.expense += point.expense;
-          return acc;
-        },
-        { income: 0, expense: 0 },
-      ),
-    [personalWeekFlow],
-  );
+  const personalWeekTotals = activity?.flowTotals ?? { income: 0, expense: 0 };
 
   const recentTransactions = useMemo(() => {
     const list = [
-      ...(expensesQuery.data ?? []).map((item) => ({
+      ...(activity?.recentPurchases ?? []).filter((item) => item.entryType === 'expense').map((item) => ({
         id: `expense-${item.id}`,
         kind: t('home.expense'),
         icon: 'wallet-outline' as Shortcut['icon'],
@@ -161,7 +150,7 @@ export function PersonalHomeScreen() {
         route: '/(app)/(tabs)/expenses',
         sort: item.purchaseDate || '',
       })),
-      ...(incomesQuery.data ?? []).map((item) => ({
+      ...(activity?.recentPurchases ?? []).filter((item) => item.entryType === 'income').map((item) => ({
         id: `income-${item.id}`,
         kind: t('home.income'),
         icon: 'arrow-down-bold-circle-outline' as Shortcut['icon'],
@@ -172,12 +161,12 @@ export function PersonalHomeScreen() {
         route: '/(app)/(tabs)/expenses',
         sort: item.purchaseDate || '',
       })),
-      ...(partyTxQuery.data ?? []).map((item) => ({
+      ...(activity?.recentPartyTransactions ?? []).map((item) => ({
         id: `tx-${item.id}`,
         kind: item.direction === 'receive' ? t('parties.toReceive') : t('parties.toPay'),
         icon: (item.direction === 'receive' ? 'arrow-down-bold-circle-outline' : 'arrow-up-bold-circle-outline') as Shortcut['icon'],
         title: item.note || (item.direction === 'receive' ? t('parties.toReceive') : t('parties.toPay')),
-        subtitle: `${prettyDate(item.txDate)}  ·  ${moneyPersonLabel(partyById.get(item.partyId) ?? null)}`,
+        subtitle: `${prettyDate(item.txDate)}  ·  ${moneyPersonLabel(null, item.partyName)}`,
         amount: Number(item.amount ?? 0),
         positive: item.direction === 'receive',
         route: '/(app)/(tabs)/parties',
@@ -185,7 +174,7 @@ export function PersonalHomeScreen() {
       })),
     ];
     return list.sort((a, b) => b.sort.localeCompare(a.sort)).slice(0, 6);
-  }, [expensesQuery.data, incomesQuery.data, partyById, partyTxQuery.data, t]);
+  }, [activity?.recentPartyTransactions, activity?.recentPurchases, t]);
 
   const shortcuts = (
     [
@@ -230,10 +219,7 @@ export function PersonalHomeScreen() {
     setRefreshing(true);
     try {
       await Promise.all([
-        expensesQuery.refetch(),
-        incomesQuery.refetch(),
-        partyTxQuery.refetch(),
-        partiesQuery.refetch(),
+        activityQuery.refetch(),
         summaryQuery.refetch(),
       ]);
     } finally {

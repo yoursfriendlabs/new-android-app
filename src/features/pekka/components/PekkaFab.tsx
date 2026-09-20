@@ -19,8 +19,10 @@ export function PekkaFab() {
   const colors = usePalette();
   const insets = useSafeAreaInsets();
   const status = useAuthStore((state) => state.status);
+  const workspaceKey = useAuthStore((state) => `${state.user?.id}:${state.session?.businessId}`);
   const open = usePekkaStore((state) => state.open);
   const setOpen = usePekkaStore((state) => state.setOpen);
+  const lift = usePekkaStore((state) => state.lift);
 
   const appear = useRef(new Animated.Value(0)).current;
   const signedIn = status === 'signed-in';
@@ -51,7 +53,7 @@ export function PekkaFab() {
           style={[
             styles.wrap,
             {
-              bottom: insets.bottom + 74,
+              bottom: insets.bottom + 74 + lift,
               opacity: appear,
               transform: [{ scale: appear }],
             },
@@ -65,7 +67,7 @@ export function PekkaFab() {
           </Pressable>
         </Animated.View>
       ) : null}
-      <PekkaChatSheet />
+      <PekkaChatSheet key={workspaceKey} />
     </>
   );
 }

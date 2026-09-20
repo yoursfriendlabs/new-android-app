@@ -331,6 +331,10 @@ export default function SettingsScreen() {
         <Pressable style={styles.signOutButton} onPress={() => void handleSignOut()} disabled={signingOut}>
           <Text style={styles.signOutLabel}>{signingOut ? t('auth.signingOut') : t('settings.signOutDevice')}</Text>
         </Pressable>
+        <Pressable style={styles.deleteAccountButton} onPress={() => router.push('/(app)/delete-account')}>
+          <Text style={styles.deleteAccountLabel}>{t('deleteAccount.title')}</Text>
+        </Pressable>
+        <Text style={styles.helperText}>{t('deleteAccount.settingsHelper')}</Text>
       </SurfaceCard>
 
       <Snackbar
@@ -436,6 +440,17 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  deleteAccountButton: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteAccountLabel: {
+    color: colors.danger,
+    fontSize: typography.body,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   signOutLabel: {
     color: colors.danger,

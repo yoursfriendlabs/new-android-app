@@ -65,11 +65,11 @@ export function usePagedList<T extends { id: string }>(options: {
   const items = useMemo(() => flattenPages(query.data?.pages ?? []), [query.data]);
 
   const total = query.data?.pages[0]?.total ?? items.length;
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  const { hasNextPage, isFetching, fetchNextPage } = query;
 
   const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+    if (hasNextPage && !isFetching) void fetchNextPage();
+  }, [fetchNextPage, hasNextPage, isFetching]);
 
   return {
     ...query,
@@ -90,7 +90,8 @@ export async function fetchAllPages<T>(
   for (let offset = 0; offset < maxRows; offset += pageSize) {
     const page = await fetchPage({ limit: pageSize, offset });
     rows.push(...page.items);
-    if (page.items.length < pageSize || (page.total > 0 && rows.length >= page.total)) break;
+    if (page.total > maxRows) throw new Error(`This report has more than ${maxRows} entries. Choose a shorter date range to export it.`);
+    if (page.items.length < pageSize || (page.total > 0 && rows.length >= page.total)) return rows;
   }
-  return rows;
+  throw new Error(`This report is too large. Choose a shorter date range to export it.`);
 }

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import { deleteLocalJson, readLocalJson, writeLocalJson } from '@/src/shared/lib/local-json-store';
@@ -23,6 +24,7 @@ let settingsCache: BusinessSettings | null = null;
 
 async function readSecureToken() {
   try {
+    if (Platform.OS === 'web') return typeof window === 'undefined' ? null : window.sessionStorage.getItem(SESSION_TOKEN_KEY);
     return await SecureStore.getItemAsync(SESSION_TOKEN_KEY);
   } catch {
     return null;
@@ -31,6 +33,14 @@ async function readSecureToken() {
 
 async function writeSecureToken(token: string | null) {
   try {
+    // Keep browser credentials only for this tab session; native uses SecureStore.
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        if (token) window.sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+        else window.sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      }
+      return;
+    }
     if (!token) {
       await SecureStore.deleteItemAsync(SESSION_TOKEN_KEY);
       return;
@@ -43,7 +53,7 @@ async function writeSecureToken(token: string | null) {
 
 async function loadSessionMeta() {
   const meta = await readLocalJson<Omit<SessionData, 'token'>>(SESSION_DRAFT_KEY);
-  if (meta) return meta;
+  if (meta || Platform.OS === 'web') return meta;
 
   const legacyRaw = await SecureStore.getItemAsync(LEGACY_SESSION_KEY);
   if (!legacyRaw) return null;

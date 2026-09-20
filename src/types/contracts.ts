@@ -74,6 +74,24 @@ export interface ResetPasswordPayload extends VerifyOtpPayload {
   newPassword: string;
 }
 
+export interface AccountDeletionWorkspace {
+  id: string;
+  name: string;
+  type?: string | null;
+  role?: string | null;
+  staffCount: number;
+  /** 'delete': the user is the only owner, so it goes with all its data. 'leave': only their access goes. */
+  outcome: 'delete' | 'leave';
+}
+
+export interface AccountDeletionPlan {
+  workspaces: AccountDeletionWorkspace[];
+}
+
+export interface DeleteAccountPayload {
+  password: string;
+}
+
 export interface ChangePasswordPayload {
   currentPassword: string;
   newPassword: string;
@@ -402,7 +420,7 @@ export type QuickExpenseUpdatePayload = Partial<QuickExpenseCreatePayload>;
 
 export interface BudgetCreatePayload {
   name: string;
-  scope: 'category' | 'total';
+  scope: 'category' | 'total' | 'savings';
   amount: number;
   period: 'weekly' | 'monthly' | 'yearly';
   categoryKey?: string | null;
@@ -522,6 +540,9 @@ export interface CoinSnapshotResponse {
 export interface CoinAwardResponse {
   awarded: number;
   duplicate?: boolean;
+  /** Set when the server refused the coin, e.g. 'overspending'. */
+  blocked?: 'overspending' | string;
+  message?: string;
   balance: number;
   event?: CoinHistoryItem;
 }

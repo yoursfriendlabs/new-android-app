@@ -58,6 +58,7 @@ export default function AppLayout() {
         <Stack.Screen name="invoice" options={{ presentation: 'modal' }} />
         <Stack.Screen name="print-preview" options={{ presentation: 'modal' }} />
         <Stack.Screen name="change-password" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="delete-account" />
         <Stack.Screen name="expense-categories" options={{ presentation: 'modal' }} />
         <Stack.Screen name="units" />
         <Stack.Screen name="notes" />

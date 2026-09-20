@@ -16,7 +16,8 @@ import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector'
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
-import { COIN_REWARDS, moneyClaimId } from '@/src/features/habits/lib/coins';
+import { BudgetImpactBanner } from '@/src/features/money/components/BudgetImpactBanner';
+import { moneyClaimId } from '@/src/features/habits/lib/coins';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import {
   buildWinMoment,
@@ -204,10 +205,11 @@ export function MoneyEntrySheet({
       const freshBadges = unlockedBadges(nextSnapshot, next).filter((badge) => !already.has(badge.id));
       await useHabitStore.getState().markBadges(freshBadges.map((badge) => badge.id));
       await useHabitStore.getState().noteBestStreak(next.best);
-      const coins = await useHabitStore.getState().awardCoins(COIN_REWARDS.moneyLog, {
+      // The server decides the coin: none while over a spending budget.
+      const { awarded: coins, blockedMessage } = await useHabitStore.getState().awardMoneyCoin({
         claimId: moneyClaimId(moneySourceId),
-        reason: 'money',
         label: isIncome ? 'Logged income' : 'Logged expense',
+        entrySynced: !queued.queued,
       });
       try {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -216,6 +218,7 @@ export function MoneyEntrySheet({
       }
 
       if (andContinue) {
+        if (blockedMessage) toast.error(blockedMessage);
         setForm((current) => ({
           ...current,
           amount: '',
@@ -231,6 +234,7 @@ export function MoneyEntrySheet({
             next,
             newBadges: freshBadges,
             coins,
+            coinNote: blockedMessage,
           }),
         );
         setForm(emptyForm(kind));
@@ -315,6 +319,12 @@ export function MoneyEntrySheet({
               autoFocus={compact}
             />
           </View>
+          <BudgetImpactBanner
+            kind={isIncome ? 'income' : 'expense'}
+            amount={amount}
+            category={form.category === 'Other' && customCategory.trim() ? customCategory.trim() : form.category}
+            date={form.date}
+          />
         </View>
 
         {/* Visual Category Grid */}

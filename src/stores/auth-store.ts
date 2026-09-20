@@ -72,6 +72,7 @@ interface AuthState {
   updateProfile: (payload: UpdateMePayload) => Promise<User>;
   updateSettings: (settings: BusinessSettings) => Promise<void>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
   clearPendingVerification: () => void;
   signOut: () => Promise<void>;
 }
@@ -632,6 +633,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   changePassword: async (payload) => {
     await authApi.changePassword(payload);
+  },
+  deleteAccount: async (password) => {
+    await authApi.deleteAccount({ password });
+    const { cancelAllReminderNotifications } = await import('@/src/features/habits/lib/interval-reminders');
+    await cancelAllReminderNotifications();
+    await get().signOut();
   },
   clearPendingVerification: () => set({ pendingVerification: null }),
   signOut: async () => {

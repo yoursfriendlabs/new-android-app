@@ -380,6 +380,7 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
       segment === 'salary-tab' ||
       segment === 'staff-salary' ||
       segment === 'change-password' ||
+      segment === 'delete-account' ||
       segment === 'more' ||
       segment === 'settings'
     );

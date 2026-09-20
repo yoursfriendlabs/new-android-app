@@ -102,6 +102,10 @@ export interface DashboardSummary {
   serviceTotal?: number;
   expenseTotal?: number;
   incomeTotal?: number;
+  /** Sales + services + other income for the range. Newer servers only. */
+  revenueTotal?: number;
+  /** Balance across active cash and bank accounts. Newer servers only. */
+  bankBalanceTotal?: number;
   toReceive?: number;
   toPay?: number;
   profitOrLoss?: number;
@@ -647,7 +651,8 @@ export interface QuickExpense {
   kind?: 'expense' | 'income' | string;
 }
 
-export type BudgetScope = 'category' | 'total';
+/** 'savings' is a goal to keep part of what comes in: saved = income - expenses. */
+export type BudgetScope = 'category' | 'total' | 'savings';
 export type BudgetPeriod = 'weekly' | 'monthly' | 'yearly';
 export type BudgetStatus = 'ok' | 'warning' | 'over';
 
@@ -674,6 +679,12 @@ export interface Budget {
   pacePerDay?: number;
   projectedSpend?: number;
   projectedStatus?: 'ok' | 'over';
+  /** Saving goals only, all worked out by the server. */
+  income?: number;
+  saved?: number;
+  /** How much more can go out this period while still reaching the goal. */
+  spendRoom?: number;
+  reached?: boolean;
   [key: string]: unknown;
 }
 
@@ -688,6 +699,84 @@ export interface BudgetSummary {
   overCount: number;
   projectedOverCount: number;
   attention?: Budget | null;
+  savings?: { goalCount: number; reachedCount: number; behindCount: number };
+}
+
+/** One row of GET /api/reports/money-feed: a purchase, income, expense, sale or party payment. */
+export interface MoneyFeedItem {
+  id: string;
+  source: 'income' | 'expense' | 'purchase' | 'sale' | 'service' | 'party';
+  sourceId: string;
+  kind: 'in' | 'out';
+  date: string;
+  /** Bill total, or the paid amount when requested with amountBasis=paid. */
+  amount: number;
+  billAmount: number;
+  paidAmount: number;
+  category: string;
+  partyId?: string | null;
+  partyName?: string | null;
+  paymentMethod: string;
+  bankId?: string | null;
+  note: string;
+  invoiceNo?: string | null;
+}
+
+export interface MoneyFeedResponse {
+  items: MoneyFeedItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  totals: { in: number; out: number; net: number; count: number };
+  flow?: Array<{ date: string; income: number; expense: number }>;
+  flowTotals?: { income: number; expense: number };
+  categories?: Array<{ kind: 'in' | 'out'; category: string; total: number; count: number }>;
+  parties?: Array<{ party: Party; totalIn: number; totalOut: number; txCount: number }>;
+}
+
+/** Personal home money activity, all worked out by the server (GET /api/dashboard/activity). */
+export interface MoneyActivity {
+  range: { from: string; to: string };
+  flow: Array<{ date: string; income: number; expense: number }>;
+  flowTotals: { income: number; expense: number };
+  activityDates: string[];
+  counts: { incomeCount: number; expenseCount: number; partyTransactionCount: number };
+  partyBalances: {
+    receiveCount: number;
+    payCount: number;
+    topReceive: Party[];
+    topPay: Party[];
+  };
+  recentPurchases: Purchase[];
+  recentPartyTransactions: Array<PartyTransaction & { partyName?: string | null }>;
+}
+
+/** What one money entry would do to each budget it touches (GET /api/budgets/impact). */
+export interface BudgetImpactItem {
+  id: string;
+  name: string;
+  scope: BudgetScope;
+  period: BudgetPeriod;
+  amount: number;
+  categoryName?: string | null;
+  before: { spent?: number; saved?: number; status?: BudgetStatus; reached?: boolean };
+  after: {
+    spent?: number;
+    remaining?: number;
+    status?: BudgetStatus;
+    saved?: number;
+    reached?: boolean;
+    shortBy?: number;
+    spendRoom?: number;
+  };
+}
+
+export interface BudgetImpact {
+  kind: 'income' | 'expense';
+  amount: number;
+  items: BudgetImpactItem[];
+  overspending: boolean;
+  coinEligible: boolean;
 }
 
 export interface TaskAssignment {

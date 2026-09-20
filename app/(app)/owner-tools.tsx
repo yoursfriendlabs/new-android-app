@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { orderAttributesApi, staffApi, subscriptionApi } from '@/src/api';
@@ -329,7 +329,7 @@ export default function OwnerToolsScreen() {
           })()}
         </SurfaceCard>
 
-        <SurfaceCard title="Payment setup" subtitle="Reference details returned by the backend for subscription payments.">
+        {Platform.OS !== 'android' ? <SurfaceCard title="Payment setup" subtitle="Reference details returned by the backend for subscription payments.">
           <Text style={styles.helperText}>
             {[
               paymentSetup?.contactName,
@@ -342,7 +342,7 @@ export default function OwnerToolsScreen() {
               .join('  •  ') || 'No payment setup details returned yet.'}
           </Text>
           {paymentSetup?.paymentInstructions ? <Text style={styles.helperText}>{String(paymentSetup.paymentInstructions)}</Text> : null}
-        </SurfaceCard>
+        </SurfaceCard> : null}
 
         <SurfaceCard title="Staff" subtitle="Owner-only staff accounts with role and quick status control.">
           <View style={styles.list}>

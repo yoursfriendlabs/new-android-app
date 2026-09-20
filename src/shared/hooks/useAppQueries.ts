@@ -168,11 +168,13 @@ function todayRange() {
   return { from: today, to: today };
 }
 
-export function useDashboardSummary(initialRange?: { from: string; to: string }) {
+export function useDashboardSummary(initialRange?: { from: string; to: string }, enabled = true) {
   const range = initialRange || todayRange();
+  const businessId = useAuthStore((state) => state.session?.businessId);
 
   return useQuery<DashboardSummary>({
-    queryKey: ['dashboard-summary', range.from, range.to],
+    queryKey: ['dashboard-summary', businessId, range.from, range.to],
+    enabled: enabled && Boolean(businessId),
     queryFn: async () => normalizeDashboardSummary(await metaApi.dashboardSummary(range)),
     staleTime: 60_000,
     retry: 1,
@@ -429,7 +431,10 @@ export function invalidatePartyQueries(queryClient: QueryClient, partyIds: strin
     queryClient.invalidateQueries({ queryKey: ['party-report'] }),
     // To-receive / to-pay totals and bank balances follow party balances.
     queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
     queryClient.invalidateQueries({ queryKey: ['party-transactions'] }),
+    queryClient.invalidateQueries({ queryKey: ['money-feed'] }),
+    queryClient.invalidateQueries({ queryKey: ['ledger'] }),
     queryClient.invalidateQueries({ queryKey: ['banks'] }),
   ];
 
@@ -453,6 +458,9 @@ export function invalidateMoneyQueries(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: ['analytics-expenses'] }),
     queryClient.invalidateQueries({ queryKey: ['budgets'] }),
     queryClient.invalidateQueries({ queryKey: ['budget-summary'] }),
+    queryClient.invalidateQueries({ queryKey: ['budget-impact'] }),
+    queryClient.invalidateQueries({ queryKey: ['money-feed'] }),
+    queryClient.invalidateQueries({ queryKey: ['ledger'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
     queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] }),
     // Money paid or received by bank moves that bank's balance.

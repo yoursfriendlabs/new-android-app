@@ -11,6 +11,7 @@ import {
   mapCoinSnapshot,
   pushCoinAward,
   pushCoinRedeem,
+  requestMoneyCoin,
 } from '@/src/features/habits/lib/coin-sync';
 import {
   DAILY_MONEY_REMINDER_COPY,
@@ -80,6 +81,8 @@ interface HabitState extends PersistedHabits, PersistedRewards, PersistedCoinboo
   markBadges: (ids: string[]) => Promise<void>;
   noteBestStreak: (value: number) => Promise<void>;
   awardCoins: (amount: number, options?: { claimId?: string; reason?: CoinReason; label?: string }) => Promise<number>;
+  /** Money-log coin, decided by the server. `blockedMessage` is set when it refused. */
+  awardMoneyCoin: (options: { claimId: string; label: string; entrySynced: boolean }) => Promise<{ awarded: number; blockedMessage?: string }>;
   spendCoins: (amount: number, label: string, itemId: string) => Promise<{ ok: boolean; remaining: number }>;
   upsertIntervalHabit: (habit: IntervalHabit) => Promise<IntervalHabit>;
   setIntervalEnabled: (id: string, enabled: boolean) => Promise<void>;
@@ -329,6 +332,28 @@ export const useHabitStore = create<HabitState>((set, get) => ({
       label: options?.label,
     }).catch(() => undefined);
     return value;
+  },
+  awardMoneyCoin: async ({ claimId, entrySynced, label }) => {
+    if (get().claimedRewardIds.includes(claimId)) return { awarded: 0 };
+    if (!entrySynced) return { awarded: 0, blockedMessage: 'Entry saved offline. Coins need a server budget check.' };
+    const response = await requestMoneyCoin({ claimId, label });
+    if (!response) {
+      return { awarded: 0, blockedMessage: 'Entry saved. Coin eligibility could not be checked; no coins were added.' };
+    }
+    if (response.blocked) {
+      return { awarded: 0, blockedMessage: response.message || 'You are overspending, so this entry does not earn a coin.' };
+    }
+
+    const awarded = Math.max(0, Math.round(Number(response.awarded) || 0));
+    const coins = Math.max(0, Math.round(Number(response.balance) || 0));
+    const claimedRewardIds = [...get().claimedRewardIds, claimId].slice(-48);
+    const history = awarded
+      ? [newCoinEvent({ amount: awarded, reason: 'money', label, claimId }), ...get().history].slice(0, 80)
+      : get().history;
+    await persistRewards({ ...get(), coins, claimedRewardIds });
+    await persistCoinbook({ ...get(), history });
+    set({ coins, claimedRewardIds, history });
+    return { awarded };
   },
   spendCoins: async (amount, label, itemId) => {
     const cost = Math.max(0, Math.round(amount));

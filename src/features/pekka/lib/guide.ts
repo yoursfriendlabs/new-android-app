@@ -49,5 +49,11 @@ export const PEKKA_GUIDE: PekkaGuideTopic[] = [
 ];
 
 export function guideForWorkspace(isPersonal: boolean): PekkaGuideTopic[] {
-  return PEKKA_GUIDE.filter((topic) => (isPersonal ? topic.scope === 'all' : true));
+  if (!isPersonal) return PEKKA_GUIDE;
+  return [
+    PEKKA_GUIDE[2],
+    { id: 'contacts', titleKey: 'pekka.guide.contacts.title', bodyKey: 'pekka.guide.contacts.body', icon: 'account-group', route: '/(app)/(tabs)/parties', scope: 'all' },
+    { id: 'budgets', titleKey: 'pekka.guide.budgets.title', bodyKey: 'pekka.guide.budgets.body', icon: 'piggy-bank-outline', route: '/(app)/budgets', scope: 'all' },
+    { id: 'notes', titleKey: 'pekka.guide.notes.title', bodyKey: 'pekka.guide.notes.body', icon: 'notebook-outline', route: '/(app)/notes', scope: 'all' },
+  ];
 }

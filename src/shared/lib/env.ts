@@ -27,7 +27,7 @@ function getApiBaseUrlError(value: string) {
   }
 }
 
-const DEFAULT_API_BASE_URL = 'https://api-dev.yoursfriend.com';
+const DEFAULT_API_BASE_URL = 'https://api.yoursfriend.com';
 const rawApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_API_BASE_URL;
 const apiBaseUrl = normalizeApiBaseUrl(rawApiBaseUrl);
 

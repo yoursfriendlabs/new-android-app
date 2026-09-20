@@ -138,6 +138,19 @@ export async function pushCoinAward(input: { claimId?: string; reason?: CoinReas
   }
 }
 
+/**
+ * Asks the server for a money-log coin and waits for its answer, because the
+ * server may refuse it (over a spending budget). Returns null when the server
+ * can't be reached. Never grant unverified money coins locally.
+ */
+export async function requestMoneyCoin(input: { claimId: string; label: string }) {
+  try {
+    return await coinsApi.award({ claimId: input.claimId, reason: 'money', label: input.label });
+  } catch {
+    return null;
+  }
+}
+
 export async function pushCoinRedeem(itemId: string) {
   try {
     return await submitWithOfflineQueue({

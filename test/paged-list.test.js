@@ -38,3 +38,12 @@ test('fetchAllPages walks every page for exports', async () => {
   assert.equal(all.length, 230);
   assert.deepEqual(calls, [0, 100, 200]);
 });
+
+test('exports refuse to silently truncate large ledgers', async () => {
+  await assert.rejects(fetchAllPages(async () => ({ items: rows(0, 100), total: 5001 })), /shorter date range/);
+});
+
+test('exactly the export limit is complete', async () => {
+  const all = await fetchAllPages(async ({ limit, offset }) => ({ items: rows(offset, limit), total: 200 }), { pageSize: 100, maxRows: 200 });
+  assert.equal(all.length, 200);
+});

@@ -38,6 +38,7 @@ type NotificationsModule = {
   getPermissionsAsync: () => Promise<{ granted?: boolean; ios?: { status?: number } }>;
   requestPermissionsAsync: () => Promise<{ granted?: boolean; ios?: { status?: number } }>;
   cancelScheduledNotificationAsync: (id: string) => Promise<unknown>;
+  cancelAllScheduledNotificationsAsync: () => Promise<void>;
   scheduleNotificationAsync: (options: Record<string, unknown>) => Promise<string>;
 };
 
@@ -95,6 +96,17 @@ export async function requestReminderPermission() {
     return Boolean(next.granted || next.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
   } catch {
     return false;
+  }
+}
+
+/** Clears every reminder on this phone, e.g. after the account is deleted. */
+export async function cancelAllReminderNotifications() {
+  const Notifications = notifications();
+  if (!Notifications) return;
+  try {
+    await Notifications.cancelAllScheduledNotificationsAsync();
+  } catch {
+    // Native module may be missing until a rebuild.
   }
 }
 
