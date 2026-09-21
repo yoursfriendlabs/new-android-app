@@ -150,6 +150,8 @@ export const ne: TranslationDictionary = {
     personalModeDesc: 'व्यक्तिगत खर्च, आम्दानी र हिसाबकिताब राख्नुहोस्',
     businessMode: 'व्यावसायिक मोड',
     businessModeDesc: 'पसल व्यवस्थापन, बिलिङ, मौज्दात, कर्मचारी र खाता',
+    continueWithGoogle: 'Google बाट जारी राख्नुहोस्',
+    orUseEmail: 'वा इमेल प्रयोग गर्नुहोस्',
   },
   home: {
     welcome: 'नमस्ते',

@@ -49,15 +49,20 @@ export function getLoginError(email: string, password: string) {
   return '';
 }
 
-export function getRegisterAccountError(form: {
+export function getSignupEmailError(email: string) {
+  if (!normalizeEmail(email)) return 'Enter your email address.';
+  if (!isValidEmail(email)) return 'Enter a valid email address.';
+  return '';
+}
+
+/** The details step, after the email is verified. */
+export function getSignupDetailsError(form: {
   name: string;
-  email: string;
   phone: string;
   password: string;
   confirmPassword: string;
 }) {
   if (form.name.trim().length < 2) return 'Enter your full name.';
-  if (!isValidEmail(form.email)) return 'Enter a valid email address.';
   if (digitsOnly(form.phone).length < PHONE_MIN_DIGITS) {
     return `Phone number needs at least ${PHONE_MIN_DIGITS} digits.`;
   }
@@ -87,6 +92,10 @@ export function resolveAuthMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) return fallback;
   if (/email already in use/i.test(message)) return 'This email already has an account. Sign in or reset your password.';
+  if (/uses google sign-in/i.test(message)) return 'This account signs in with Google. Tap Continue with Google.';
+  if (/linked to a different google account/i.test(message)) {
+    return 'This email is linked to a different Google account. Pick that account, or sign in with your password.';
+  }
   if (/invalid credentials|incorrect password|invalid email or password/i.test(message)) {
     return 'Email or password is incorrect.';
   }

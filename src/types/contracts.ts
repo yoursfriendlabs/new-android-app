@@ -37,10 +37,38 @@ import type {
 export interface RegisterPayload {
   name: string;
   email: string;
-  phone: string;
-  password: string;
+  phone?: string;
+  /** Not needed when signing up with Google. */
+  password?: string;
   businessName: string;
   businessType: string;
+  /** From verifying the sign-up code or from Google; the account is created already verified. */
+  signupToken?: string;
+}
+
+export interface SignupCodeResponse {
+  message?: string;
+  retryAfterSeconds?: number;
+  devCode?: string;
+}
+
+export interface SignupVerifyResponse {
+  verified: boolean;
+  email: string;
+  signupToken: string;
+}
+
+export interface GoogleSignInPayload {
+  idToken: string;
+}
+
+export interface GoogleSignInResponse extends AuthResponseShape {
+  /** A new Google account: finish with register() and this signupToken. */
+  needsSignup?: boolean;
+  signupToken?: string;
+  email?: string;
+  name?: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateBusinessPayload {
@@ -89,11 +117,14 @@ export interface AccountDeletionPlan {
 }
 
 export interface DeleteAccountPayload {
-  password: string;
+  password?: string;
+  /** Accounts without a password (Google sign-up) type DELETE instead. */
+  confirm?: string;
 }
 
 export interface ChangePasswordPayload {
-  currentPassword: string;
+  /** Left out when a Google account sets its first password. */
+  currentPassword?: string;
   newPassword: string;
 }
 

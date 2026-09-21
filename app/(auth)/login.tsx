@@ -1,9 +1,17 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AuthButton, AuthFooterLink, AuthInlineLink, AuthNotice } from '@/src/features/auth/components/AuthControls';
+import {
+  AuthButton,
+  AuthDivider,
+  AuthFooterLink,
+  AuthInlineLink,
+  AuthNotice,
+} from '@/src/features/auth/components/AuthControls';
 import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
+import { GoogleSignInButton } from '@/src/features/auth/components/GoogleSignInButton';
+import { isGoogleSignInAvailable } from '@/src/features/auth/lib/google';
 import { FormField } from '@/src/shared/forms/FormField';
 import { getLoginError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -12,7 +20,9 @@ import { useTranslation } from '@/src/i18n';
 export default function LoginScreen() {
   const { t } = useTranslation();
   const login = useAuthStore((state) => state.login);
-  const [email, setEmail] = useState('');
+  // Sign-up sends people here with their email when it already has an account.
+  const params = useLocalSearchParams<{ email?: string }>();
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +59,13 @@ export default function LoginScreen() {
         />
       }>
       {error ? <AuthNotice tone="error" message={error} /> : null}
+
+      <GoogleSignInButton
+        disabled={submitting}
+        onError={setError}
+        onNeedsSignup={() => router.push('/(auth)/register')}
+      />
+      {isGoogleSignInAvailable() ? <AuthDivider label={t('auth.orUseEmail')} /> : null}
 
       <FormField
         label={t('auth.email')}
