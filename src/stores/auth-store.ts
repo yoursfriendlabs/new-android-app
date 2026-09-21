@@ -28,6 +28,7 @@ import type {
   CreateBusinessPayload,
   LoginPayload,
   RegisterPayload,
+  SignupCodeResponse,
   UpdateMePayload,
   VerifyOtpPayload,
 } from '@/src/types/contracts';
@@ -49,6 +50,12 @@ interface PendingVerificationState {
   email: string;
 }
 
+/** An email already checked by its sign-up code, waiting for the sign-up details. */
+export interface PendingSignupState {
+  email: string;
+  signupToken: string;
+}
+
 interface AuthState {
   status: AuthStatus;
   session: SessionData | null;
@@ -60,8 +67,12 @@ interface AuthState {
   businesses: WorkspaceMembership[];
   canCreateBusiness: boolean;
   pendingVerification: PendingVerificationState | null;
+  pendingSignup: PendingSignupState | null;
   bootstrap: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<AuthActionResult>;
+  requestSignupCode: (email: string) => Promise<SignupCodeResponse>;
+  verifySignupCode: (payload: VerifyOtpPayload) => Promise<void>;
+  clearPendingSignup: () => void;
   register: (payload: RegisterPayload) => Promise<AuthActionResult>;
   requestEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (payload: VerifyOtpPayload) => Promise<AuthActionResult>;
@@ -255,6 +266,21 @@ async function persistResolvedState(parsed: ParsedAuthResponse) {
   }
 }
 
+function signedInState(parsed: ParsedAuthResponse): Partial<AuthState> {
+  return {
+    status: 'signed-in',
+    session: parsed.session,
+    user: parsed.user,
+    businessProfile: parsed.businessProfile,
+    subscription: parsed.subscription,
+    accessControl: parsed.accessControl,
+    businesses: parsed.businesses,
+    canCreateBusiness: parsed.canCreateBusiness,
+    pendingVerification: null,
+    pendingSignup: null,
+  };
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'booting',
   session: null,
@@ -266,6 +292,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   businesses: [],
   canCreateBusiness: false,
   pendingVerification: null,
+  pendingSignup: null,
   bootstrap: async () => {
     let session: SessionData | null = null;
     let businessProfile: BusinessProfile | null = null;
@@ -383,20 +410,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     await persistResolvedState(parsed);
-    set({
-      status: 'signed-in',
-      session: parsed.session,
-      user: parsed.user,
-      businessProfile: parsed.businessProfile,
-      subscription: parsed.subscription,
-      accessControl: parsed.accessControl,
-      businesses: parsed.businesses,
-      canCreateBusiness: parsed.canCreateBusiness,
-      pendingVerification: null,
-    });
+    set(signedInState(parsed));
     await get().hydrateRemoteData({ refreshSession: false });
     return 'signed-in';
   },
+  requestSignupCode: async (email) => {
+    return authApi.requestSignupCode({ email: email.trim() });
+  },
+  verifySignupCode: async (payload) => {
+    const email = payload.email.trim();
+    const response = await authApi.verifySignupCode({ ...payload, email });
+    set({ pendingSignup: { email: response.email || email, signupToken: response.signupToken } });
+  },
+  clearPendingSignup: () => set({ pendingSignup: null }),
   register: async (payload) => {
     const email = payload.email.trim();
     const cleanPayload = { ...payload, email };
@@ -410,22 +436,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         businesses: parsed.businesses,
         canCreateBusiness: parsed.canCreateBusiness,
         pendingVerification: { email: parsed.verificationEmail || email },
+        pendingSignup: null,
       });
       return 'verify-email';
     }
 
     await persistResolvedState(parsed);
-    set({
-      status: 'signed-in',
-      session: parsed.session,
-      user: parsed.user,
-      businessProfile: parsed.businessProfile,
-      subscription: parsed.subscription,
-      accessControl: parsed.accessControl,
-      businesses: parsed.businesses,
-      canCreateBusiness: parsed.canCreateBusiness,
-      pendingVerification: null,
-    });
+    set(signedInState(parsed));
     await get().hydrateRemoteData({ refreshSession: false });
     return 'signed-in';
   },
@@ -446,17 +463,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     await persistResolvedState(parsed);
-    set({
-      status: 'signed-in',
-      session: parsed.session,
-      user: parsed.user,
-      businessProfile: parsed.businessProfile,
-      subscription: parsed.subscription,
-      accessControl: parsed.accessControl,
-      businesses: parsed.businesses,
-      canCreateBusiness: parsed.canCreateBusiness,
-      pendingVerification: null,
-    });
+    set(signedInState(parsed));
     await get().hydrateRemoteData({ refreshSession: false });
     return 'signed-in';
   },
@@ -654,6 +661,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       businesses: [],
       canCreateBusiness: false,
       pendingVerification: null,
+      pendingSignup: null,
     });
   },
 }));

@@ -41,6 +41,20 @@ export interface RegisterPayload {
   password: string;
   businessName: string;
   businessType: string;
+  /** From verifying the sign-up code; the account is created already verified. */
+  signupToken?: string;
+}
+
+export interface SignupCodeResponse {
+  message?: string;
+  retryAfterSeconds?: number;
+  devCode?: string;
+}
+
+export interface SignupVerifyResponse {
+  verified: boolean;
+  email: string;
+  signupToken: string;
 }
 
 export interface CreateBusinessPayload {

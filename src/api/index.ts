@@ -42,6 +42,8 @@ import type {
   SaleCreatePayload,
   SaleStatsResponse,
   SaleUpdatePayload,
+  SignupCodeResponse,
+  SignupVerifyResponse,
   ServiceCreatePayload,
   ServiceStatsResponse,
   ServiceUpdatePayload,
@@ -123,6 +125,22 @@ export const authApi = {
     apiRequest<AuthResponseShape, RegisterPayload>({
       method: 'POST',
       path: '/api/auth/register',
+      auth: false,
+      businessScoped: false,
+      body: payload,
+    }),
+  requestSignupCode: (payload: OtpRequestPayload) =>
+    apiRequest<SignupCodeResponse, OtpRequestPayload>({
+      method: 'POST',
+      path: '/api/auth/signup/request-code',
+      auth: false,
+      businessScoped: false,
+      body: payload,
+    }),
+  verifySignupCode: (payload: VerifyOtpPayload) =>
+    apiRequest<SignupVerifyResponse, VerifyOtpPayload>({
+      method: 'POST',
+      path: '/api/auth/signup/verify-code',
       auth: false,
       businessScoped: false,
       body: payload,

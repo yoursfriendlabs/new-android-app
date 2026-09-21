@@ -49,15 +49,20 @@ export function getLoginError(email: string, password: string) {
   return '';
 }
 
-export function getRegisterAccountError(form: {
+export function getSignupEmailError(email: string) {
+  if (!normalizeEmail(email)) return 'Enter your email address.';
+  if (!isValidEmail(email)) return 'Enter a valid email address.';
+  return '';
+}
+
+/** The details step, after the email is verified. */
+export function getSignupDetailsError(form: {
   name: string;
-  email: string;
   phone: string;
   password: string;
   confirmPassword: string;
 }) {
   if (form.name.trim().length < 2) return 'Enter your full name.';
-  if (!isValidEmail(form.email)) return 'Enter a valid email address.';
   if (digitsOnly(form.phone).length < PHONE_MIN_DIGITS) {
     return `Phone number needs at least ${PHONE_MIN_DIGITS} digits.`;
   }

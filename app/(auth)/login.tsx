@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -12,7 +12,9 @@ import { useTranslation } from '@/src/i18n';
 export default function LoginScreen() {
   const { t } = useTranslation();
   const login = useAuthStore((state) => state.login);
-  const [email, setEmail] = useState('');
+  // Sign-up sends people here with their email when it already has an account.
+  const params = useLocalSearchParams<{ email?: string }>();
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
