@@ -24,6 +24,8 @@ export interface User {
   role?: string;
   permissions?: string[] | Record<string, string>;
   businessId?: string;
+  /** False for Google sign-ups that have not set a password yet. */
+  hasPassword?: boolean;
   [key: string]: unknown;
 }
 

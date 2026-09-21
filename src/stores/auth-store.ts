@@ -27,6 +27,7 @@ import { useHabitStore } from '@/src/stores/habit-store';
 import type {
   ChangePasswordPayload,
   CreateBusinessPayload,
+  DeleteAccountPayload,
   LoginPayload,
   RegisterPayload,
   SignupCodeResponse,
@@ -89,7 +90,7 @@ interface AuthState {
   updateProfile: (payload: UpdateMePayload) => Promise<User>;
   updateSettings: (settings: BusinessSettings) => Promise<void>;
   changePassword: (payload: ChangePasswordPayload) => Promise<void>;
-  deleteAccount: (password: string) => Promise<void>;
+  deleteAccount: (payload: DeleteAccountPayload) => Promise<void>;
   clearPendingVerification: () => void;
   signOut: () => Promise<void>;
 }
@@ -670,9 +671,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   changePassword: async (payload) => {
     await authApi.changePassword(payload);
+    // A Google account just set its first password; refresh so screens know.
+    if (get().user?.hasPassword === false) await get().hydrateRemoteData();
   },
-  deleteAccount: async (password) => {
-    await authApi.deleteAccount({ password });
+  deleteAccount: async (payload) => {
+    await authApi.deleteAccount(payload);
     const { cancelAllReminderNotifications } = await import('@/src/features/habits/lib/interval-reminders');
     await cancelAllReminderNotifications();
     await get().signOut();

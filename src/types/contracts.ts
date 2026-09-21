@@ -117,11 +117,14 @@ export interface AccountDeletionPlan {
 }
 
 export interface DeleteAccountPayload {
-  password: string;
+  password?: string;
+  /** Accounts without a password (Google sign-up) type DELETE instead. */
+  confirm?: string;
 }
 
 export interface ChangePasswordPayload {
-  currentPassword: string;
+  /** Left out when a Google account sets its first password. */
+  currentPassword?: string;
   newPassword: string;
 }
 

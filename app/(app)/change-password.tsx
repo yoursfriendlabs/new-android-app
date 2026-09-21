@@ -16,6 +16,8 @@ export default function ChangePasswordScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const changePassword = useAuthStore((state) => state.changePassword);
+  // Google sign-ups have no password yet, so they set one without the old one.
+  const hasPassword = useAuthStore((state) => state.user?.hasPassword !== false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -23,8 +25,8 @@ export default function ChangePasswordScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSave() {
-    if (!currentPassword || !newPassword) {
-      setMessage('Enter both the current and new password.');
+    if ((hasPassword && !currentPassword) || !newPassword) {
+      setMessage(hasPassword ? 'Enter both the current and new password.' : 'Enter a new password.');
       return;
     }
 
@@ -36,11 +38,11 @@ export default function ChangePasswordScreen() {
     try {
       setSubmitting(true);
       setMessage('');
-      await changePassword({ currentPassword, newPassword });
+      await changePassword(hasPassword ? { currentPassword, newPassword } : { newPassword });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setMessage('Password changed successfully.');
+      setMessage(hasPassword ? 'Password changed successfully.' : 'Password set successfully.');
     } catch (error) {
       if (isInvalidSessionError(error)) {
         return;
@@ -53,17 +55,23 @@ export default function ChangePasswordScreen() {
   }
 
   return (
-    <Screen topBarTitle="Change Password">
+    <Screen topBarTitle={hasPassword ? 'Change Password' : 'Set Password'}>
       <SurfaceCard
         title="Security update"
-        subtitle="Use the current password to confirm this change on the device.">
-        <FormField
-          label="Current password"
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+        subtitle={
+          hasPassword
+            ? 'Use the current password to confirm this change on the device.'
+            : 'You sign in with Google. Set a password to also sign in with your email.'
+        }>
+        {hasPassword ? (
+          <FormField
+            label="Current password"
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+            autoCapitalize="none"
+          />
+        ) : null}
         <FormField
           label="New password"
           value={newPassword}

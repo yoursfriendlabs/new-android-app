@@ -28,6 +28,8 @@ export function DeleteAccountScreen() {
   const confirm = useConfirm();
   const toast = useToast();
   const deleteAccount = useAuthStore((state) => state.deleteAccount);
+  // Google sign-ups have no password; typing DELETE is the whole check for them.
+  const needsPassword = useAuthStore((state) => state.user?.hasPassword !== false);
   const [password, setPassword] = useState('');
   const [typed, setTyped] = useState('');
   const [error, setError] = useState('');
@@ -39,11 +41,11 @@ export function DeleteAccountScreen() {
     staleTime: 0,
   });
   const workspaces = planQuery.data?.workspaces ?? [];
-  const canSubmit = password.length > 0 && typed.trim().toUpperCase() === CONFIRM_WORD && !deleting && planQuery.isSuccess && !planQuery.isFetching;
+  const canSubmit = (password.length > 0 || !needsPassword) && typed.trim().toUpperCase() === CONFIRM_WORD && !deleting && planQuery.isSuccess && !planQuery.isFetching;
 
   async function handleDelete() {
     if (!canSubmit) return;
-    if (!password) {
+    if (needsPassword && !password) {
       setError(t('deleteAccount.passwordRequired'));
       return;
     }
@@ -58,7 +60,7 @@ export function DeleteAccountScreen() {
     try {
       setDeleting(true);
       setError('');
-      await deleteAccount(password);
+      await deleteAccount(needsPassword ? { password } : { confirm: CONFIRM_WORD });
       toast.success(t('deleteAccount.done'));
       router.replace('/(auth)/login');
     } catch (err) {
@@ -115,18 +117,20 @@ export function DeleteAccountScreen() {
       </SurfaceCard>
 
       <SurfaceCard>
-        <FormField
-          label={t('deleteAccount.passwordLabel')}
-          value={password}
-          onChangeText={(value) => {
-            setPassword(value);
-            setError('');
-          }}
-          secureTextEntry
-          autoCapitalize="none"
-          autoComplete="current-password"
-          textContentType="password"
-        />
+        {needsPassword ? (
+          <FormField
+            label={t('deleteAccount.passwordLabel')}
+            value={password}
+            onChangeText={(value) => {
+              setPassword(value);
+              setError('');
+            }}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="current-password"
+            textContentType="password"
+          />
+        ) : null}
         <FormField
           label={t('deleteAccount.typeConfirm')}
           value={typed}
