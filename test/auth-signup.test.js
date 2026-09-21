@@ -28,7 +28,15 @@ test('getSignupDetailsError no longer needs the email', () => {
   assert.equal(getSignupDetailsError({ ...goodDetails, confirmPassword: 'Password124' }), 'Passwords do not match.');
 });
 
-test('resolveAuthMessage explains a taken email', () => {
+test('resolveAuthMessage explains Google-only accounts and linked emails', () => {
+  assert.equal(
+    resolveAuthMessage(new Error('This account uses Google sign-in'), 'x'),
+    'This account signs in with Google. Tap Continue with Google.',
+  );
+  assert.match(
+    resolveAuthMessage(new Error('This email is linked to a different Google account'), 'x'),
+    /different Google account/,
+  );
   assert.equal(
     resolveAuthMessage(new Error('Email already in use'), 'x'),
     'This email already has an account. Sign in or reset your password.',

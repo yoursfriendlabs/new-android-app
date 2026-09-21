@@ -48,6 +48,9 @@ console.log(`Using EXPO_PUBLIC_API_BASE_URL=${process.env.EXPO_PUBLIC_API_BASE_U
 if (/\bdev|localhost|127\.0\.0\.1/i.test(process.env.EXPO_PUBLIC_API_BASE_URL)) {
   console.log('Warning: EXPO_PUBLIC_API_BASE_URL looks like a development server. Set the production URL in .env.production before uploading to Play.');
 }
+if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
+  console.log('Warning: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is not set, so this build hides "Continue with Google".');
+}
 
 // Detect Java 17 Home
 let javaHome;

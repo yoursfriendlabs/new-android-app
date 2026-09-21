@@ -37,11 +37,12 @@ import type {
 export interface RegisterPayload {
   name: string;
   email: string;
-  phone: string;
-  password: string;
+  phone?: string;
+  /** Not needed when signing up with Google. */
+  password?: string;
   businessName: string;
   businessType: string;
-  /** From verifying the sign-up code; the account is created already verified. */
+  /** From verifying the sign-up code or from Google; the account is created already verified. */
   signupToken?: string;
 }
 
@@ -55,6 +56,19 @@ export interface SignupVerifyResponse {
   verified: boolean;
   email: string;
   signupToken: string;
+}
+
+export interface GoogleSignInPayload {
+  idToken: string;
+}
+
+export interface GoogleSignInResponse extends AuthResponseShape {
+  /** A new Google account: finish with register() and this signupToken. */
+  needsSignup?: boolean;
+  signupToken?: string;
+  email?: string;
+  name?: string;
+  avatarUrl?: string | null;
 }
 
 export interface CreateBusinessPayload {

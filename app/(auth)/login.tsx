@@ -2,8 +2,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AuthButton, AuthFooterLink, AuthInlineLink, AuthNotice } from '@/src/features/auth/components/AuthControls';
+import {
+  AuthButton,
+  AuthDivider,
+  AuthFooterLink,
+  AuthInlineLink,
+  AuthNotice,
+} from '@/src/features/auth/components/AuthControls';
 import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
+import { GoogleSignInButton } from '@/src/features/auth/components/GoogleSignInButton';
+import { isGoogleSignInAvailable } from '@/src/features/auth/lib/google';
 import { FormField } from '@/src/shared/forms/FormField';
 import { getLoginError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -51,6 +59,13 @@ export default function LoginScreen() {
         />
       }>
       {error ? <AuthNotice tone="error" message={error} /> : null}
+
+      <GoogleSignInButton
+        disabled={submitting}
+        onError={setError}
+        onNeedsSignup={() => router.push('/(auth)/register')}
+      />
+      {isGoogleSignInAvailable() ? <AuthDivider label={t('auth.orUseEmail')} /> : null}
 
       <FormField
         label={t('auth.email')}

@@ -148,6 +148,8 @@ export const en = {
     personalModeDesc: 'Manage personal expenses, income, habits & reminders',
     businessMode: 'Business Mode',
     businessModeDesc: 'Shop management, POS billing, inventory, staff & accounts',
+    continueWithGoogle: 'Continue with Google',
+    orUseEmail: 'or use email',
   },
   home: {
     welcome: 'Namaste',

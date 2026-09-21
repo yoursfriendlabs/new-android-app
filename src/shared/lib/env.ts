@@ -35,6 +35,8 @@ export const env = {
   rawApiBaseUrl,
   apiBaseUrl,
   apiBaseUrlError: getApiBaseUrlError(apiBaseUrl),
+  // Web client ID from Google Cloud. Empty hides "Continue with Google".
+  googleWebClientId: (process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '').trim(),
 };
 
 export function hasApiBaseUrl() {

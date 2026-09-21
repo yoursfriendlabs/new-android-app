@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/src/api/client';
 import {
   AuthButton,
+  AuthDivider,
   AuthFooterLink,
   AuthInlineLink,
   AuthNotice,
@@ -12,6 +13,7 @@ import {
   StepIndicator,
 } from '@/src/features/auth/components/AuthControls';
 import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
+import { GoogleSignInButton } from '@/src/features/auth/components/GoogleSignInButton';
 import { OtpInput } from '@/src/features/auth/components/OtpInput';
 import {
   AccountKindPicker,
@@ -30,6 +32,8 @@ import {
   PHONE_MIN_DIGITS,
   resolveAuthMessage,
 } from '@/src/features/auth/lib/auth';
+import { isGoogleSignInAvailable } from '@/src/features/auth/lib/google';
+import { useTranslation } from '@/src/i18n';
 import { FormField } from '@/src/shared/forms/FormField';
 import { useBusinessTypes } from '@/src/shared/hooks/useAppQueries';
 import { personalWorkspaceName } from '@/src/shared/lib/workspace';
@@ -38,11 +42,13 @@ import { usePalette } from '@/src/stores/theme-store';
 import { spacing, typography } from '@/src/theme';
 
 // Email first, so a taken email is caught before anyone fills in details.
+// Google skips straight to the last step.
 type Step = 'email' | 'code' | 'details' | 'workspace';
 const EMAIL_STEPS: Step[] = ['email', 'code', 'details', 'workspace'];
 
 export function RegisterScreen() {
   const colors = usePalette();
+  const { t } = useTranslation();
   const register = useAuthStore((state) => state.register);
   const requestSignupCode = useAuthStore((state) => state.requestSignupCode);
   const verifySignupCode = useAuthStore((state) => state.verifySignupCode);
@@ -51,8 +57,10 @@ export function RegisterScreen() {
   const { data: businessTypes } = useBusinessTypes();
   const options = useMemo(() => buildBusinessTypeOptions(businessTypes), [businessTypes]);
 
-  // Coming back after the email was already checked.
-  const [step, setStep] = useState<Step>(() => (pendingSignup ? 'details' : 'email'));
+  // Arriving from "Continue with Google" on the sign-in screen.
+  const [step, setStep] = useState<Step>(() =>
+    pendingSignup?.provider === 'google' ? 'workspace' : pendingSignup ? 'details' : 'email',
+  );
   const [email, setEmail] = useState(pendingSignup?.email ?? '');
   const [code, setCode] = useState('');
   const [form, setForm] = useState({
@@ -71,8 +79,9 @@ export function RegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
+  const isGoogle = pendingSignup?.provider === 'google';
   const verifiedEmail = pendingSignup?.email ?? normalizeEmail(email);
-  const displayName = form.name.trim();
+  const displayName = isGoogle ? pendingSignup?.name || verifiedEmail.split('@')[0] : form.name.trim();
   const selectedBusinessType = options.find((option) => option.value === form.businessType) ?? options[0];
   const isPersonal = form.accountKind === 'personal';
   const phoneHelper =
@@ -200,8 +209,8 @@ export function RegisterScreen() {
       const result = await register({
         name: displayName,
         email: pendingSignup.email,
-        phone: form.phone.trim(),
-        password: form.password,
+        phone: isGoogle ? undefined : form.phone.trim(),
+        password: isGoogle ? undefined : form.password,
         businessName: workspaceName,
         businessType: isPersonal ? 'personal' : selectedBusinessType?.apiValue || 'retail',
         signupToken: pendingSignup.signupToken,
@@ -245,8 +254,8 @@ export function RegisterScreen() {
       subtitle: isPersonal
         ? 'Keep money, people, and notes in one place.'
         : 'Name the business and pick the type that matches your shop.',
-      back: 'Your details',
-      onBack: () => goTo('details'),
+      back: isGoogle ? 'Use a different account' : 'Your details',
+      onBack: isGoogle ? startOver : () => goTo('details'),
     },
   };
   const copy = screenCopy[step];
@@ -266,7 +275,7 @@ export function RegisterScreen() {
           />
         ) : null
       }>
-      <StepIndicator step={EMAIL_STEPS.indexOf(step) + 1} total={EMAIL_STEPS.length} />
+      {isGoogle ? null : <StepIndicator step={EMAIL_STEPS.indexOf(step) + 1} total={EMAIL_STEPS.length} />}
       {error ? <AuthNotice tone="error" message={error} /> : null}
       {notice && !error ? <AuthNotice tone="success" message={notice} /> : null}
 
@@ -282,6 +291,8 @@ export function RegisterScreen() {
               <AuthInlineLink onPress={() => router.push('/(auth)/reset-password')}>Reset password</AuthInlineLink>
             </View>
           ) : null}
+          <GoogleSignInButton disabled={submitting} onError={setError} onNeedsSignup={() => goTo('workspace')} />
+          {isGoogleSignInAvailable() ? <AuthDivider label={t('auth.orUseEmail')} /> : null}
           <FormField
             label="Email"
             icon="email-outline"
@@ -394,6 +405,7 @@ export function RegisterScreen() {
 
       {step === 'workspace' ? (
         <>
+          {isGoogle ? <AuthNotice tone="success" message={`Signed in with Google as ${verifiedEmail}.`} /> : null}
           <AccountKindPicker value={form.accountKind} onChange={(accountKind) => update('accountKind', accountKind)} />
           <FormField
             label={isPersonal ? 'Space name' : 'Business name'}

@@ -10,6 +10,7 @@ import {
   unwrapEntity,
 } from '@/src/api/normalize';
 import { clearAllCacheRecords, clearAllLocalData, countQueuedMutations } from '@/src/data/database';
+import { getGoogleIdToken } from '@/src/features/auth/lib/google';
 import { hasAccessControlPayload, resolveStoredPermissions } from '@/src/features/staff/lib/access-control';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { firstNonEmptyId } from '@/src/shared/lib/workspace';
@@ -45,15 +46,19 @@ import type {
 
 type AuthStatus = 'booting' | 'signed-out' | 'signed-in';
 type AuthActionResult = 'signed-in' | 'verify-email';
+type GoogleSignInResult = 'signed-in' | 'needs-signup' | 'cancelled';
 
 interface PendingVerificationState {
   email: string;
 }
 
-/** An email already checked by its sign-up code, waiting for the sign-up details. */
+/** An email already checked (by code or by Google), waiting for the sign-up details. */
 export interface PendingSignupState {
+  provider: 'email' | 'google';
   email: string;
   signupToken: string;
+  /** The name Google gave us, so the form does not ask again. */
+  name?: string;
 }
 
 interface AuthState {
@@ -70,6 +75,7 @@ interface AuthState {
   pendingSignup: PendingSignupState | null;
   bootstrap: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<AuthActionResult>;
+  signInWithGoogle: () => Promise<GoogleSignInResult>;
   requestSignupCode: (email: string) => Promise<SignupCodeResponse>;
   verifySignupCode: (payload: VerifyOtpPayload) => Promise<void>;
   clearPendingSignup: () => void;
@@ -414,13 +420,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await get().hydrateRemoteData({ refreshSession: false });
     return 'signed-in';
   },
+  signInWithGoogle: async () => {
+    const idToken = await getGoogleIdToken();
+    if (!idToken) return 'cancelled';
+    const response = await authApi.googleSignIn({ idToken });
+
+    if (response.needsSignup && response.signupToken) {
+      set({
+        pendingSignup: {
+          provider: 'google',
+          email: String(response.email ?? ''),
+          name: String(response.name ?? ''),
+          signupToken: response.signupToken,
+        },
+      });
+      return 'needs-signup';
+    }
+
+    const parsed = parseAuthResponse(response, String(response.email ?? ''));
+    if (!parsed.session) throw new Error('Google sign-in failed. Please try again.');
+    await persistResolvedState(parsed);
+    set(signedInState(parsed));
+    await get().hydrateRemoteData({ refreshSession: false });
+    return 'signed-in';
+  },
   requestSignupCode: async (email) => {
     return authApi.requestSignupCode({ email: email.trim() });
   },
   verifySignupCode: async (payload) => {
     const email = payload.email.trim();
     const response = await authApi.verifySignupCode({ ...payload, email });
-    set({ pendingSignup: { email: response.email || email, signupToken: response.signupToken } });
+    set({ pendingSignup: { provider: 'email', email: response.email || email, signupToken: response.signupToken } });
   },
   clearPendingSignup: () => set({ pendingSignup: null }),
   register: async (payload) => {

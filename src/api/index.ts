@@ -12,6 +12,8 @@ import type {
   DeleteAccountPayload,
   CreateBusinessPayload,
   ExpenseAnalyticsResponse,
+  GoogleSignInPayload,
+  GoogleSignInResponse,
   InventorySummaryResponse,
   ListQuery,
   LoginPayload,
@@ -141,6 +143,14 @@ export const authApi = {
     apiRequest<SignupVerifyResponse, VerifyOtpPayload>({
       method: 'POST',
       path: '/api/auth/signup/verify-code',
+      auth: false,
+      businessScoped: false,
+      body: payload,
+    }),
+  googleSignIn: (payload: GoogleSignInPayload) =>
+    apiRequest<GoogleSignInResponse, GoogleSignInPayload>({
+      method: 'POST',
+      path: '/api/auth/google',
       auth: false,
       businessScoped: false,
       body: payload,

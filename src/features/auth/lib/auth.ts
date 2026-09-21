@@ -92,6 +92,10 @@ export function resolveAuthMessage(error: unknown, fallback: string) {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) return fallback;
   if (/email already in use/i.test(message)) return 'This email already has an account. Sign in or reset your password.';
+  if (/uses google sign-in/i.test(message)) return 'This account signs in with Google. Tap Continue with Google.';
+  if (/linked to a different google account/i.test(message)) {
+    return 'This email is linked to a different Google account. Pick that account, or sign in with your password.';
+  }
   if (/invalid credentials|incorrect password|invalid email or password/i.test(message)) {
     return 'Email or password is incorrect.';
   }

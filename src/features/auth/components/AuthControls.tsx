@@ -150,6 +150,18 @@ export function PasswordHints({ password }: { password: string }) {
   );
 }
 
+/** A thin line with a word in the middle, between Google and the email form. */
+export function AuthDivider({ label }: { label: string }) {
+  const colors = usePalette();
+  return (
+    <View style={styles.dividerRow}>
+      <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+      <Text style={[styles.dividerLabel, { color: colors.textSoft }]}>{label}</Text>
+      <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+    </View>
+  );
+}
+
 export function AuthInlineLink({ children, onPress }: { children: ReactNode; onPress: () => void }) {
   const colors = usePalette();
   return (
@@ -247,5 +259,20 @@ const styles = StyleSheet.create({
   inlineLink: {
     fontSize: typography.label,
     fontWeight: '700',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  dividerLabel: {
+    fontSize: typography.caption,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
 });
