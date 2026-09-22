@@ -15,6 +15,8 @@ test('how-to questions open the right screen', () => {
   assert.equal(helpId(shop('स्टक कसरी थप्ने?')), 'stock');
   assert.equal(helpId(shop('how do I change language')), 'settings');
   assert.equal(helpId(shop('how to delete my account')), 'deleteAccount');
+  assert.equal(helpId(shop('kasari kinne')), 'purchase');
+  assert.equal(helpId(shop('kasari bechne')), 'sale');
 });
 
 test('shop-only topics stay out of personal workspaces', () => {
@@ -39,4 +41,14 @@ test('lookups and narrow questions are left for the server', () => {
   assert.equal(shop('Ram ko baki kati cha'), null);
   assert.equal(shop('how much did I spend on tea'), null);
   assert.equal(shop(''), null);
+});
+
+test('unrelated words do not trigger feature instructions or totals', () => {
+  assert.equal(shop('how can I be kind'), null);
+  assert.equal(shop('where is Stockholm'), null);
+  assert.equal(shop('where is the billboard'), null);
+  assert.equal(shop('earnest question'), null);
+  assert.equal(helpId(shop('how do I start selling')), 'sale');
+  assert.equal(helpId(shop('how do I add products')), 'stock');
+  assert.equal(shop('my earnings today')?.id, 'income');
 });

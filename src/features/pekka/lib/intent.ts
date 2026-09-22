@@ -18,10 +18,10 @@ export interface PekkaHelpTopic {
 
 // Longer, more specific words win, so "sales history" beats "sale".
 export const PEKKA_HELP_TOPICS: PekkaHelpTopic[] = [
-  { id: 'sale', route: '/(app)/(tabs)/pos', scope: 'shop', keywords: ['sale', 'sell', 'bill', 'pos', 'counter', 'bech', 'bikri', 'बेच', 'बिक्री'] },
+  { id: 'sale', route: '/(app)/(tabs)/pos', scope: 'shop', keywords: ['sale', 'sell', 'bill', 'pos', 'counter', 'bech', 'bechne', 'bechna', 'bechnu', 'bikri', 'बेच', 'बिक्री'] },
   { id: 'salesHistory', route: '/(app)/sales', scope: 'shop', keywords: ['sales history', 'past sale', 'old sale', 'invoice', 'receipt', 'print', 'reprint', 'purano bill', 'बिल हेर', 'रसिद'] },
   { id: 'stock', route: '/(app)/(tabs)/inventory', scope: 'shop', keywords: ['product', 'item', 'stock', 'inventory', 'saman', 'maal', 'सामान', 'माल', 'स्टक'] },
-  { id: 'purchase', route: '/(app)/purchases', scope: 'shop', keywords: ['purchase', 'buy', 'bought', 'restock', 'kharid', 'kin', 'खरिद', 'किन'] },
+  { id: 'purchase', route: '/(app)/purchases', scope: 'shop', keywords: ['purchase', 'buy', 'bought', 'restock', 'kharid', 'kin', 'kinne', 'kinna', 'kinnu', 'kineko', 'खरिद', 'किन'] },
   { id: 'money', route: '/(app)/(tabs)/expenses', scope: 'all', keywords: ['expense', 'income', 'spend', 'spent', 'earn', 'kharcha', 'aamdani', 'amdani', 'खर्च', 'आम्दानी', 'कमाइ'] },
   { id: 'party', route: '/(app)/(tabs)/parties', scope: 'shop', keywords: ['customer', 'supplier', 'party', 'parties', 'contact', 'payment in', 'payment out', 'udhar', 'grahak', 'ग्राहक', 'उधार', 'पार्टी'] },
   { id: 'contacts', route: '/(app)/(tabs)/parties', scope: 'personal', keywords: ['contact', 'lend', 'lent', 'borrow', 'udhar', 'saapat', 'sapat', 'उधार', 'सापट', 'सम्पर्क'] },
@@ -79,8 +79,8 @@ export function normalizeQuestion(value: string): string {
 function hasWord(text: string, keyword: string): boolean {
   // Devanagari words bend at the end (खर्चको, बिक्रीमा), so match anywhere.
   if (/[^\x00-\x7F]/.test(keyword)) return text.includes(keyword);
-  // Latin: match at a word start so "sell" finds "selling" but "kin" skips "taking".
-  return new RegExp(`(^| )${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(text);
+  // Allow common endings ("selling"), but don't match "kin" in "kind" or "earn" in "earnest".
+  return new RegExp(`(^| )${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:s|es|ing|ed)?( |$)`).test(text);
 }
 
 function score(text: string, keywords: string[]): number {
