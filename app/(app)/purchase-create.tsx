@@ -20,7 +20,8 @@ import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { TotalsCard } from '@/src/shared/ui/TotalsCard';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
-import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { invalidateAfterBill, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
 import { useQueryClient } from '@tanstack/react-query';
@@ -101,19 +102,11 @@ export default function PurchaseCreateScreen() {
       computeSubTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
     [draft.value.items],
   );
-  const taxTotal = useMemo(
-    () =>
-      computeTaxTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
-    [draft.value.items],
-  );
-  const grandTotal = useMemo(
-    () =>
-      computeGrandTotal(
-        draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate })),
-        draft.value.discount,
-      ),
-    [draft.value.discount, draft.value.items],
-  );
+  const taxTotal = useMemo(() => {
+    if (draft.value.taxOverride !== undefined) return Math.max(draft.value.taxOverride, 0);
+    return computeTaxTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate })));
+  }, [draft.value.items, draft.value.taxOverride]);
+  const grandTotal = Math.round(Math.max(subTotal + taxTotal - draft.value.discount, 0) * 100) / 100;
 
   function updateLine(id: string, patch: Partial<DraftPurchaseLine>) {
     draft.setValue((current) => ({
@@ -309,7 +302,19 @@ export default function PurchaseCreateScreen() {
             onBankChange={(bankId) => draft.setValue((current) => ({ ...current, bankId }))}
           />
           <FormField label="Payment note" value={draft.value.paymentNote} onChangeText={(paymentNote) => draft.setValue((current) => ({ ...current, paymentNote }))} />
-          <FormField label="Discount" value={String(draft.value.discount)} onChangeText={(discount) => draft.setValue((current) => ({ ...current, discount: Number(discount || 0) }))} keyboardType="numeric" />
+          <PercentAmountField
+            label="Discount"
+            base={subTotal}
+            amount={draft.value.discount}
+            onChangeAmount={(discount) => draft.setValue((current) => ({ ...current, discount: discount ?? 0 }))}
+          />
+          <PercentAmountField
+            label="Tax"
+            base={Math.max(subTotal - draft.value.discount, 0)}
+            amount={taxTotal}
+            helperText={draft.value.taxOverride === undefined ? 'From item tax rates' : undefined}
+            onChangeAmount={(taxOverride) => draft.setValue((current) => ({ ...current, taxOverride }))}
+          />
           <TotalsCard
             subTotal={subTotal}
             taxTotal={taxTotal}

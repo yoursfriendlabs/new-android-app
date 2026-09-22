@@ -7,6 +7,7 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { getAttachmentLabel, isImageAttachment } from '@/src/shared/lib/uploads';
 import { partyInitials } from '@/src/features/parties/lib/party';
@@ -61,6 +62,9 @@ export function PosCheckoutSheet({
     value.fullyPaid && value.amountReceived <= 0 ? grandTotal : value.amountReceived;
   const changeAmount = Math.max(tendered - grandTotal, 0);
   const dueAmount = Math.max(grandTotal - tendered, 0);
+  // Tax is charged on what is left after the discount.
+  const taxableAmount = Math.max(subTotal - value.discount, 0);
+  const vatAmount = Math.round(taxableAmount * 0.13 * 100) / 100;
   const tenderOptions = useMemo(() => buildTenderOptions(grandTotal), [grandTotal]);
   const hasMoreDetails =
     value.discount > 0 ||
@@ -243,12 +247,11 @@ export function PosCheckoutSheet({
 
         {moreOpen || hasMoreDetails ? (
           <View style={styles.card}>
-            <FormField
+            <PercentAmountField
               label="Discount"
-              value={String(value.discount || '')}
-              onChangeText={(discount) => setValue((current) => ({ ...current, discount: Number(discount || 0) }))}
-              keyboardType="numeric"
-              placeholder="0"
+              base={subTotal}
+              amount={value.discount}
+              onChangeAmount={(discount) => setValue((current) => ({ ...current, discount: discount ?? 0 }))}
             />
             
             {/* Tax / VAT controls */}
@@ -281,20 +284,20 @@ export function PosCheckoutSheet({
                   style={[
                     styles.taxPresetChip,
                     value.taxOverride !== undefined &&
-                      Math.abs(value.taxOverride - Math.round(subTotal * 0.13 * 100) / 100) < 0.05 &&
+                      Math.abs(value.taxOverride - vatAmount) < 0.05 &&
                       styles.taxPresetChipActive,
                   ]}
                   onPress={() =>
                     setValue((current) => ({
                       ...current,
-                      taxOverride: Math.round(subTotal * 0.13 * 100) / 100,
+                      taxOverride: vatAmount,
                     }))
                   }>
                   <Text
                     style={[
                       styles.taxPresetLabel,
                       value.taxOverride !== undefined &&
-                        Math.abs(value.taxOverride - Math.round(subTotal * 0.13 * 100) / 100) < 0.05 &&
+                        Math.abs(value.taxOverride - vatAmount) < 0.05 &&
                         styles.taxPresetLabelActive,
                     ]}>
                     13% VAT
@@ -320,17 +323,11 @@ export function PosCheckoutSheet({
                   </Text>
                 </Pressable>
               </View>
-              <FormField
-                label="Custom Tax Amount (रू)"
-                value={String(value.taxOverride !== undefined ? value.taxOverride : '')}
-                onChangeText={(val) =>
-                  setValue((current) => ({
-                    ...current,
-                    taxOverride: val === '' ? undefined : Number(val || 0),
-                  }))
-                }
-                keyboardType="numeric"
-                placeholder="Enter custom tax amount"
+              <PercentAmountField
+                label="Tax"
+                base={taxableAmount}
+                amount={taxTotal}
+                onChangeAmount={(taxOverride) => setValue((current) => ({ ...current, taxOverride }))}
               />
             </View>
 

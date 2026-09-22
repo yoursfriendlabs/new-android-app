@@ -80,6 +80,8 @@ export interface PurchaseDraft {
   bankId?: string;
   paymentNote: string;
   discount: number;
+  /** Bill tax in money; undefined means use each item's tax rate. */
+  taxOverride?: number;
   items: DraftPurchaseLine[];
 }
 
@@ -105,6 +107,10 @@ export interface ServiceDraft {
   bankId?: string;
   paymentNote: string;
   receivedTotal: number;
+  /** Bill discount in money. */
+  discount?: number;
+  /** Bill tax in money; undefined means use each item's tax rate. */
+  taxOverride?: number;
   attributes: Record<string, string>;
   attachments: string[];
   items: DraftServiceLine[];

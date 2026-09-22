@@ -23,7 +23,7 @@ import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { buildServiceReceipt } from '@/src/shared/lib/receipt';
 import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
-import { computeGrandTotal, computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
+import { computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
 import {
   invalidateAfterBill,
   useBanks,
@@ -36,6 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { generateId } from '@/src/shared/lib/id';
+import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { calculateServicePayment } from '@/src/features/services/lib/payment';
 import { radius, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
@@ -60,6 +61,8 @@ function createEmptyServiceDraft(): ServiceDraft {
     bankId: undefined,
     paymentNote: '',
     receivedTotal: 0,
+    discount: 0,
+    taxOverride: undefined,
     attributes: {
       Device: '',
     },
@@ -160,16 +163,12 @@ export default function ServiceCreateScreen() {
       computeSubTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
     [draft.value.items],
   );
-  const taxTotal = useMemo(
-    () =>
-      computeTaxTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
-    [draft.value.items],
-  );
-  const grandTotal = useMemo(
-    () =>
-      computeGrandTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate }))),
-    [draft.value.items],
-  );
+  const discountTotal = Math.min(Math.max(Number(draft.value.discount ?? 0), 0), subTotal);
+  const taxTotal = useMemo(() => {
+    if (draft.value.taxOverride !== undefined) return Math.max(draft.value.taxOverride, 0);
+    return computeTaxTotal(draft.value.items.map((item) => ({ quantity: item.quantity, unitPrice: item.unitPrice, taxRate: item.taxRate })));
+  }, [draft.value.items, draft.value.taxOverride]);
+  const grandTotal = Math.round(Math.max(subTotal + taxTotal - discountTotal, 0) * 100) / 100;
   const payment = useMemo(
     () => calculateServicePayment(grandTotal, draft.value.receivedTotal),
     [draft.value.receivedTotal, grandTotal],
@@ -301,6 +300,7 @@ export default function ServiceCreateScreen() {
         partsTotal,
         subTotal,
         taxTotal,
+        discountTotal,
         grandTotal,
         receivedTotal: payment.receivedTotal,
         createdBy: undefined,
@@ -347,6 +347,7 @@ export default function ServiceCreateScreen() {
           partsTotal,
           subTotal,
           taxTotal,
+          discountTotal,
           grandTotal,
           receivedTotal: payment.receivedTotal,
           items: draft.value.items.map((item) => ({
@@ -766,6 +767,19 @@ export default function ServiceCreateScreen() {
 
       {stepIndex === 1 ? (
         <SurfaceCard title="Payment & Advance" subtitle="Record advance received or mark for payment on delivery.">
+          <PercentAmountField
+            label="Discount"
+            base={subTotal}
+            amount={discountTotal}
+            onChangeAmount={(discount) => draft.setValue((current) => ({ ...current, discount: discount ?? 0 }))}
+          />
+          <PercentAmountField
+            label="Tax"
+            base={Math.max(subTotal - discountTotal, 0)}
+            amount={taxTotal}
+            helperText={draft.value.taxOverride === undefined ? 'From item tax rates' : undefined}
+            onChangeAmount={(taxOverride) => draft.setValue((current) => ({ ...current, taxOverride }))}
+          />
           {/* Live Remaining Due Preview */}
           <View style={[styles.duePreviewBox, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
             <View style={{ flex: 1 }}>
@@ -889,6 +903,12 @@ export default function ServiceCreateScreen() {
               <Text style={styles.overviewLabel}>Products Subtotal</Text>
               <Text style={styles.overviewValue}>{formatCurrency(partsTotal)}</Text>
             </View>
+            {discountTotal > 0 && (
+              <View style={styles.overviewRow}>
+                <Text style={styles.overviewLabel}>Discount</Text>
+                <Text style={styles.overviewValue}>-{formatCurrency(discountTotal)}</Text>
+              </View>
+            )}
             {taxTotal > 0 && (
               <View style={styles.overviewRow}>
                 <Text style={styles.overviewLabel}>Tax / VAT</Text>
