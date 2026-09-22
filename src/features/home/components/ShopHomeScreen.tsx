@@ -99,8 +99,9 @@ export function ShopHomeScreen() {
   // already includes services, so services are not added again.
   const incomeTotal = Number(summary?.revenueTotal ?? Number(summary?.salesTotal ?? 0) + Number(summary?.incomeTotal ?? 0));
   const expenseTotal = Number(summary?.expenseTotal ?? 0);
-  const pendingReceivable = Number(summary?.pendingReceivable ?? 0);
-  const pendingPayable = Number(summary?.pendingPayable ?? 0);
+  // Same party balances the Parties screen shows, so the two always agree.
+  const toReceive = Number(summary?.toReceive ?? 0);
+  const toPay = Number(summary?.toPay ?? 0);
   const net = Number(summary?.profitOrLoss ?? 0);
   const cashBankTotal = Number(
     summary?.bankBalanceTotal
@@ -178,8 +179,7 @@ export function ShopHomeScreen() {
       value: incomeTotal,
       hint: periodLabel,
       tone: 'success' as const,
-      onPress: () =>
-        router.push(canAccessSegment(accessContext, 'pos') ? '/(app)/(tabs)/pos' : '/(app)/ledger'),
+      onPress: () => router.push('/(app)/ledger'),
     },
     {
       key: 'expense',
@@ -192,18 +192,18 @@ export function ShopHomeScreen() {
     {
       key: 'receive',
       label: t('parties.youWillGet'),
-      value: pendingReceivable,
+      value: toReceive,
       hint: t('nav.parties'),
       tone: 'neutral' as const,
-      onPress: () => router.push('/(app)/ledger'),
+      onPress: () => router.push('/(app)/(tabs)/parties'),
     },
     {
       key: 'give',
       label: t('parties.youWillGive'),
-      value: pendingPayable,
+      value: toPay,
       hint: t('nav.parties'),
       tone: 'neutral' as const,
-      onPress: () => router.push('/(app)/ledger'),
+      onPress: () => router.push('/(app)/(tabs)/parties'),
     },
     {
       key: 'balance',
