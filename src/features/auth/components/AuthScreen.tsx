@@ -1,11 +1,9 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import type { PropsWithChildren, ReactNode } from 'react';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -43,10 +41,11 @@ export function AuthScreen({
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <View style={[styles.glow, { backgroundColor: colors.accentMuted }]} pointerEvents="none" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
+      {/* Keeps the field being typed in above the keyboard, on Android's edge-to-edge screens too. */}
+      <KeyboardAwareScrollView
+          style={styles.flex}
+          bottomOffset={24}
           keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets={true}
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.scroll, centered && styles.scrollCentered]}>
@@ -74,8 +73,7 @@ export function AuthScreen({
             <View style={styles.body}>{children}</View>
             {footer ? <View style={styles.footer}>{footer}</View> : null}
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

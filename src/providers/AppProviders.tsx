@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import type { PropsWithChildren } from 'react';
 import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ConfirmProvider } from '@/src/shared/feedback/ConfirmProvider';
@@ -143,6 +144,8 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
+        {/* Tracks the keyboard for every screen and sheet (Android edge-to-edge needs it). */}
+        <KeyboardProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <BootstrapRuntime />
@@ -156,6 +159,7 @@ export function AppProviders({ children }: PropsWithChildren) {
             </ConfirmProvider>
           </ToastProvider>
         </QueryClientProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

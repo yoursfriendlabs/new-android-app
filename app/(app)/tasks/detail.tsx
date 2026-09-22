@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -180,9 +179,8 @@ function BusinessTaskDetailScreen() {
 
   return (
     <Screen scrollable={false} padded={false} topBarTitle={personal ? (kind === 'note' ? 'Note' : 'Reminder') : 'Task Detail'} topBarRight={topBarRight} topBarLeading="back">
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Screen already lifts this above the keyboard; a second avoiding view would double it on iOS. */}
+      <View style={styles.container}>
         
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -367,7 +365,7 @@ function BusinessTaskDetailScreen() {
           </View>
         </BottomSheet>
         <WinMoment win={win} onClose={() => setWin(null)} />
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

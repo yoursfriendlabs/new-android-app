@@ -1,11 +1,15 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { useSegments } from 'expo-router';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TopAppBar } from '@/src/shared/layout/TopAppBar';
 import { usePalette } from '@/src/stores/theme-store';
 import { layout, spacing } from '@/src/theme';
+
+/** Space kept between the field being typed in and the top of the keyboard. */
+export const KEYBOARD_GAP = 24;
 
 interface ScreenProps extends PropsWithChildren {
   header?: ReactNode;
@@ -54,13 +58,15 @@ export function Screen({
           right={topBarRight}
         />
       ) : null}
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior={scrollable ? undefined : Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/*
+        Android draws edge-to-edge, so the window no longer shrinks for the keyboard.
+        Shrink the content ourselves and keep the focused field in view, on both platforms.
+      */}
+      <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
         {scrollable ? (
-          <ScrollView
+          <KeyboardAwareScrollView
+            bottomOffset={KEYBOARD_GAP}
             keyboardShouldPersistTaps="handled"
-            automaticallyAdjustKeyboardInsets={true}
             keyboardDismissMode="interactive"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={[
@@ -70,7 +76,7 @@ export function Screen({
               { paddingBottom: Math.max(layout.stickyBarOffset, spacing.xxl + insets.bottom) },
             ]}>
             {content}
-          </ScrollView>
+          </KeyboardAwareScrollView>
         ) : (
           content
         )}

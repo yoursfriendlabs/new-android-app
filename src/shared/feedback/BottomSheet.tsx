@@ -1,5 +1,8 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+
+import { KEYBOARD_GAP } from '@/src/shared/layout/Screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -67,19 +70,17 @@ export function BottomSheet({
             </Pressable>
           </View>
 
-          <KeyboardAvoidingView
-            style={styles.body}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}>
-            <ScrollView
+          {/* The footer (Save buttons, Pekka's text box) rides up with the keyboard; the focused field scrolls into view. */}
+          <KeyboardAvoidingView style={styles.body} behavior="padding">
+            <KeyboardAwareScrollView
+              bottomOffset={KEYBOARD_GAP}
               bounces={false}
               keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets={true}
               showsVerticalScrollIndicator={false}
               style={tall ? styles.contentFill : undefined}
               contentContainerStyle={styles.contentGrow}>
               <View style={styles.contentInner}>{children}</View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
             {footer ? (
               <SafeAreaView edges={['bottom']} style={[styles.footerSafeArea, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
                 <View style={styles.footer}>{footer}</View>
