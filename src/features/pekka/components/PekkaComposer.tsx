@@ -5,7 +5,7 @@ import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
 import { useLanguageStore } from '@/src/stores/language-store';
 import { spacing, radius } from '@/src/theme';
-import { usePekkaVoice } from '../hooks/usePekkaVoice';
+import { usePekkaVoice, voiceInputAvailable } from '../hooks/usePekkaVoice';
 
 export function PekkaComposer({ value, onChange, onSend, onVoiceInput, open, busy }: {
   value: string; onChange: (value: string) => void; onSend: () => void;
@@ -17,6 +17,8 @@ export function PekkaComposer({ value, onChange, onSend, onVoiceInput, open, bus
   const { t } = useTranslation();
   const language = useLanguageStore((state) => state.language);
   const voice = usePekkaVoice(open && !busy, (text) => { onChange(text); onVoiceInput?.(); }, language === 'ne' ? 'ne-NP' : 'en-US');
+  // Expo Go and older builds have no speech module: offer typing only.
+  const canSpeak = voiceInputAvailable();
   return <View style={styles.wrap}>
     <View style={[styles.row, { borderColor: colors.border, backgroundColor: colors.backgroundAlt }]}>
       <TextInput
@@ -27,18 +29,18 @@ export function PekkaComposer({ value, onChange, onSend, onVoiceInput, open, bus
         style={[styles.input, { color: colors.text }]} editable={!busy}
         returnKeyType="send" onSubmitEditing={() => { if (value.trim() && !busy && !voice.listening && !voice.starting) onSend(); }}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel={t(voice.listening ? 'pekka.stopVoice' : 'pekka.startVoice')}
+      {canSpeak ? <Pressable accessibilityRole="button" accessibilityLabel={t(voice.listening ? 'pekka.stopVoice' : 'pekka.startVoice')}
         onPress={() => void voice.toggle()} disabled={busy || voice.starting} style={styles.button}>
         {voice.starting ? <ActivityIndicator color={colors.primary} /> : <MaterialCommunityIcons name={voice.listening ? 'stop-circle' : 'microphone'} size={24} color={voice.listening ? colors.danger : colors.primary} />}
-      </Pressable>
+      </Pressable> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={t('pekka.send')} onPress={onSend}
         disabled={busy || !value.trim() || voice.listening || voice.starting} style={[styles.button, { opacity: busy || !value.trim() || voice.listening || voice.starting ? 0.4 : 1 }]}>
         <MaterialCommunityIcons name="send" size={22} color={colors.primary} />
       </Pressable>
     </View>
-    <Text variant="caption" tone={voice.error ? 'danger' : 'muted'}>
+    {canSpeak ? <Text variant="caption" tone={voice.error ? 'danger' : 'muted'}>
       {voice.error ? t(voice.error === 'permission' ? 'pekka.voicePermission' : 'pekka.voiceUnavailable') : t(voice.listening ? 'pekka.listening' : 'pekka.voiceHint')}
-    </Text>
+    </Text> : null}
     {voice.alternatives.map((text) => <Pressable key={text} onPress={() => onChange(text)}>
       <Text variant="caption" color={colors.primary}>{text}</Text>
     </Pressable>)}

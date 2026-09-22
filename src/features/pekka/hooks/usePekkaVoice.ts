@@ -1,8 +1,21 @@
+import { requireOptionalNativeModule } from 'expo';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
 type SpeechModule = typeof ExpoSpeechRecognitionModule;
+
+/**
+ * Whether this build has the speech-recognition native module. Expo Go does
+ * not, and importing the package there throws, so check before loading it.
+ */
+export function voiceInputAvailable() {
+  try {
+    return Boolean(requireOptionalNativeModule('ExpoSpeechRecognition'));
+  } catch {
+    return false;
+  }
+}
 
 /** No microphone access or native-module loading until the user taps the mic. */
 export function usePekkaVoice(open: boolean, onTranscript: (text: string) => void, lang: string) {
@@ -36,6 +49,7 @@ export function usePekkaVoice(open: boolean, onTranscript: (text: string) => voi
   async function toggle() {
     if (active.current) { moduleRef.current?.stop(); return; }
     if (!open) return;
+    if (!voiceInputAvailable()) { setError('unavailable'); return; }
     cancel();
     const request = generation.current;
     active.current = true;
