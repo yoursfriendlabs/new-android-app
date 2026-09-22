@@ -24,7 +24,9 @@ import { usePekkaLift } from '@/src/features/pekka/hooks/usePekkaLift';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { useNotes } from '@/src/features/notes/hooks/useNoteQueries';
+import { usePagedNotes } from '@/src/features/notes/hooks/useNoteQueries';
+import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
+import { ListFooterLoader } from '@/src/shared/ui/ListFooterLoader';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import {
@@ -62,7 +64,11 @@ export function PersonalNotesInbox() {
   const [win, setWin] = useState<HabitWin | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data: notesData, isLoading, refetch, isFetching } = useNotes({ q: search });
+  const debouncedSearch = useDebouncedValue(search);
+  // Each tab asks the server for its own rows, so paging never hides older ones.
+  const tabFilter = tab === 'notes' ? { kind: 'note' as const } : tab === 'done' ? { status: 'done' as const } : { status: 'open' as const };
+  const notesQuery = usePagedNotes({ q: debouncedSearch.trim() || undefined, ...tabFilter });
+  const { isLoading, refetch } = notesQuery;
   // Pekka normally sits 74 from the bottom; lift it to clear the add button
   // (styles.fab: 56 tall, spacing.xl from the bottom) with a spacing.md gap.
   usePekkaLift(spacing.xl + 56 + spacing.md - 74);
@@ -73,7 +79,7 @@ export function PersonalNotesInbox() {
     }, [refetch]),
   );
 
-  const items = notesData?.items ?? [];
+  const items = notesQuery.items;
   const visible = useMemo(() => {
     return items.filter((note) => {
       const open = note.status !== 'done';
@@ -220,7 +226,10 @@ export function PersonalNotesInbox() {
         data={visible}
         keyExtractor={(item) => item.id}
         renderItem={renderTask}
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} />}
+        refreshControl={<RefreshControl refreshing={notesQuery.isRefreshing} onRefresh={() => void refetch()} />}
+        onEndReached={notesQuery.loadMore}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={<ListFooterLoader list={notesQuery} />}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>

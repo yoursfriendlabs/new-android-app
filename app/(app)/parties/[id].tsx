@@ -18,7 +18,8 @@ import { PartyTransactionSheet } from '@/src/features/parties/components/PartyTr
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
-import { usePartyById, usePartyStatement } from '@/src/shared/hooks/useAppQueries';
+import { fetchAllPartyStatementRows, usePartyById, usePartyStatement } from '@/src/shared/hooks/useAppQueries';
+import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { isCafeWorkspace, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { buildPartyStatementHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
@@ -103,15 +104,16 @@ export default function PartyDetailScreen() {
   const [exporting, setExporting] = useState(false);
 
   const party = useMemo<Party | null>(() => {
-    if (!partyQuery.data && !statementQuery.data?.party) return null;
+    if (!partyQuery.data && !statementQuery.party) return null;
     return {
       ...(partyQuery.data ?? {}),
-      ...(statementQuery.data?.party ?? {}),
+      ...(statementQuery.party ?? {}),
     } as Party;
-  }, [partyQuery.data, statementQuery.data?.party]);
+  }, [partyQuery.data, statementQuery.party]);
 
-  const summary = statementQuery.data?.summary;
-  const rows = statementQuery.data?.rows ?? [];
+  const summary = statementQuery.summary;
+  // Loaded so far; more arrive as the user scrolls. Exports fetch every entry.
+  const rows = statementQuery.items;
   const balanceMeta = getPartyBalanceMeta(party, summary?.currentAmount, personal);
   const toneColor = getBalanceColor(balanceMeta.tone, colors);
   const toneSoft = getBalanceSoftColor(balanceMeta.tone, colors);
@@ -159,12 +161,13 @@ export default function PartyDetailScreen() {
     if (!party) return;
     try {
       setExporting(true);
+      const allRows = await fetchAllPartyStatementRows(party.id);
       await shareHtmlAsPdf(
         buildPartyStatementHtml({
           businessName,
           party,
           currency,
-          rows,
+          rows: allRows,
           currentAmount: summary?.currentAmount ?? party.currentAmount,
         }),
         'Share party statement',
@@ -266,16 +269,18 @@ export default function PartyDetailScreen() {
     }
   };
 
-  const handlePreviewAllTransactions = () => {
-    if (!party) return;
-    const { input, html } = buildPartyStatementReceipt(
-      party,
-      rows,
-      summary,
-      businessProfile,
-      personal,
-    );
-    openReceiptPreview(router, input, html);
+  const handlePreviewAllTransactions = async () => {
+    if (!party || exporting) return;
+    try {
+      setExporting(true);
+      const allRows = await fetchAllPartyStatementRows(party.id);
+      const { input, html } = buildPartyStatementReceipt(party, allRows, summary, businessProfile, personal);
+      openReceiptPreview(router, input, html);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -318,9 +323,10 @@ export default function PartyDetailScreen() {
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
+        {...loadMoreOnScroll(statementQuery.loadMore)}
         refreshControl={
           <RefreshControl
-            refreshing={partyQuery.isRefetching || statementQuery.isRefetching}
+            refreshing={partyQuery.isRefetching || statementQuery.isRefreshing}
             onRefresh={() => void handleRefresh()}
           />
         }
@@ -480,6 +486,7 @@ export default function PartyDetailScreen() {
             })}
           </View>
         )}
+        <ListFooterLoader list={statementQuery} />
       </ScrollView>
 
       <PartyFormSheet

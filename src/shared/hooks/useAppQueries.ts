@@ -70,7 +70,7 @@ import {
   readQuickExpensesFromCache,
 } from '@/src/data/cache';
 import { todayIso } from '@/src/shared/lib/format';
-import { toPage, usePagedList } from '@/src/shared/hooks/usePagedList';
+import { fetchAllPages, toPage, usePagedList, type Page } from '@/src/shared/hooks/usePagedList';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import type {
   BankAccount,
@@ -88,6 +88,7 @@ import type {
   Party,
   PartyReportItem,
   PartyStatement,
+  PartyStatementRow,
   PartyTransaction,
   PopularCategoryInsight,
   Product,
@@ -798,16 +799,30 @@ export function useLedger(partyId?: string, range?: { from?: string; to?: string
   });
 }
 
+type StatementPage = Page<PartyStatementRow> & { statement: PartyStatement };
+
+async function fetchStatementPage(partyId: string, type: string | undefined, page: { limit: number; offset: number }) {
+  const statement = normalizePartyStatement(await reportsApi.partyStatement({ partyId, type, ...page }));
+  return { items: statement.rows, total: statement.summary.totalRows, statement };
+}
+
+/**
+ * A party's statement, 30 entries at a time as the user scrolls. The party and
+ * totals come from the first page; the server works them out over every entry.
+ */
 export function usePartyStatement(partyId?: string, type?: string) {
-  return useQuery<PartyStatement | null>({
+  const list = usePagedList<PartyStatementRow>({
     queryKey: ['party-statement', partyId ?? 'all', type ?? 'all'],
     enabled: Boolean(partyId),
-    queryFn: async () => {
-      if (!partyId) return null;
-      return normalizePartyStatement(await reportsApi.partyStatement({ partyId, limit: 80, type }));
-    },
-    staleTime: 30_000,
+    fetchPage: (page) => fetchStatementPage(partyId!, type, page),
   });
+  const first = (list.data?.pages[0] as StatementPage | undefined)?.statement;
+  return { ...list, party: first?.party ?? null, summary: first?.summary };
+}
+
+/** Every entry, for the shared PDF and bill preview, which must never be cut short. */
+export function fetchAllPartyStatementRows(partyId: string, type?: string) {
+  return fetchAllPages((page) => fetchStatementPage(partyId, type, page));
 }
 
 export function usePartyDetailReport(partyId?: string) {

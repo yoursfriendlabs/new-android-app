@@ -1,21 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notesApi } from '@/src/api';
-import { normalizeNote, extractListItems, normalizePaginated } from '@/src/api/normalize';
+import { normalizeNote } from '@/src/api/normalize';
+import { toPage, usePagedList } from '@/src/shared/hooks/usePagedList';
 import type { Note } from '@/src/types/models';
 import type { NoteCreatePayload, NoteUpdatePayload } from '@/src/types/contracts';
 
-export function useNotes(filters: Record<string, unknown> = {}) {
-  return useQuery({
-    queryKey: ['notes', filters],
-    queryFn: async () => {
-      try {
-        const response = await notesApi.list(filters);
-        const items = extractListItems<Note>(response).map(normalizeNote);
-        return normalizePaginated(response, items);
-      } catch {
-        return { items: [], total: 0 };
-      }
-    },
+/**
+ * Notes 30 at a time as the user scrolls, filtered on the server so every tab
+ * reaches its oldest entries. Shares the ['notes'] key, so saves refresh it.
+ */
+export function usePagedNotes(filters: { q?: string; kind?: 'note' | 'reminder'; status?: 'open' | 'done' } = {}) {
+  return usePagedList<Note>({
+    queryKey: ['notes', 'paged', filters],
+    fetchPage: async (page) => toPage<Note>(await notesApi.list({ ...filters, ...page }), (raw) => normalizeNote(raw)),
     staleTime: 10_000,
   });
 }
