@@ -24,6 +24,7 @@ import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties } from '@/src/shared/hooks/useAppQueries';
 import { useLedgerEntries, type PersonalBook } from '@/src/features/money/hooks/useLedgerEntries';
+import { isLedgerMoneyIn, ledgerEntryAmount, ledgerEntryDue, ledgerEntryTitle } from '@/src/features/money/lib/ledger';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { buildLedgerReportHtml, printHtmlDocument, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import { openReceiptPreview, type ReceiptInput } from '@/src/shared/lib/receipt';
@@ -157,9 +158,9 @@ export function LedgerScreen() {
       setExporting(false);
     }
     const lines = report.allEntries.map((entry) => {
-      const amount = Number(entry.credit || entry.debit || 0);
-      const direction = Number(entry.credit || 0) > 0 ? 'Credit' : 'Debit';
-      const desc = `${prettyDate(entry.entryDate)} · ${entry.refNo || entry.description || 'Entry'} (${direction})`;
+      const amount = ledgerEntryAmount(entry);
+      const direction = isLedgerMoneyIn(entry) ? 'In' : 'Out';
+      const desc = `${prettyDate(entry.entryDate)} · ${ledgerEntryTitle(entry)} (${direction})`;
       return {
         name: desc,
         quantity: 1,
@@ -402,28 +403,10 @@ export function LedgerScreen() {
         {/* Entries list */}
         <View style={styles.list}>
           {entries.map((entry) => {
-            const debit = Number(entry.debit || 0);
-            const credit = Number(entry.credit || 0);
-            const rawAmt = Number((entry as any).amount || (entry as any).grandTotal || (entry as any).total || 0);
-            const typeLower = String(entry.refType || '').toLowerCase();
-            const isExpenseOrOut =
-              typeLower.includes('expense') ||
-              typeLower.includes('purchase') ||
-              typeLower.includes('out') ||
-              typeLower.includes('give') ||
-              typeLower.includes('payment_out') ||
-              debit > credit;
-
-            const isIncomeOrIn =
-              typeLower.includes('income') ||
-              typeLower.includes('sale') ||
-              typeLower.includes('in') ||
-              typeLower.includes('receive') ||
-              typeLower.includes('payment_in') ||
-              credit > debit;
-
-            const isCredit = isIncomeOrIn || (!isExpenseOrOut && credit > 0);
-            const amount = credit > 0 ? credit : debit > 0 ? debit : rawAmt;
+            const isCredit = isLedgerMoneyIn(entry);
+            const amount = ledgerEntryAmount(entry);
+            const due = ledgerEntryDue(entry);
+            const note = String(entry.note || '').trim();
             const iconMeta = getEntryIcon(entry.refType || (isCredit ? 'payment_in' : 'payment_out'));
 
             const iconBg =
@@ -457,22 +440,28 @@ export function LedgerScreen() {
                 </View>
                 <View style={styles.copy}>
                   <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
-                    {entry.description || entry.refNo || 'Transaction'}
+                    {ledgerEntryTitle(entry)}
                   </Text>
-                  <Text style={[styles.meta, { color: colors.textMuted }]}>
-                    {[
-                      prettyDate(entry.entryDate),
-                      entry.partyName || (selectedParty ? undefined : ''),
-                      entry.refNo ? `#${entry.refNo}` : undefined,
-                    ]
+                  <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                    {[prettyDate(entry.entryDate), selectedParty ? undefined : entry.partyName]
                       .filter(Boolean)
                       .join('  ·  ')}
                   </Text>
+                  {note ? (
+                    <Text style={[styles.note, { color: colors.textSoft }]} numberOfLines={2}>
+                      {note}
+                    </Text>
+                  ) : null}
                 </View>
                 <View style={styles.side}>
                   <Text style={[styles.value, { color: isCredit ? colors.success : colors.danger }]}>
                     {isCredit ? '+' : '-'}{formatCurrency(amount, currency)}
                   </Text>
+                  {due > 0 ? (
+                    <Text style={[styles.runningBalance, { color: colors.warning }]}>
+                      Due {formatCurrency(due, currency)}
+                    </Text>
+                  ) : null}
                   {typeof entry.runningBalance === 'number' ? (
                     <Text style={[styles.runningBalance, { color: colors.textSoft }]}>
                       Bal {formatCurrency(entry.runningBalance, currency)}
@@ -676,6 +665,10 @@ const createStyles = (colors: AppPalette) =>
     },
     meta: {
       fontSize: typography.caption,
+    },
+    note: {
+      fontSize: typography.caption,
+      fontStyle: 'italic',
     },
     side: {
       alignItems: 'flex-end',

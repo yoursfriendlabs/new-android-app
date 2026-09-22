@@ -38,6 +38,8 @@ function feedItemToLedger(item: MoneyFeedItem): LedgerEntry {
     description: isParty
       ? item.note || (isIn ? 'To Receive' : 'To Pay')
       : [item.category, moneyRemarkFromNote(item.note)].filter(Boolean).join(' · '),
+    note: isParty ? item.note : moneyRemarkFromNote(item.note),
+    category: isParty ? undefined : item.category,
     debit: isIn ? 0 : item.amount,
     credit: isIn ? item.amount : 0,
     runningBalance: undefined,

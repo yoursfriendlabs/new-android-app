@@ -587,6 +587,12 @@ export interface LedgerEntry {
   refNo?: string;
   entryDate: string;
   description?: string;
+  /** Free-text note written on the bill or payment. */
+  note?: string;
+  /** Personal income/expense category. */
+  category?: string;
+  /** Full bill or payment amount; debit/credit only hold what is still due. */
+  amount?: number;
   debit?: number;
   credit?: number;
   runningBalance?: number;

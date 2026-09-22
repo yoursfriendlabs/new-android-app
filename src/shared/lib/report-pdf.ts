@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { getStatementRowTitle, getStatementTypeLabel, toAmount } from '@/src/features/parties/lib/party';
+import { ledgerEntryTitle } from '@/src/features/money/lib/ledger';
 import type { LedgerEntry, Party, PartyStatementRow, Purchase } from '@/src/types/models';
 
 export function escapeHtml(value: unknown) {
@@ -72,8 +73,8 @@ export function buildLedgerReportHtml(input: {
         <tr>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8;">${escapeHtml(prettyDate(entry.entryDate))}</td>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8;">
-            <strong>${escapeHtml(entry.refNo || entry.description || 'Entry')}</strong><br />
-            <span style="color:#6d6257;">${escapeHtml(entry.partyName || entry.description || entry.refType || '')}</span>
+            <strong>${escapeHtml(ledgerEntryTitle(entry))}</strong><br />
+            <span style="color:#6d6257;">${escapeHtml([entry.partyName, entry.note].filter(Boolean).join(' · '))}</span>
           </td>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(Number(entry.debit || 0), input.currency)}</td>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(Number(entry.credit || 0), input.currency)}</td>
