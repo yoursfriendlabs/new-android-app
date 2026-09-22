@@ -70,8 +70,8 @@ export function BottomSheet({
             </Pressable>
           </View>
 
-          {/* The footer (Save buttons, Pekka's text box) rides up with the keyboard; the focused field scrolls into view. */}
-          <KeyboardAvoidingView style={styles.body} behavior="padding">
+          {/* Screen coordinates include the sheet/header offset, keeping footer inputs above the keyboard. */}
+          <KeyboardAvoidingView style={styles.body} behavior="padding" automaticOffset>
             <KeyboardAwareScrollView
               bottomOffset={KEYBOARD_GAP}
               bounces={false}
