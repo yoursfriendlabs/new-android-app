@@ -81,8 +81,11 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
       address: form.address || undefined,
       type: form.type,
       avatarUrl: form.avatarUrl || null,
-      openingBalance: Number(form.openingBalance || 0),
-      balanceType: form.balanceType,
+      // New parties start at zero; what they owe is recorded afterwards with
+      // Record payment, so it shows up in the ledger with a date.
+      ...(isEditing
+        ? { openingBalance: Number(form.openingBalance || 0), balanceType: form.balanceType }
+        : {}),
     };
 
     try {
@@ -242,20 +245,24 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
           ]}
         />
       ) : null}
-      <FormField
-        label={personal ? 'Opening amount' : 'Opening balance'}
-        value={form.openingBalance}
-        onChangeText={(openingBalance) => setForm((current) => ({ ...current, openingBalance }))}
-        keyboardType="numeric"
-      />
-      <SegmentedTabs
-        value={form.balanceType as 'receive' | 'give'}
-        onChange={(balanceType) => setForm((current) => ({ ...current, balanceType }))}
-        options={[
-          { label: 'To Receive', value: 'receive' },
-          { label: 'To Pay', value: 'give' },
-        ]}
-      />
+      {isEditing ? (
+        <>
+          <FormField
+            label={personal ? 'Opening amount' : 'Opening balance'}
+            value={form.openingBalance}
+            onChangeText={(openingBalance) => setForm((current) => ({ ...current, openingBalance }))}
+            keyboardType="numeric"
+          />
+          <SegmentedTabs
+            value={form.balanceType as 'receive' | 'give'}
+            onChange={(balanceType) => setForm((current) => ({ ...current, balanceType }))}
+            options={[
+              { label: 'To Receive', value: 'receive' },
+              { label: 'To Pay', value: 'give' },
+            ]}
+          />
+        </>
+      ) : null}
     </BottomSheet>
     <DeviceContactSheet
       visible={phoneSheetVisible}
