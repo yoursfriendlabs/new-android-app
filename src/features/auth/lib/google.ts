@@ -62,6 +62,9 @@ export async function getGoogleIdToken(): Promise<string | null> {
         throw new Error('Google Play services is needed to sign in with Google.');
       }
     }
-    throw error;
+    // Google's own errors (e.g. DEVELOPER_ERROR when this build's signing key is
+    // not registered in Google Cloud) are meant for us, not for shop owners.
+    console.warn('Google sign-in failed', error);
+    throw new Error('Google sign-in is not working right now. Please use your email and password.');
   }
 }
