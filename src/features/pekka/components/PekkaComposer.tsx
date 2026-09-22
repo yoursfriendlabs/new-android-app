@@ -7,13 +7,16 @@ import { useLanguageStore } from '@/src/stores/language-store';
 import { spacing, radius } from '@/src/theme';
 import { usePekkaVoice } from '../hooks/usePekkaVoice';
 
-export function PekkaComposer({ value, onChange, onSend, open, busy }: {
-  value: string; onChange: (value: string) => void; onSend: () => void; open: boolean; busy: boolean;
+export function PekkaComposer({ value, onChange, onSend, onVoiceInput, open, busy }: {
+  value: string; onChange: (value: string) => void; onSend: () => void;
+  /** Called when the text came from the microphone, so Pekka can answer out loud. */
+  onVoiceInput?: () => void;
+  open: boolean; busy: boolean;
 }) {
   const colors = usePalette();
   const { t } = useTranslation();
   const language = useLanguageStore((state) => state.language);
-  const voice = usePekkaVoice(open && !busy, onChange, language === 'ne' ? 'ne-NP' : 'en-US');
+  const voice = usePekkaVoice(open && !busy, (text) => { onChange(text); onVoiceInput?.(); }, language === 'ne' ? 'ne-NP' : 'en-US');
   return <View style={styles.wrap}>
     <View style={[styles.row, { borderColor: colors.border, backgroundColor: colors.backgroundAlt }]}>
       <TextInput

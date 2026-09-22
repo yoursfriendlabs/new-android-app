@@ -2124,6 +2124,11 @@ expo-speech-recognition@~57.1.0:
   resolved "https://registry.npmjs.org/expo-speech-recognition/-/expo-speech-recognition-57.1.0.tgz"
   integrity sha512-eUiODNPb3CNeQB8Rzro79Dsf+dWzFNdyDRxzorfh2SNwXeCQkC5yh8goPNmCO+d1JyaYmV89F4jcGu52p3uW6w==
 
+expo-speech@~57.0.3:
+  version "57.0.3"
+  resolved "https://registry.npmjs.org/expo-speech/-/expo-speech-57.0.3.tgz"
+  integrity sha512-rcO8izKziksrV4X3qQ5g+prFNTZmLYDEGEVnTvuvpOZDwjzP9nsdoaFymhY+qj9AJfMcpvR7Wshm+zpislyJBg==
+
 expo-splash-screen@~57.0.8:
   version "57.0.8"
   dependencies:

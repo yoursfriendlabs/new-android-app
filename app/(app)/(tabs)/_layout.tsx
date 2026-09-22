@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { canAccessSegment, isGeneralStaffUser, isPersonalWorkspace } from '@/src/shared/lib/business';
 import { MoneyEntrySheet } from '@/src/features/money/components/MoneyEntrySheet';
+import { usePekkaHandoff, type PekkaMoneyHandoff } from '@/src/features/pekka/stores/pekka-handoff';
 import { useTaskNotificationSummary } from '@/src/features/notes/hooks/useTaskQueries';
 import { haptics } from '@/src/shared/lib/haptics';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -163,6 +164,20 @@ export default function TabsLayout() {
   const colors = usePalette();
   const { t } = useTranslation();
   const [logMoneyVisible, setLogMoneyVisible] = useState(false);
+  // Pekka can open the same quick form with values it heard ("spent 250 on tea").
+  const pekkaMoney = usePekkaHandoff((state) => state.money);
+  const [moneyPrefill, setMoneyPrefill] = useState<PekkaMoneyHandoff | null>(null);
+  const moneyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!pekkaMoney) return;
+    setMoneyPrefill(usePekkaHandoff.getState().takeMoney());
+    // Let Pekka's sheet finish closing; two modals animating at once can drop one on iOS.
+    // Taking the draft re-runs this effect, so the timer lives in a ref, not a cleanup.
+    moneyTimer.current = setTimeout(() => setLogMoneyVisible(true), 350);
+  }, [pekkaMoney]);
+  useEffect(() => () => {
+    if (moneyTimer.current) clearTimeout(moneyTimer.current);
+  }, []);
   const user = useAuthStore((state) => state.user);
   const session = useAuthStore((state) => state.session);
   const accessControl = useAuthStore((state) => state.accessControl);
@@ -291,9 +306,13 @@ export default function TabsLayout() {
 
       <MoneyEntrySheet
         visible={logMoneyVisible}
-        kind="expense"
+        kind={moneyPrefill?.kind ?? 'expense'}
+        prefill={moneyPrefill}
         compact
-        onClose={() => setLogMoneyVisible(false)}
+        onClose={() => {
+          setLogMoneyVisible(false);
+          setMoneyPrefill(null);
+        }}
       />
     </>
   );

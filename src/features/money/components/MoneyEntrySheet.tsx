@@ -57,6 +57,8 @@ interface MoneyEntrySheetProps {
   activityDates?: string[];
   snapshot?: Omit<HabitSnapshot, 'dates'>;
   compact?: boolean;
+  /** Starting values, e.g. from Pekka. The user still checks and saves. */
+  prefill?: { amount: number; category: string | null } | null;
 }
 
 function emptyForm(kind: MoneyEntryKind) {
@@ -80,6 +82,7 @@ export function MoneyEntrySheet({
   onClose,
   snapshot,
   visible,
+  prefill = null,
 }: MoneyEntrySheetProps) {
   const colors = usePalette();
   const toast = useToast();
@@ -103,12 +106,28 @@ export function MoneyEntrySheet({
 
   useEffect(() => {
     if (visible) {
-      setForm(emptyForm(kind));
-      setCustomCategory('');
+      const next = emptyForm(kind);
+      let custom = '';
+      if (prefill) {
+        next.amount = String(prefill.amount);
+        const said = prefill.category?.trim();
+        if (said) {
+          const known = categoryOptions.find((option) => option.toLowerCase() === said.toLowerCase());
+          if (known) next.category = known;
+          else {
+            next.category = 'Other';
+            custom = said;
+          }
+        }
+      }
+      setForm(next);
+      setCustomCategory(custom);
       setSaving(false);
       setDetailsOpen(!compact);
     }
-  }, [compact, kind, visible]);
+    // Category options are read once when the sheet opens, not on every refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact, kind, visible, prefill]);
 
   const amount = Number(form.amount || 0);
   const amountPaid = form.paidMode === 'full' ? amount : Number(form.amountPaid || 0);

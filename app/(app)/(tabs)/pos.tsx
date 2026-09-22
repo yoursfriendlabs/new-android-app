@@ -22,6 +22,7 @@ import { PosProductGrid } from '@/src/features/pos/components/PosProductGrid';
 import { PosCheckoutSheet } from '@/src/features/pos/components/PosCheckoutSheet';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
+import { usePekkaHandoff } from '@/src/features/pekka/stores/pekka-handoff';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { haptics } from '@/src/shared/lib/haptics';
 import { SkeletonCardGrid } from '@/src/shared/ui/Skeleton';
@@ -190,6 +191,38 @@ export default function PosScreen() {
       void handleSelectTable(paramTableId, 'dine_in');
     }
   }, [paramTableId]);
+
+  // A sale Pekka prepared from "sold 2 coke to Ram": load it for the user to check and save.
+  const pekkaSale = usePekkaHandoff((state) => state.sale);
+  useEffect(() => {
+    if (!isReady || !pekkaSale) return;
+    const draft = usePekkaHandoff.getState().takeSale();
+    if (!draft) return;
+    void (async () => {
+      if (value.items.length > 0) {
+        const replace = await confirm({
+          title: 'Replace the current bill?',
+          message: 'Pekka prepared a new sale. The items already in this bill will be removed.',
+          confirmLabel: 'Replace',
+          icon: 'robot-happy',
+        });
+        if (!replace) return;
+      }
+      // Pekka's sale is a counter sale, never an open table's bill.
+      setActiveTableId(null);
+      setOrderType('takeaway');
+      setEditingId(null);
+      setValue(() => ({
+        ...createEmptyPosDraft(),
+        items: draft.items,
+        party: draft.party,
+        fullyPaid: draft.fullyPaid,
+        amountReceived: draft.amountReceived,
+      }));
+      toast.info('Pekka filled this sale. Check it, then save.');
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, pekkaSale]);
 
   useEffect(() => {
     if (!isReady || orderType !== 'dine_in' || !activeTableId) {

@@ -7,6 +7,8 @@ import { extractListItems, normalizeNote } from '@/src/api/normalize';
 import { DAILY_MONEY_REMINDER_COPY, dailyReminderDueNow } from '@/src/features/habits/lib/daily-money-reminder';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { MORNING_ID_PREFIX } from '@/src/features/pekka/lib/morning';
+import { usePekkaStore } from '@/src/features/pekka/stores/pekka-store';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
@@ -120,11 +122,14 @@ export function ReminderWatch() {
       handled.add(key);
       const data = request?.content?.data;
       const reminderId = typeof data?.reminderId === 'string' ? data.reminderId : '';
-      if (reminderId) void useHabitStore.getState().markPingFired(reminderId);
+      // Pekka's morning summary opens Pekka itself, not a saved reminder.
+      const pekkaMorning = reminderId.startsWith(MORNING_ID_PREFIX);
+      if (reminderId && !pekkaMorning) void useHabitStore.getState().markPingFired(reminderId);
       const targetUrl = typeof data?.url === 'string' && data.url ? data.url : '/notes';
       try {
         const { router } = require('expo-router');
         router.push(targetUrl);
+        if (pekkaMorning) usePekkaStore.getState().openBrief();
       } catch {
         // Navigation fallback
       }

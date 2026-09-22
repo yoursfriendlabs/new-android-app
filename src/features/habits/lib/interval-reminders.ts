@@ -99,6 +99,18 @@ export async function requestReminderPermission() {
   }
 }
 
+/** Checks without asking, for work that runs while the app is closing. */
+export async function reminderPermissionGranted() {
+  const Notifications = notifications();
+  if (!Notifications) return false;
+  try {
+    const current = await Notifications.getPermissionsAsync();
+    return Boolean(current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL);
+  } catch {
+    return false;
+  }
+}
+
 /** Clears every reminder on this phone, e.g. after the account is deleted. */
 export async function cancelAllReminderNotifications() {
   const Notifications = notifications();

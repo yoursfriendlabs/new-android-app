@@ -8,6 +8,8 @@ import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, shadows } from '@/src/theme';
 
+import { usePekkaNudges } from '../hooks/usePekkaNudges';
+import { nudgeSignature } from '../lib/nudges';
 import { usePekkaStore } from '../stores/pekka-store';
 import { PekkaChatSheet } from './PekkaChatSheet';
 
@@ -23,9 +25,19 @@ export function PekkaFab() {
   const open = usePekkaStore((state) => state.open);
   const setOpen = usePekkaStore((state) => state.setOpen);
   const lift = usePekkaStore((state) => state.lift);
+  const nudgesSeen = usePekkaStore((state) => state.nudgesSeen);
+  const seenReady = usePekkaStore((state) => state.morningReady);
 
   const appear = useRef(new Animated.Value(0)).current;
   const signedIn = status === 'signed-in';
+  const { nudges } = usePekkaNudges(signedIn);
+  const signature = nudgeSignature(nudges);
+  const hasNewTips = seenReady && Boolean(signature) && signature !== nudgesSeen;
+
+  // Opening Pekka counts as seeing today's tips; the chip inside still lists them.
+  useEffect(() => {
+    if (open && signature) usePekkaStore.getState().markNudgesSeen(signature);
+  }, [open, signature]);
 
   useEffect(() => {
     Animated.timing(appear, {
@@ -60,10 +72,13 @@ export function PekkaFab() {
           ]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Pekka assistant"
+            accessibilityLabel={hasNewTips ? 'Pekka assistant, new tips' : 'Pekka assistant'}
             onPress={handlePress}
             style={[styles.button, shadows.floating, { backgroundColor: colors.primary }]}>
             <MaterialCommunityIcons name="robot-happy" size={26} color={colors.onPrimary} />
+            {hasNewTips ? (
+              <Animated.View style={[styles.dot, { backgroundColor: colors.danger, borderColor: colors.surface }]} />
+            ) : null}
           </Pressable>
         </Animated.View>
       ) : null}
@@ -77,6 +92,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     zIndex: 50,
+  },
+  dot: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
   },
   button: {
     width: 56,
