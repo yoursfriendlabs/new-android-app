@@ -27,7 +27,7 @@ import {
   getPartyBalanceMeta,
   partyTypeLabel,
 } from '@/src/features/parties/lib/party';
-import { formatCurrency } from '@/src/shared/lib/format';
+import { formatCurrency, getRangeForPeriod, type DatePeriod } from '@/src/shared/lib/format';
 import { buildPartyBalancesHtml, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import { useTranslation } from '@/src/i18n';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -37,6 +37,7 @@ import type { Party } from '@/src/types/models';
 
 type PartyFilter = 'both' | 'customer' | 'supplier';
 type BalanceFilter = 'all' | 'receive' | 'give';
+type PeriodFilter = Extract<DatePeriod, 'today' | 'this_week' | 'this_month'> | 'all';
 
 export default function PartiesScreen() {
   const colors = usePalette();
@@ -51,12 +52,14 @@ export default function PartiesScreen() {
   const [search, setSearch] = useState('');
   const [type, setType] = useState<PartyFilter>('both');
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>('all');
+  const [period, setPeriod] = useState<PeriodFilter>('all');
+  const range = useMemo(() => (period === 'all' ? undefined : getRangeForPeriod(period)), [period]);
   const [createVisible, setCreateVisible] = useState(false);
   const [contactSeed, setContactSeed] = useState<DeviceContactDraft | null>(null);
   const [phoneSheetVisible, setPhoneSheetVisible] = useState(false);
   const [exporting, setExporting] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
-  const partiesQuery = usePagedParties(debouncedSearch, personal ? 'both' : type);
+  const partiesQuery = usePagedParties(debouncedSearch, personal ? 'both' : type, range);
   // Balances cover every party, not just the pages loaded so far.
   const summaryQuery = useDashboardSummary();
   const parties = useMemo(
@@ -168,14 +171,6 @@ export default function PartiesScreen() {
         {...loadMoreOnScroll(partiesQuery.loadMore)}
         refreshControl={<RefreshControl refreshing={partiesQuery.isRefreshing} onRefresh={() => void handleRefresh()} />}
         contentContainerStyle={styles.scroll}>
-        <View style={styles.hero}>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            {personal
-              ? t('parties.noContactsCopy')
-              : t('parties.noPartiesCopy')}
-          </Text>
-        </View>
-
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>
@@ -192,6 +187,16 @@ export default function PartiesScreen() {
         </View>
 
         <SearchField placeholder={t('common.search')} value={search} onChangeText={setSearch} />
+        <SegmentedTabs
+          value={period}
+          onChange={setPeriod}
+          options={[
+            { label: t('common.today'), value: 'today' },
+            { label: t('common.thisWeek'), value: 'this_week' },
+            { label: t('common.thisMonth'), value: 'this_month' },
+            { label: t('common.allTime'), value: 'all' },
+          ]}
+        />
         {personal ? (
           <SegmentedTabs
             value={balanceFilter}

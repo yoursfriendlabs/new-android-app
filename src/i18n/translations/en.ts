@@ -85,6 +85,7 @@ export const en = {
     thisWeek: 'This Week',
     thisMonth: 'This Month',
     thisYear: 'This Year',
+    allTime: 'All Time',
     lastMonth: 'Last Month',
     customRange: 'Custom Range',
     toReceive: 'To Receive',

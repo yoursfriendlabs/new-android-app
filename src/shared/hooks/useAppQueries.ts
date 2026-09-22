@@ -1076,11 +1076,12 @@ export function usePurchaseStats(range: { from?: string; to?: string } = {}) {
   });
 }
 
-export function usePagedParties(search = '', type = 'both') {
+/** `range` keeps only parties added or with a transaction inside those dates. */
+export function usePagedParties(search = '', type = 'both', range?: { from: string; to: string }) {
   const businessId = useAuthStore((state) => state.session?.businessId ?? '');
   const token = useAuthStore((state) => state.session?.token ?? '');
   return usePagedList<Party>({
-    queryKey: ['parties', businessId, 'paged', search.trim(), type],
+    queryKey: ['parties', businessId, 'paged', search.trim(), type, range?.from ?? 'all', range?.to ?? 'all'],
     enabled: Boolean(token && businessId),
     fetchPage: async (page) => {
       try {
@@ -1089,10 +1090,12 @@ export function usePagedParties(search = '', type = 'both') {
             ...page,
             type: type === 'both' ? undefined : type,
             search: search.trim() || undefined,
+            from: range?.from,
+            to: range?.to,
           }),
           normalizeParty,
         );
-        if (page.offset === 0 && !search.trim()) await cacheParties(result.items);
+        if (page.offset === 0 && !search.trim() && !range) await cacheParties(result.items);
         return result;
       } catch (error) {
         if (page.offset > 0 || isInvalidSessionError(error)) throw error;

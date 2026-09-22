@@ -87,6 +87,7 @@ export const ne: TranslationDictionary = {
     thisWeek: 'यो हप्ता',
     thisMonth: 'यो महिना',
     thisYear: 'यो वर्ष',
+    allTime: 'सबै समय',
     lastMonth: 'गत महिना',
     customRange: 'कस्टम मिति',
     toReceive: 'लिनुपर्ने',
