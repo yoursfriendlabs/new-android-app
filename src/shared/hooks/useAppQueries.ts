@@ -1137,6 +1137,27 @@ export function usePagedProducts(filters: { search?: string; stock?: string; cat
   });
 }
 
+/**
+ * Product, low-stock and out-of-stock counts, taken from the same list filters
+ * the inventory screen uses so each tile matches the list it opens.
+ */
+export function useProductCounts() {
+  const businessId = useAuthStore((state) => state.session?.businessId ?? '');
+  const token = useAuthStore((state) => state.session?.token ?? '');
+  return useQuery({
+    // Under 'products' so every stock change that refreshes the list refreshes these too.
+    queryKey: ['products', businessId, 'counts'],
+    enabled: Boolean(token && businessId),
+    queryFn: async () => {
+      const count = async (stock?: string) =>
+        toPage(await productsApi.list({ limit: 1, offset: 0, stock }), normalizeProduct).total;
+      const [total, low, out] = await Promise.all([count(), count('low'), count('out')]);
+      return { total, low, out };
+    },
+    staleTime: 60_000,
+  });
+}
+
 export function usePagedSales(
   filters: { from?: string; to?: string; status?: string; partyId?: string; search?: string; payment?: 'due' | 'paid' } = {},
 ) {

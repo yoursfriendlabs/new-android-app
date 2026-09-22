@@ -35,6 +35,7 @@ import {
   useCategories,
   useLowStockProducts,
   usePagedProducts,
+  useProductCounts,
   useProductStats,
 } from '@/src/shared/hooks/useAppQueries';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
@@ -85,6 +86,8 @@ export default function InventoryScreen() {
   });
   const hasFilter = Boolean(debouncedSearch.trim()) || stockFilter !== 'all' || categoryId !== undefined;
   const statsQuery = useProductStats();
+  const countsQuery = useProductCounts();
+  const counts = countsQuery.data;
   const summaryQuery = useInventorySummary();
   const lowStockQuery = useLowStockProducts();
   const categoriesQuery = useCategories();
@@ -177,6 +180,7 @@ export default function InventoryScreen() {
       productsQuery.refetch(),
       categoriesQuery.refetch(),
       statsQuery.refetch(),
+      countsQuery.refetch(),
       summaryQuery.refetch(),
       lowStockQuery.refetch(),
     ]);
@@ -211,7 +215,7 @@ export default function InventoryScreen() {
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.primary }]}>Products</Text>
             <Text style={[styles.summaryValue, { color: colors.primary }]}>
-              {String(summary?.totalProducts ?? (hasFilter ? products.length : productsQuery.total))}
+              {String(counts?.total ?? (hasFilter ? products.length : productsQuery.total))}
             </Text>
           </Pressable>
           <Pressable
@@ -222,7 +226,7 @@ export default function InventoryScreen() {
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.warning }]}>Low</Text>
             <Text style={[styles.summaryValue, { color: colors.warning }]}>
-              {String(stats?.lowStockCount ?? summary?.lowStockCount ?? lowStockQuery.data?.length ?? 0)}
+              {String(counts?.low ?? stats?.lowStockCount ?? 0)}
             </Text>
           </Pressable>
           <Pressable
@@ -233,7 +237,7 @@ export default function InventoryScreen() {
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>Out</Text>
             <Text style={[styles.summaryValue, { color: colors.danger }]}>
-              {String(summary?.outOfStockCount ?? 0)}
+              {String(counts?.out ?? 0)}
             </Text>
           </Pressable>
         </View>
