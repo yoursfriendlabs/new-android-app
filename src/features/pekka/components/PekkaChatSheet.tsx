@@ -26,6 +26,7 @@ import { PekkaMorningCard } from './PekkaMorningCard';
 import { guideForWorkspace } from '../lib/guide';
 import { prepareMoney, prepareSale, type PreparedReply } from '../lib/entry-draft';
 import { parseEntry } from '../lib/entry-parser';
+import { matchPekkaConversation } from '../lib/conversation';
 import { matchPekkaIntent } from '../lib/intent';
 import { usePekkaHandoff } from '../stores/pekka-handoff';
 import { questionsForWorkspace, type PekkaQuestion } from '../lib/questions';
@@ -239,7 +240,7 @@ export function PekkaChatSheet() {
     if (reply.status === 'choose') return t('pekka.chooseMatch');
     if (reply.status === 'not-found') return t('pekka.noMatch');
     if (reply.status === 'personal') return t('pekka.personalLookup');
-    if (reply.status !== 'answer') return t('pekka.lookupHelp');
+    if (reply.status !== 'answer') return t(isPersonal ? 'pekka.lookupHelpPersonal' : 'pekka.lookupHelp');
     const value = formatCurrency(reply.amount ?? 0, reply.currency || currency);
     if (reply.kind === 'product') return t('pekka.productAnswer', { name: reply.name || '', value, unit: reply.unit ? ` / ${reply.unit}` : '' });
     return t(`pekka.partyAnswer.${reply.direction || 'settled'}`, { name: reply.name || '', value });
@@ -258,6 +259,17 @@ export function PekkaChatSheet() {
     setChoices([]);
     pushMessage('user', choice ? choice.name : question);
     if (!choice) { setDraft(''); lastQuestion.current = question; }
+
+    const conversation = choice ? null : matchPekkaConversation(question);
+    if (conversation) {
+      const key = conversation === 'capabilities'
+        ? (isPersonal ? 'pekka.introPersonal' : 'pekka.introBusiness')
+        : `pekka.conversation.${conversation}`;
+      pushMessage('pekka', t(key, { name: greetingName }));
+      inFlight.current = false;
+      setAsking(false);
+      return;
+    }
 
     const entry = choice ? null : parseEntry(question);
     if (entry && entry.type === 'sale' && isPersonal) {
