@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 
+import { isServiceProduct, sellableStock as sellableOf, toCartLine } from '@/src/features/pos/lib/cart-line';
 import type { Product } from '@/src/types/models';
 import type { PosDraft } from '@/src/types/forms';
 
@@ -13,9 +14,9 @@ export function usePosCart(
 
     const totalStock = Number(product.stockOnHand ?? 0);
     const expiredQty = Number(product.expiredQuantity ?? 0);
-    const sellableStock = Number(product.sellableQuantity ?? Math.max(0, totalStock - expiredQty));
+    const sellableStock = sellableOf(product);
 
-    if (direction === 'add' && String(product.itemType || 'goods').toLowerCase() !== 'service') {
+    if (direction === 'add' && !isServiceProduct(product)) {
       if (sellableStock <= 0) {
         if (expiredQty > 0) {
           Alert.alert(
@@ -32,28 +33,12 @@ export function usePosCart(
       let items = current.items;
 
       if (!existing && direction === 'add') {
-        items = [
-          ...current.items,
-          {
-            productId: product.id,
-            name: product.name,
-            unit: product.primaryUnit,
-            unitType: 'primary',
-            primaryUnit: product.primaryUnit,
-            secondaryUnit: product.secondaryUnit || undefined,
-            secondaryConversionRate: product.secondaryConversionRate || undefined,
-            categoryName: product.categoryName,
-            stockOnHand: sellableStock,
-            quantity: 1,
-            unitPrice: product.salePrice,
-            taxRate: product.taxRate ?? 0,
-          },
-        ];
+        items = [...current.items, toCartLine(product, 1)];
       } else if (existing) {
         const nextQty = existing.quantity + (direction === 'add' ? 1 : -1);
         if (
           direction === 'add' &&
-          String(product.itemType || 'goods').toLowerCase() !== 'service' &&
+          !isServiceProduct(product) &&
           nextQty > sellableStock
         ) {
           Alert.alert(
