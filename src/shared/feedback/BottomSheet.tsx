@@ -1,15 +1,17 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { useRef } from 'react';
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-
-import { KEYBOARD_GAP } from '@/src/shared/layout/Screen';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useKeyboardHeight } from '@/src/shared/hooks/useKeyboardHeight';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
+
+/** Breathing room kept between the top of the sheet and the status bar. */
+const TOP_GAP = spacing.lg;
+/** A sheet never shrinks below this, even with a tall keyboard open. */
+const MIN_SHEET_HEIGHT = 220;
 
 interface BottomSheetProps extends PropsWithChildren {
   visible: boolean;
@@ -22,6 +24,11 @@ interface BottomSheetProps extends PropsWithChildren {
   heightRatio?: number;
   /** Chat-style sheets: keep the newest message in view as the list grows. */
   stickToBottom?: boolean;
+  /**
+   * Off when the body renders its own list (FlashList, FlatList). A virtualised
+   * list inside a ScrollView loses its height and draws nothing.
+   */
+  scrollable?: boolean;
 }
 
 export function BottomSheet({
@@ -31,26 +38,40 @@ export function BottomSheet({
   fullHeight = false,
   heightRatio,
   onClose,
+  scrollable = true,
   stickToBottom = false,
   subtitle,
   title,
   visible,
 }: BottomSheetProps) {
   const colors = usePalette();
+  const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  // Android draws edge-to-edge, so this window does not shrink when the keyboard
-  // opens. We move the sheet up by the keyboard height ourselves and let it
-  // shrink (maxHeight) so the footer — Save buttons, Pekka's box — stays in view.
+  const scroller = useRef<ScrollView>(null);
+
+  // Android draws this modal edge-to-edge, so the window does not shrink when
+  // the keyboard opens. We lift the sheet ourselves and shrink it to whatever
+  // room is left, so the top never slides off the screen and the footer — Save
+  // buttons, Pekka's box — stays above the keys. Nothing inside the sheet may
+  // lift a second time or the two offsets stack and push the body out of view.
   const keyboardHeight = useKeyboardHeight();
-  const scroller = useRef<React.ComponentRef<typeof KeyboardAwareScrollView>>(null);
-  const tall = true;
-  const calculatedHeight = heightRatio
+  const roomAboveKeyboard = Math.max(
+    windowHeight - keyboardHeight - insets.top - TOP_GAP,
+    MIN_SHEET_HEIGHT,
+  );
+
+  const preferredHeight = heightRatio
     ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.35), 0.96))
     : compact
       ? Math.min(Math.round(windowHeight * 0.68), 580)
       : fullHeight
         ? Math.round(windowHeight * 0.94)
-        : Math.round(windowHeight * 0.90);
+        : Math.round(windowHeight * 0.9);
+  const sheetHeight = Math.min(preferredHeight, roomAboveKeyboard);
+
+  const body = (
+    <View style={[styles.contentInner, !scrollable && styles.contentFill]}>{children}</View>
+  );
 
   return (
     <Modal
@@ -64,8 +85,7 @@ export function BottomSheet({
         <View
           style={[
             styles.sheet,
-            { backgroundColor: colors.surface, height: calculatedHeight },
-            compact && styles.sheetCompact,
+            { backgroundColor: colors.surface, height: sheetHeight },
             fullHeight && styles.sheetFull,
           ]}>
           <View style={[styles.handle, { backgroundColor: colors.border }]} />
@@ -81,19 +101,24 @@ export function BottomSheet({
           </View>
 
           <View style={styles.body}>
-            <KeyboardAwareScrollView
-              ref={scroller}
-              bottomOffset={KEYBOARD_GAP}
-              bounces={false}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined}
-              style={tall ? styles.contentFill : undefined}
-              contentContainerStyle={styles.contentGrow}>
-              <View style={styles.contentInner}>{children}</View>
-            </KeyboardAwareScrollView>
+            {scrollable ? (
+              <ScrollView
+                ref={scroller}
+                bounces={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined}
+                style={styles.contentFill}
+                contentContainerStyle={styles.contentGrow}>
+                {body}
+              </ScrollView>
+            ) : (
+              body
+            )}
             {footer ? (
-              <SafeAreaView edges={['bottom']} style={[styles.footerSafeArea, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+              <SafeAreaView
+                edges={keyboardHeight > 0 ? [] : ['bottom']}
+                style={[styles.footerSafeArea, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
                 <View style={styles.footer}>{footer}</View>
               </SafeAreaView>
             ) : null}
@@ -112,15 +137,10 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
-    // Never taller than the space left above the keyboard.
-    maxHeight: '100%',
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingTop: spacing.sm,
     overflow: 'hidden',
-  },
-  sheetCompact: {
-    maxHeight: '78%',
   },
   sheetFull: {
     borderTopLeftRadius: 0,

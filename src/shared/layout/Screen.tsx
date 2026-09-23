@@ -60,10 +60,12 @@ export function Screen({
       ) : null}
       {/*
         Android draws edge-to-edge, so the window no longer shrinks for the keyboard.
-        Shrink the content ourselves and keep the focused field in view, on both platforms.
+        Exactly one thing here moves for the keyboard: the scroller keeps the focused
+        field in view when the screen scrolls, otherwise the whole screen is padded.
+        Nesting the two stacks their offsets and pushes the content off the top.
       */}
-      <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
-        {scrollable ? (
+      {scrollable ? (
+        <View style={styles.keyboard}>
           <KeyboardAwareScrollView
             bottomOffset={KEYBOARD_GAP}
             keyboardShouldPersistTaps="handled"
@@ -77,11 +79,14 @@ export function Screen({
             ]}>
             {content}
           </KeyboardAwareScrollView>
-        ) : (
-          content
-        )}
-        {footer}
-      </KeyboardAvoidingView>
+          {footer}
+        </View>
+      ) : (
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+          {content}
+          {footer}
+        </KeyboardAvoidingView>
+      )}
     </SafeAreaView>
   );
 }

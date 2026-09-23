@@ -50,13 +50,8 @@ export function PartyPickerSheet({
 }: PartyPickerSheetProps) {
   const colors = usePalette();
 
-  return (
-    <BottomSheet
-      visible={visible}
-      title={title ?? 'Select party'}
-      subtitle={subtitle ?? 'Instant search, or continue with walk-in.'}
-      onClose={onClose}
-      fullHeight>
+  const header = (
+    <>
       <SearchField
         placeholder="Search name or phone"
         value={search}
@@ -99,8 +94,27 @@ export function PartyPickerSheet({
           </View>
         </Pressable>
       ) : null}
+    </>
+  );
+
+  return (
+    <BottomSheet
+      visible={visible}
+      title={title ?? 'Select party'}
+      subtitle={subtitle ?? 'Search, pick one, or add someone new.'}
+      onClose={onClose}
+      scrollable={false}
+      fullHeight>
+      {/* The list owns the scrolling here, so BottomSheet must not wrap it in one. */}
       <FlashList
         data={parties}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          <Text style={[styles.emptyText, { color: colors.textMuted }]}>
+            {search.trim() ? 'No one matches that search.' : 'No contacts saved yet.'}
+          </Text>
+        }
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const meta = getPartyBalanceMeta(item);
           return (
@@ -108,11 +122,7 @@ export function PartyPickerSheet({
               style={[styles.partyRow, { borderBottomColor: colors.border }]}
               onPress={() => onPick(item)}>
               <View style={styles.partyLead}>
-                <Avatar
-                  uri={item.avatarUrl}
-                  name={item.name}
-                  size={40}
-                />
+                <Avatar uri={item.avatarUrl} name={item.name} size={40} />
                 <View style={styles.partyMeta}>
                   <Text style={[styles.partyName, { color: colors.text }]}>{item.name}</Text>
                   <Text style={[styles.partyInfo, { color: colors.textMuted }]}>
@@ -135,9 +145,7 @@ export function PartyPickerSheet({
                   ]}>
                   {formatCurrency(meta.absoluteAmount)}
                 </Text>
-                <Text style={[styles.balanceType, { color: colors.textMuted }]}>
-                  {meta.label}
-                </Text>
+                <Text style={[styles.balanceType, { color: colors.textMuted }]}>{meta.label}</Text>
               </View>
             </Pressable>
           );
@@ -172,6 +180,11 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingBottom: spacing.xxl,
+  },
+  emptyText: {
+    fontSize: typography.body,
+    paddingVertical: spacing.xl,
+    textAlign: 'center',
   },
   partyRow: {
     flexDirection: 'row',

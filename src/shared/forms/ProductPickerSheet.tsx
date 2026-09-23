@@ -35,10 +35,15 @@ export function ProductPickerSheet({
       title="Select product"
       subtitle="Live search across your product catalog."
       onClose={onClose}
+      scrollable={false}
       fullHeight>
-      <SearchField placeholder="Search product name, brand, or SKU" value={search} onChangeText={onSearchChange} />
+      {/* The list owns the scrolling here, so BottomSheet must not wrap it in one. */}
       <FlashList
         data={products}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          <SearchField placeholder="Search product name, brand, or SKU" value={search} onChangeText={onSearchChange} />
+        }
         renderItem={({ item }) => {
           const totalStock = Number(item.stockOnHand ?? 0);
           const expiredQty = Number(item.expiredQuantity ?? 0);
