@@ -1,11 +1,13 @@
 import type { PropsWithChildren, ReactNode } from 'react';
+import { useRef } from 'react';
 import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 
 import { KEYBOARD_GAP } from '@/src/shared/layout/Screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
+import { useKeyboardHeight } from '@/src/shared/hooks/useKeyboardHeight';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 
@@ -18,6 +20,8 @@ interface BottomSheetProps extends PropsWithChildren {
   fullHeight?: boolean;
   compact?: boolean;
   heightRatio?: number;
+  /** Chat-style sheets: keep the newest message in view as the list grows. */
+  stickToBottom?: boolean;
 }
 
 export function BottomSheet({
@@ -27,12 +31,18 @@ export function BottomSheet({
   fullHeight = false,
   heightRatio,
   onClose,
+  stickToBottom = false,
   subtitle,
   title,
   visible,
 }: BottomSheetProps) {
   const colors = usePalette();
   const { height: windowHeight } = useWindowDimensions();
+  // Android draws edge-to-edge, so this window does not shrink when the keyboard
+  // opens. We move the sheet up by the keyboard height ourselves and let it
+  // shrink (maxHeight) so the footer — Save buttons, Pekka's box — stays in view.
+  const keyboardHeight = useKeyboardHeight();
+  const scroller = useRef<React.ComponentRef<typeof KeyboardAwareScrollView>>(null);
   const tall = true;
   const calculatedHeight = heightRatio
     ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.35), 0.96))
@@ -49,7 +59,7 @@ export function BottomSheet({
       animationType="slide"
       statusBarTranslucent
       onRequestClose={onClose}>
-      <View style={styles.root}>
+      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
           style={[
@@ -70,13 +80,14 @@ export function BottomSheet({
             </Pressable>
           </View>
 
-          {/* Screen coordinates include the sheet/header offset, keeping footer inputs above the keyboard. */}
-          <KeyboardAvoidingView style={styles.body} behavior="padding" automaticOffset>
+          <View style={styles.body}>
             <KeyboardAwareScrollView
+              ref={scroller}
               bottomOffset={KEYBOARD_GAP}
               bounces={false}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              onContentSizeChange={stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined}
               style={tall ? styles.contentFill : undefined}
               contentContainerStyle={styles.contentGrow}>
               <View style={styles.contentInner}>{children}</View>
@@ -86,7 +97,7 @@ export function BottomSheet({
                 <View style={styles.footer}>{footer}</View>
               </SafeAreaView>
             ) : null}
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -101,6 +112,8 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
+    // Never taller than the space left above the keyboard.
+    maxHeight: '100%',
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingTop: spacing.sm,
