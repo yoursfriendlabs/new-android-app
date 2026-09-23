@@ -12,7 +12,7 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Text } from '@/src/shared/ui/Text';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency, getRangeForPeriod, localIsoDate, prettyDate, type DatePeriod } from '@/src/shared/lib/format';
-import { useDashboardSummary, useSubscription } from '@/src/shared/hooks/useAppQueries';
+import { useDashboardSummary } from '@/src/shared/hooks/useAppQueries';
 import type { DashboardSummary } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useLanguageStore } from '@/src/stores/language-store';
@@ -20,6 +20,7 @@ import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
 import { radius, spacing } from '@/src/theme';
 
+import { usePekkaAi } from '../hooks/usePekkaAi';
 import { usePekkaNudges } from '../hooks/usePekkaNudges';
 import { usePekkaWorkspace } from '../hooks/usePekkaWorkspace';
 import { computeStreak } from '@/src/features/habits/lib/habits';
@@ -27,7 +28,7 @@ import { COIN_REWARDS } from '@/src/features/habits/lib/coins';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { buildCollectMessage, phoneForLinks, whatsappUrl } from '../lib/collect';
 import { buildDayClose, todayRange } from '../lib/day-close';
-import { aiEnabled, canAskAi, dailyLimit } from '../lib/quota';
+import { canAskAi } from '../lib/quota';
 import { buildShareSummary } from '../lib/share-summary';
 import { buildMorningBrief, yesterdayRange } from '../lib/morning';
 import { usePekkaStore } from '../stores/pekka-store';
@@ -59,10 +60,9 @@ export function PekkaChatSheet() {
   const tipsRequested = usePekkaStore((state) => state.tipsRequested);
   const closeDays = usePekkaStore((state) => state.closeDays);
   const aiUsage = usePekkaStore((state) => state.aiUsage);
-  const { data: subscription } = useSubscription();
   // The AI is a paid, counted thing; everything Pekka works out on the phone stays free.
-  const aiOn = aiEnabled(subscription);
-  const aiLimit = dailyLimit(subscription);
+  // The server has the final say on both, so staff see the same allowance as the owner.
+  const { on: aiOn, limit: aiLimit } = usePekkaAi();
   const businessName = useAuthStore((state) => String(state.businessProfile?.businessName ?? ''));
 
   const questions = useMemo(() => questionsForWorkspace(isPersonal), [isPersonal]);

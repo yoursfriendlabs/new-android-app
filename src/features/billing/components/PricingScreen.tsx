@@ -2,7 +2,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { StyleSheet, View } from 'react-native';
 
 import { PLANS, planByCode } from '@/src/features/billing/lib/plans';
-import { aiEnabled, dailyLimit, planCode, remainingQuestions } from '@/src/features/pekka/lib/quota';
+import { usePekkaAi } from '@/src/features/pekka/hooks/usePekkaAi';
+import { remainingQuestions } from '@/src/features/pekka/lib/quota';
 import { usePekkaStore } from '@/src/features/pekka/stores/pekka-store';
 import { useTranslation } from '@/src/i18n';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -25,9 +26,10 @@ export function PricingScreen() {
   const currency = useAuthStore((state) => String(state.businessProfile?.currencyCode ?? 'NPR'));
   const usage = usePekkaStore((state) => state.aiUsage);
 
-  const current = planCode(subscription);
+  // The server decides the plan and the allowance; an owner-only subscription
+  // call would leave staff looking at the free plan by mistake.
+  const { on: aiOn, limit, code: current } = usePekkaAi();
   const currentPlan = planByCode(current);
-  const limit = dailyLimit(subscription);
   const left = remainingQuestions(usage, limit);
   const renewal = String(subscription?.renewalDate ?? subscription?.expiryDate ?? '');
 
@@ -46,7 +48,7 @@ export function PricingScreen() {
         <View style={[styles.usage, { borderTopColor: colors.border }]}>
           <MaterialCommunityIcons name="robot-happy-outline" size={18} color={colors.primary} />
           <Text variant="caption" tone="muted" style={styles.usageText}>
-            {aiEnabled(subscription)
+            {aiOn
               ? t('billing.questionsLeft', { left, limit })
               : t('billing.questionsOff')}
           </Text>

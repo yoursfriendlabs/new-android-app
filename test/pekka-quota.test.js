@@ -10,6 +10,7 @@ import {
   normalizeUsage,
   planCode,
   remainingQuestions,
+  resolveStanding,
   PEKKA_DAILY_QUESTIONS,
 } from '../src/features/pekka/lib/quota.ts';
 import { PLANS, planByCode } from '../src/features/billing/lib/plans.ts';
@@ -73,4 +74,23 @@ test('every plan is priced honestly and described in both languages', () => {
       }
     }
   }
+});
+
+test('the server’s allowance wins, so staff are not mistaken for free users', () => {
+  // A staff member cannot read /api/subscription, so it arrives empty. Without
+  // the server's own answer they would look like they were on the free plan.
+  const staff = resolveStanding({ aiEnabled: true, limit: 60, planCode: 'pro' }, null);
+  assert.deepEqual(staff, { on: true, limit: 60, code: 'pro' });
+
+  // The server can also switch it off — an expired plan, or no key on that server.
+  assert.deepEqual(
+    resolveStanding({ aiEnabled: false, limit: 0, planCode: 'free' }, { isActive: true, features: ['pekka_ai'] }),
+    { on: false, limit: 0, code: 'free' },
+  );
+});
+
+test('an older server with no allowance endpoint falls back to the subscription', () => {
+  const subscription = { isActive: true, features: ['pekka_ai'], planCode: 'pro', pekkaDailyQuestions: 42 };
+  assert.deepEqual(resolveStanding(undefined, subscription), { on: true, limit: 42, code: 'pro' });
+  assert.deepEqual(resolveStanding(null, null), { on: false, limit: PEKKA_DAILY_QUESTIONS.free, code: 'free' });
 });

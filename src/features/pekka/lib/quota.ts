@@ -76,3 +76,35 @@ export function mergeServerUsage(usage: PekkaUsage, server?: { used?: number; li
   if (!Number.isFinite(used) || used < 0) return current;
   return { day: today, used: Math.max(current.used, Math.round(used)) };
 }
+
+export interface PekkaStanding {
+  /** Whether an open question may be sent at all. */
+  on: boolean;
+  /** Questions allowed today. */
+  limit: number;
+  /** free | pro | business — what the pricing page highlights. */
+  code: string;
+}
+
+/**
+ * What this account may do with the AI today.
+ *
+ * The server's own answer wins when we have it, because it is the one that
+ * counts and the one a staff member can read — /api/subscription is owner-only,
+ * so staff would otherwise look like they were on the free plan. The
+ * subscription is the fallback for servers that predate the quota endpoint.
+ */
+export function resolveStanding(
+  server?: { aiEnabled?: boolean; limit?: number; planCode?: string } | null,
+  subscription?: Subscription | null,
+): PekkaStanding {
+  if (server && typeof server.aiEnabled === 'boolean') {
+    const limit = Number(server.limit);
+    return {
+      on: server.aiEnabled,
+      limit: Number.isFinite(limit) && limit >= 0 ? Math.round(limit) : 0,
+      code: String(server.planCode || '').toLowerCase() || planCode(subscription),
+    };
+  }
+  return { on: aiEnabled(subscription), limit: dailyLimit(subscription), code: planCode(subscription) };
+}

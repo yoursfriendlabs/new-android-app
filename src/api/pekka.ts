@@ -57,3 +57,26 @@ export function askPekkaChat(question: string, history: PekkaChatTurn[] = []) {
     method: 'POST', path: '/api/pekka/chat', body: { question, history: history.slice(-6) },
   });
 }
+
+export interface PekkaQuotaReply {
+  /** The plan as the pricing page names it: free, pro, business. */
+  planCode: string;
+  aiEnabled: boolean;
+  /** Why the AI is off, when it is: plan_without_ai, subscription_expired, ai_not_configured… */
+  reason: string | null;
+  /** The shop's date these counts belong to. */
+  day: string;
+  used: number;
+  limit: number;
+  remaining: number;
+}
+/**
+ * Where this account stands on AI questions today.
+ *
+ * Unlike /api/subscription, which only an owner may read, this is open to
+ * everyone in the workspace — so a staff member is told the same thing as the
+ * owner without being shown any billing.
+ */
+export function getPekkaQuota() {
+  return apiRequest<PekkaQuotaReply>({ path: '/api/pekka/quota' });
+}
