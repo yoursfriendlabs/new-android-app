@@ -11,7 +11,7 @@ import { cacheRecentServices } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
@@ -1117,7 +1117,7 @@ export default function ServiceCreateScreen() {
         ) : null}
       </BottomSheet>
 
-      <PartyPickerSheet
+      <PartyPickerFlow
         visible={partyPickerVisible}
         search={partySearch}
         onSearchChange={setPartySearch}
@@ -1128,6 +1128,9 @@ export default function ServiceCreateScreen() {
         }}
         onClose={() => setPartyPickerVisible(false)}
         allowWalkIn={false}
+        createLabel="Add new customer"
+        title="Select customer"
+        subtitle="Pick a customer, add a new one, or take one from your phone."
       />
 
       <ProductPickerSheet

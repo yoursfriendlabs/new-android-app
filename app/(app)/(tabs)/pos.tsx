@@ -11,8 +11,7 @@ import { normalizeSale, unwrapEntity, extractListItems } from '@/src/api/normali
 import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
-import { PartyFormSheet } from '@/src/features/parties/components/PartyFormSheet';
+import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { TopAppBar } from '@/src/shared/layout/TopAppBar';
 import { BillSummaryBar } from '@/src/features/pos/components/BillSummaryBar';
 import { OrderSessionSheet } from '@/src/features/pos/components/OrderSessionSheet';
@@ -95,7 +94,6 @@ export default function PosScreen() {
   const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
   const [checkoutVisible, setCheckoutVisible] = useState(false);
   const [partyPickerVisible, setPartyPickerVisible] = useState(false);
-  const [partyCreateVisible, setPartyCreateVisible] = useState(false);
   const [successState, setSuccessState] = useState<{ visible: boolean; queued: boolean }>({
     visible: false,
     queued: false,
@@ -746,32 +744,19 @@ export default function PosScreen() {
         </View>
       </BottomSheet>
 
-      <PartyPickerSheet
+      <PartyPickerFlow
         visible={partyPickerVisible}
         search={partySearch}
         onSearchChange={setPartySearch}
         parties={parties ?? []}
-        createLabel="+ Add New Customer"
-        onCreatePress={() => {
-          setPartyPickerVisible(false);
-          setPartyCreateVisible(true);
-        }}
+        createLabel="Add new customer"
         onPick={(party) => {
           setValue((current) => ({ ...current, party }));
           setPartyPickerVisible(false);
         }}
         onClose={() => setPartyPickerVisible(false)}
         title="Select Party for Sale"
-        subtitle="Pick a customer or keep this bill as a cash sale."
-      />
-
-      <PartyFormSheet
-        visible={partyCreateVisible}
-        onClose={() => setPartyCreateVisible(false)}
-        onSaved={(newParty) => {
-          setValue((current) => ({ ...current, party: newParty }));
-          setPartyCreateVisible(false);
-        }}
+        subtitle="Pick a customer, add a new one, or keep this bill as a cash sale."
       />
 
       <SuccessSheet

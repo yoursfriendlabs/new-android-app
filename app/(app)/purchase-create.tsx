@@ -8,7 +8,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { cacheRecentPurchases } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
@@ -325,7 +325,7 @@ export default function PurchaseCreateScreen() {
         </SurfaceCard>
       </ScrollView>
 
-      <PartyPickerSheet
+      <PartyPickerFlow
         visible={partyPickerVisible}
         search={partySearch}
         onSearchChange={setPartySearch}
@@ -336,6 +336,9 @@ export default function PurchaseCreateScreen() {
         }}
         onClose={() => setPartyPickerVisible(false)}
         allowWalkIn={false}
+        createLabel="Add new supplier"
+        title="Select supplier"
+        subtitle="Pick a supplier, or add one without leaving this purchase."
       />
 
       <ProductPickerSheet

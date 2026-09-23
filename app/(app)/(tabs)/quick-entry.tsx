@@ -14,7 +14,7 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { AmountKeypad } from '@/src/shared/forms/AmountKeypad';
 import { FormField } from '@/src/shared/forms/FormField';
-import { PartyPickerSheet } from '@/src/shared/forms/PartyPickerSheet';
+import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
@@ -707,7 +707,7 @@ export default function QuickEntryScreen() {
         />
       </BottomSheet>
 
-      <PartyPickerSheet
+      <PartyPickerFlow
         visible={supplierPickerVisible}
         search={supplierSearch}
         onSearchChange={setSupplierSearch}
@@ -718,6 +718,7 @@ export default function QuickEntryScreen() {
         }}
         onClose={() => setSupplierPickerVisible(false)}
         allowWalkIn={false}
+        createLabel="Add new supplier"
         title="Select supplier"
         subtitle="Search the supplier you want to attach to this purchase."
       />
