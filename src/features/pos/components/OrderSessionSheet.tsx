@@ -25,6 +25,8 @@ interface OrderSessionSheetProps {
   activeTableId: string | null;
   tables: TableOption[];
   showTables: boolean;
+  /** True until the waiter has said where this order is going. */
+  requireChoice?: boolean;
   onSelect: (tableId: string | null, orderType: PosOrderType) => void;
 }
 
@@ -34,6 +36,7 @@ export function OrderSessionSheet({
   onClose,
   onSelect,
   orderType,
+  requireChoice = false,
   showTables,
   tables,
   visible,
@@ -49,8 +52,12 @@ export function OrderSessionSheet({
   return (
     <BottomSheet
       visible={visible}
-      title="Order session"
-      subtitle="Choose a table for dine-in, or keep it takeaway or delivery."
+      title={requireChoice ? 'Where is this order going?' : 'Order session'}
+      subtitle={
+        requireChoice
+          ? 'Pick dine-in and a table, takeaway, or home delivery. Nothing is charged yet.'
+          : 'Change the table, or switch between takeaway and delivery.'
+      }
       onClose={onClose}
       fullHeight>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -60,7 +67,7 @@ export function OrderSessionSheet({
         <View style={styles.standardRow}>
           {(
             [
-              { type: 'takeaway' as const, icon: 'shopping-outline' as const, label: 'Walk-in / Takeaway' },
+              { type: 'takeaway' as const, icon: 'shopping-outline' as const, label: 'Takeaway' },
               { type: 'delivery' as const, icon: 'truck-delivery-outline' as const, label: 'Home delivery' },
             ]
           ).map((option) => {
@@ -88,7 +95,7 @@ export function OrderSessionSheet({
         {showTables ? (
           <>
             <Text variant="overline" tone="soft">
-              Tables
+              Dine in · pick a table
             </Text>
             {tables.length ? (
               <View style={styles.tableGrid}>

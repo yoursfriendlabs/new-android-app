@@ -1,3 +1,4 @@
+import { billDue } from '@/src/shared/lib/bill-status';
 import type { Sale, Table } from '@/src/types/models';
 
 const DEFAULT_TABLE_COUNT = 12;
@@ -18,7 +19,7 @@ export const CAFE_ORDER_STATUSES: OrderStatusMeta[] = [
   },
   {
     value: 'to_cook',
-    label: 'To Cook',
+    label: 'In progress',
     tone: 'border-amber-200 bg-amber-50 text-amber-800',
     accent: 'bg-amber-500',
   },
@@ -51,6 +52,10 @@ function asString(value: unknown): string {
 
 export function normalizeCafeOrderStatus(value: unknown): string {
   const normalized = asString(value).toLowerCase().replace(/[\s-]+/g, '_');
+  // The web app and the kitchen board have both written this stage a few ways.
+  if (normalized === 'in_progress' || normalized === 'progress' || normalized === 'preparing') {
+    return 'to_cook';
+  }
   return CAFE_ORDER_STATUS_SET.has(normalized) ? normalized : 'new';
 }
 
@@ -69,10 +74,15 @@ export interface CafeOrderAttributes {
   tableNo: string;
   waiterName: string;
   guestCount: string;
+  /** Kept on the order so a delivery rider has somewhere to go. */
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
 }
 
 export function getCafeOrderAttributes(sale: Partial<Sale> = {}): CafeOrderAttributes {
   const attributes = sale?.attributes && typeof sale.attributes === 'object' ? sale.attributes : {};
+  const party = (sale as { party?: { name?: string; phone?: string; address?: string } })?.party;
 
   return {
     orderStatus: normalizeCafeOrderStatus(attributes.order_status),
@@ -80,6 +90,9 @@ export function getCafeOrderAttributes(sale: Partial<Sale> = {}): CafeOrderAttri
     tableNo: asString(attributes.table_no),
     waiterName: asString(attributes.waiter_name),
     guestCount: asString(attributes.guest_count),
+    customerName: asString(party?.name || attributes.customer_name || sale?.partyName),
+    customerPhone: asString(party?.phone || attributes.customer_phone),
+    customerAddress: asString(party?.address || attributes.customer_address),
   };
 }
 
@@ -88,19 +101,64 @@ export function buildCafeOrderAttributes(
   nextAttributes: Partial<CafeOrderAttributes> = {}
 ): Record<string, unknown> {
   const existing = previousAttributes && typeof previousAttributes === 'object' ? previousAttributes : {};
+  const keep = (next: string | undefined, previous: unknown) =>
+    next === undefined ? asString(previous) : asString(next);
 
   return {
     ...existing,
-    order_status: normalizeCafeOrderStatus(nextAttributes.orderStatus),
-    order_type: asString(nextAttributes.orderType).toLowerCase().replace(/[\s-]+/g, '_') || 'dine_in',
-    table_no: asString(nextAttributes.tableNo),
-    waiter_name: asString(nextAttributes.waiterName),
-    guest_count: asString(nextAttributes.guestCount),
+    order_status: normalizeCafeOrderStatus(nextAttributes.orderStatus ?? existing.order_status),
+    order_type:
+      asString(nextAttributes.orderType ?? existing.order_type).toLowerCase().replace(/[\s-]+/g, '_') ||
+      'dine_in',
+    table_no: keep(nextAttributes.tableNo, existing.table_no),
+    waiter_name: keep(nextAttributes.waiterName, existing.waiter_name),
+    guest_count: keep(nextAttributes.guestCount, existing.guest_count),
+    customer_name: keep(nextAttributes.customerName, existing.customer_name),
+    customer_phone: keep(nextAttributes.customerPhone, existing.customer_phone),
+    customer_address: keep(nextAttributes.customerAddress, existing.customer_address),
   };
 }
 
+/**
+ * True only for bills taken as cafe orders. A plain counter sale carries no
+ * order attributes, and without this check it reads as a brand new order and
+ * sits on the kitchen board forever.
+ */
+export function isCafeOrder(sale: Partial<Sale> = {}): boolean {
+  const attributes = sale?.attributes && typeof sale.attributes === 'object' ? sale.attributes : {};
+  return Boolean(
+    asString(attributes.order_status) ||
+      asString(attributes.order_type) ||
+      asString(attributes.table_no) ||
+      sale?.tableId,
+  );
+}
+
+/** An order the kitchen or the cashier still has work to do on. */
+const OPEN_CAFE_STATUSES = new Set(['new', 'to_cook', 'ready']);
+
+export function isOpenCafeOrder(sale: Partial<Sale> = {}): boolean {
+  if (!isCafeOrder(sale)) return false;
+  return OPEN_CAFE_STATUSES.has(getCafeOrderAttributes(sale).orderStatus);
+}
+
+/**
+ * The open order sitting on a table, so a second round of items joins the same
+ * bill instead of starting a new one.
+ */
+export function findOpenTableOrder(orders: Sale[] = [], tableId: string, tableName?: string): Sale | null {
+  return (
+    orders.find((order) => {
+      if (!isOpenCafeOrder(order)) return false;
+      if (order.tableId && String(order.tableId) === String(tableId)) return true;
+      const meta = getCafeOrderAttributes(order);
+      return Boolean(tableName) && meta.tableNo === tableName;
+    }) ?? null
+  );
+}
+
 export function getCafePaymentMeta(order: Partial<Sale> = {}): { label: string; tone: string } {
-  const dueAmount = Number(order?.dueAmount || 0);
+  const dueAmount = billDue(order);
   const grandTotal = Number(order?.grandTotal || 0);
 
   if (grandTotal > 0 && dueAmount <= 0) {
@@ -136,12 +194,11 @@ export interface MappedTable extends CafeTableOption {
 }
 
 export function buildCafeTableMap(orders: Sale[] = [], tables: CafeTableOption[] = getDefaultCafeTables()): MappedTable[] {
-  const activeStatuses = new Set(['new', 'to_cook', 'ready']);
   const occupancyByTable = new Map<string, Sale>();
 
   orders.forEach((order) => {
     const meta = getCafeOrderAttributes(order);
-    if (!activeStatuses.has(meta.orderStatus)) return;
+    if (!isOpenCafeOrder(order)) return;
     const tableIdentifier = order.tableId || meta.tableNo;
     if (!tableIdentifier) return;
     occupancyByTable.set(String(tableIdentifier), order);

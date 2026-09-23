@@ -26,7 +26,9 @@ import { TotalsCard } from '@/src/shared/ui/TotalsCard';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { useBanks, useSalesList, useTables, useCategories } from '@/src/shared/hooks/useAppQueries';
 import { formatCurrency } from '@/src/shared/lib/format';
-import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { apiBillStatus, billDue } from '@/src/shared/lib/bill-status';
+import { findOpenTableOrder, isOpenCafeOrder } from '@/src/features/cafe/lib/cafeOrders';
+import { buildReceiptHtml, type ReceiptInput } from '@/src/shared/lib/receipt';
 import { computeLineTotal } from '@/src/shared/lib/totals';
 import { radius, spacing, typography, shadows } from '@/src/theme';
 import type { Sale, Table } from '@/src/types/models';
@@ -45,7 +47,9 @@ export default function CashierScreen() {
 
   // Queries
   const { data: tables = [], isLoading: loadingTables } = useTables();
-  const { data: sales = [], isLoading: loadingSales } = useSalesList({ limit: 120 });
+  // Ask the server for unsettled bills only, so a busy day cannot push an open
+  // table order off the end of the list.
+  const { data: sales = [], isLoading: loadingSales } = useSalesList({ payment: 'due', limit: 200 });
   const { data: categories = [] } = useCategories();
   const { data: banks = [] } = useBanks();
 
@@ -59,14 +63,15 @@ export default function CashierScreen() {
   const [selectedFloorFilter, setSelectedFloorFilter] = useState('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('all');
 
-  // Derive active due sales and link to tables
+  // Open cafe orders with money still on them, linked to their tables. Reading
+  // the outstanding amount rather than the status keeps a part-paid bill here.
   const unpaidSales = useMemo(() => {
-    return (sales ?? []).filter((s) => s.status === 'due');
+    return (sales ?? []).filter((sale) => isOpenCafeOrder(sale) && billDue(sale) > 0);
   }, [sales]);
 
   const mappedTables = useMemo(() => {
     return tables.map((table) => {
-      const matchedSale = unpaidSales.find((s) => s.tableId === table.id);
+      const matchedSale = findOpenTableOrder(unpaidSales, table.id, table.name);
       return {
         ...table,
         matchedSale,
@@ -104,10 +109,7 @@ export default function CashierScreen() {
     const total = tables.length;
     const occupied = mappedTables.filter((t) => t.matchedSale).length;
     const vacant = total - occupied;
-    const totalOpenAmount = unpaidSales.reduce(
-      (sum, s) => sum + Number(s.dueAmount ?? s.grandTotal ?? 0),
-      0
-    );
+    const totalOpenAmount = unpaidSales.reduce((sum, sale) => sum + billDue(sale), 0);
     return { total, occupied, vacant, totalOpenAmount };
   }, [tables, mappedTables, unpaidSales]);
 
@@ -230,10 +232,10 @@ export default function CashierScreen() {
 
     setSubmittingCheckout(true);
     try {
-      const isPaid = receivedAmt >= finalTotal;
       // A fully paid bill is closed ('paid'); anything else stays an open bill
       // ('due') so it keeps showing in the cashier's unpaid list.
-      const status = isPaid ? 'paid' : 'due';
+      const status = apiBillStatus(finalTotal, receivedAmt);
+      const isPaid = status === 'paid';
 
       const payload = {
         status,
@@ -272,11 +274,14 @@ export default function CashierScreen() {
       }
 
       // Build printable receipt HTML
-      const receiptHtml = buildReceiptHtml({
+      const receiptData: ReceiptInput = {
         heading: 'Cashier Receipt',
         reference: saleDetails.invoiceNo,
         date: new Date().toISOString().split('T')[0],
         subtitle: `Table: ${selectedTable.name}`,
+        partyName: saleDetails.partyName ? String(saleDetails.partyName) : `Table: ${selectedTable.name}`,
+        paymentMethod: receivedAmt > 0 ? paymentMethod : 'cash',
+        notes: paymentNote.trim() || undefined,
         lines: (saleDetails.items || []).map((item) => ({
           name: String(item.name || 'Menu Item'),
           quantity: item.quantity,
@@ -288,12 +293,15 @@ export default function CashierScreen() {
         discountTotal: Number(discount) || 0,
         grandTotal: finalTotal,
         amountReceived: receivedAmt,
-      });
+        dueAmount: Math.max(finalTotal - receivedAmt, 0),
+      };
+      const receiptHtml = buildReceiptHtml(receiptData);
 
       setReceipt({
         title: saleDetails.invoiceNo,
         subtitle: `Table: ${selectedTable.name}`,
         html: receiptHtml,
+        data: receiptData,
       });
 
       await Promise.all([

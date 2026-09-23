@@ -12,9 +12,20 @@ interface BillSummaryBarProps {
   itemCount: number;
   total: number;
   onPress: () => void;
+  /** Cafes keep the order open instead of charging straight away. */
+  secondaryLabel?: string;
+  onSecondaryPress?: () => void;
+  secondaryBusy?: boolean;
 }
 
-export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProps) {
+export function BillSummaryBar({
+  itemCount,
+  onPress,
+  onSecondaryPress,
+  secondaryBusy = false,
+  secondaryLabel,
+  total,
+}: BillSummaryBarProps) {
   const colors = usePalette();
   const { t, isNepali } = useTranslation();
   const hasItems = itemCount > 0;
@@ -35,6 +46,24 @@ export function BillSummaryBar({ itemCount, onPress, total }: BillSummaryBarProp
         </Text>
         <Text style={[styles.total, { color: colors.onPrimary }]}>{formatCurrency(total)}</Text>
       </View>
+      {secondaryLabel && onSecondaryPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={secondaryLabel}
+          accessibilityState={{ disabled: !hasItems || secondaryBusy }}
+          style={[styles.secondaryButton, { borderColor: colors.onPrimary }]}
+          onPress={() => {
+            haptics.tapLight();
+            onSecondaryPress();
+          }}
+          disabled={!hasItems || secondaryBusy}>
+          <Text
+            numberOfLines={1}
+            style={[styles.buttonLabel, { color: colors.onPrimary, opacity: hasItems && !secondaryBusy ? 1 : 0.55 }]}>
+            {secondaryBusy ? '…' : secondaryLabel}
+          </Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('pos.payNow')}, ${formatCurrency(total)}`}
@@ -65,6 +94,7 @@ const styles = StyleSheet.create({
   },
   meta: {
     flex: 1,
+    minWidth: 0,
     gap: spacing.xxs,
   },
   kicker: {
@@ -76,8 +106,16 @@ const styles = StyleSheet.create({
     fontSize: typography.heading,
     fontWeight: '800',
   },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
   button: {
-    minWidth: 118,
+    minWidth: 104,
     minHeight: 48,
     borderRadius: radius.md,
     alignItems: 'center',

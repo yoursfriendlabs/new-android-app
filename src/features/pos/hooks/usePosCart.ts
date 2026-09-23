@@ -7,6 +7,8 @@ import type { PosDraft } from '@/src/types/forms';
 export function usePosCart(
   products: Product[] | undefined,
   setValue: (updater: (current: PosDraft) => PosDraft) => void,
+  /** Called when a line that was already saved is taken off the bill. */
+  onLineRemoved?: (saleItemId: string) => void,
 ) {
   function updateCart(productId: string, direction: 'add' | 'subtract') {
     const product = (products ?? []).find((entry) => entry.id === productId);
@@ -46,6 +48,10 @@ export function usePosCart(
             `Only ${sellableStock} ${product.primaryUnit || 'units'} of non-expired stock available.`,
           );
           return current;
+        }
+
+        if (nextQty <= 0 && existing.saleItemId) {
+          onLineRemoved?.(existing.saleItemId);
         }
 
         items = current.items

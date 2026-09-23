@@ -27,6 +27,9 @@ interface PosCartPaneProps {
   onSubtract: (productId: string) => void;
   onToggleUnit: (productId: string, unitType: 'primary' | 'secondary') => void;
   onCheckout: () => void;
+  /** Cafes keep the order open instead of charging straight away. */
+  secondaryLabel?: string;
+  onSecondaryPress?: () => void;
 }
 
 function secondaryPrice(product: Product | undefined, item: CartItem) {
@@ -44,9 +47,11 @@ export function PosCartPane({
   items,
   onAdd,
   onCheckout,
+  onSecondaryPress,
   onSubtract,
   onToggleUnit,
   products,
+  secondaryLabel,
   subTotal,
   taxTotal,
 }: PosCartPaneProps) {
@@ -186,6 +191,27 @@ export function PosCartPane({
           Checkout
         </Text>
       </Pressable>
+
+      {secondaryLabel && onSecondaryPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !hasItems }}
+          style={({ pressed }) => [
+            styles.checkout,
+            styles.secondaryAction,
+            { borderColor: hasItems ? colors.primary : colors.border },
+            pressed && styles.pressed,
+          ]}
+          disabled={!hasItems}
+          onPress={() => {
+            haptics.tapLight();
+            onSecondaryPress();
+          }}>
+          <Text variant="bodyStrong" tone={hasItems ? 'primary' : 'soft'}>
+            {secondaryLabel}
+          </Text>
+        </Pressable>
+      ) : null}
     </SurfaceCard>
   );
 }
@@ -256,5 +282,9 @@ const createStyles = (colors: AppPalette) =>
       alignItems: 'center',
       justifyContent: 'center',
       marginTop: spacing.sm,
+    },
+    secondaryAction: {
+      borderWidth: 1.5,
+      backgroundColor: 'transparent',
     },
   });

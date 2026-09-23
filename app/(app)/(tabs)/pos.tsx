@@ -25,10 +25,17 @@ import { usePekkaHandoff } from '@/src/features/pekka/stores/pekka-handoff';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { haptics } from '@/src/shared/lib/haptics';
 import { SkeletonCardGrid } from '@/src/shared/ui/Skeleton';
+import { apiBillStatus } from '@/src/shared/lib/bill-status';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
 import { uploadAttachments } from '@/src/shared/lib/uploads';
 import { todayIso } from '@/src/shared/lib/format';
 import { isCafeWorkspace } from '@/src/shared/lib/business';
+import {
+  buildCafeOrderAttributes,
+  findOpenTableOrder,
+  getCafeOrderAttributes,
+  getCafeOrderTypeLabel,
+} from '@/src/features/cafe/lib/cafeOrders';
 import {
   invalidateAfterBill,
   useBanks,
@@ -109,7 +116,9 @@ export default function PosScreen() {
   const { data: orderAttributes } = useOrderAttributes('sale');
   const { isReady, reset, setValue, value } = useDraftState<PosDraft>('draft:pos', createEmptyPosDraft());
   const { subTotal, taxTotal, grandTotal, cartItemCount } = usePosTotals(value);
-  const { updateCart } = usePosCart(products, setValue);
+  const { updateCart } = usePosCart(products, setValue, (saleItemId) =>
+    setRemovedLineIds((current) => (current.includes(saleItemId) ? current : [...current, saleItemId])),
+  );
 
   const { tableId: paramTableId } = useLocalSearchParams<{ tableId?: string }>();
   const { data: tables = [] } = useTables({}, { enabled: cafeMode });
@@ -117,17 +126,25 @@ export default function PosScreen() {
   const [orderType, setOrderType] = useState<'takeaway' | 'delivery' | 'dine_in'>('takeaway');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tableModalVisible, setTableModalVisible] = useState(false);
+  // A cafe order starts by saying where it is going, so the sheet opens itself.
+  const [sessionChosen, setSessionChosen] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [removedLineIds, setRemovedLineIds] = useState<string[]>([]);
+
+  const activeTable = tables.find((table) => table.id === activeTableId) ?? null;
+  const activeTableName = activeTable?.name ?? (activeTableId ? `Table ${activeTableId}` : '');
+  const sessionLabel =
+    orderType === 'dine_in' ? activeTableName || 'Table' : getCafeOrderTypeLabel(orderType);
 
   const loadTableDraft = useCallback(async (tableId: string) => {
     try {
-      const res = await salesApi.list({ limit: 120 });
-      const dueSales = extractListItems<Sale>(res).filter(
-        (s) => s.tableId === tableId && s.status === 'due'
-      );
+      // Only bills with money still on them can be an open table order.
+      const res = await salesApi.list({ payment: 'due', limit: 200 });
+      const tableName = tables.find((table) => table.id === tableId)?.name;
+      const openOrder = findOpenTableOrder(extractListItems<Sale>(res), tableId, tableName);
 
-      if (dueSales.length > 0) {
-        const draftSale = dueSales[0];
-        const fullSale = await salesApi.get(draftSale.id);
+      if (openOrder) {
+        const fullSale = await salesApi.get(openOrder.id);
         setEditingId(fullSale.id);
         setValue({
           invoiceNo: fullSale.invoiceNo,
@@ -144,6 +161,7 @@ export default function PosScreen() {
           amountReceived: fullSale.amountReceived || 0,
           fullyPaid: fullSale.status === 'paid',
           items: (fullSale.items || []).map((item: any) => ({
+            saleItemId: item.id,
             productId: item.productId,
             name: item.name || item.productName || 'Product',
             quantity: item.quantity,
@@ -170,17 +188,20 @@ export default function PosScreen() {
     } catch (err) {
       console.error('Failed to load table draft', err);
     }
-  }, [products, queryClient, reset, setValue]);
+  }, [products, queryClient, reset, setValue, tables]);
 
   const handleSelectTable = async (tableId: string | null, type: 'takeaway' | 'delivery' | 'dine_in') => {
     setTableModalVisible(false);
     setActiveTableId(tableId);
     setOrderType(type);
+    setSessionChosen(true);
     if (type === 'dine_in' && tableId) {
       await loadTableDraft(tableId);
     } else {
       setEditingId(null);
       void reset(createEmptyPosDraft());
+      // A delivery needs somewhere to deliver to, so ask who it is for.
+      if (type === 'delivery') setPartyPickerVisible(true);
     }
   };
 
@@ -189,6 +210,18 @@ export default function PosScreen() {
       void handleSelectTable(paramTableId, 'dine_in');
     }
   }, [paramTableId]);
+
+  // Dine in, takeaway or delivery is the first thing a cafe decides, so ask it
+  // before the menu rather than leaving takeaway silently assumed.
+  useEffect(() => {
+    if (!isReady || !cafeMode || sessionChosen || paramTableId) return;
+    if (value.items.length > 0) {
+      setSessionChosen(true);
+      return;
+    }
+    setTableModalVisible(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReady, cafeMode, sessionChosen, paramTableId]);
 
   // A sale Pekka prepared from "sold 2 coke to Ram": load it for the user to check and save.
   const pekkaSale = usePekkaHandoff((state) => state.sale);
@@ -222,98 +255,163 @@ export default function PosScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, pekkaSale]);
 
-  useEffect(() => {
-    if (!isReady || orderType !== 'dine_in' || !activeTableId) {
+  /**
+   * The order as the kitchen and the cashier see it: an open bill, nothing
+   * charged yet, that more items can still join.
+   */
+  function buildOpenOrderPayload() {
+    const existingStatus = getCafeOrderAttributes({ attributes: value.attributes }).orderStatus;
+    return {
+      partyId: value.party?.id || null,
+      invoiceNo: value.invoiceNo,
+      saleDate: value.saleDate,
+      status: 'due',
+      amountReceived: 0,
+      paymentMethod: 'cash',
+      notes: value.notes,
+      subTotal,
+      taxTotal,
+      discount: value.discount,
+      discountTotal: value.discount,
+      grandTotal,
+      createdBy: user?.id,
+      tableId: orderType === 'dine_in' ? activeTableId : null,
+      attributes: buildCafeOrderAttributes(value.attributes, {
+        // A new order starts at New; one the kitchen already moved on keeps its stage.
+        orderStatus: editingId ? existingStatus : 'new',
+        orderType,
+        tableNo: orderType === 'dine_in' ? activeTableName : '',
+        customerName: value.party?.name ?? '',
+        customerPhone: value.party?.phone ? String(value.party.phone) : '',
+        customerAddress: value.party?.address ? String(value.party.address) : '',
+      }),
+      items: [
+        ...value.items.map((item) => ({
+          ...(item.saleItemId ? { id: item.saleItemId } : {}),
+          productId: item.productId,
+          name: item.name,
+          quantity: item.quantity,
+          unitType: item.unitType || 'primary',
+          conversionRate: item.unitType === 'secondary' ? (item.secondaryConversionRate || 0) : 0,
+          unitPrice: item.unitPrice,
+          taxRate: item.taxRate,
+          lineTotal: computeLineTotal(item),
+        })),
+        // Lines the waiter took off the order have to be removed server-side too.
+        ...removedLineIds.map((id) => ({ id, _delete: true as const })),
+      ],
+    };
+  }
+
+  /** Saves the order without charging for it. Dine-in also claims its table. */
+  async function persistOpenOrder({ silent = true } = {}) {
+    if (!cafeMode || !value.items.length) return null;
+
+    try {
+      let orderId = editingId;
+      if (orderId) {
+        await salesApi.update(orderId, buildOpenOrderPayload());
+      } else {
+        const created = await salesApi.create(buildOpenOrderPayload());
+        orderId = created?.id ?? null;
+        if (orderId) setEditingId(orderId);
+      }
+
+      if (orderType === 'dine_in' && activeTableId && activeTable?.status !== 'occupied') {
+        await tablesApi.update(activeTableId, { status: 'occupied' });
+      }
+
+      setRemovedLineIds([]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['tables-list'] }),
+        queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
+      ]);
+      return orderId;
+    } catch (error) {
+      if (!silent) {
+        toast.error(error instanceof Error ? error.message : 'Could not save this order.');
+      } else {
+        console.error('Failed to save the open order', error);
+      }
+      return null;
+    }
+  }
+
+  /** The waiter has taken the order: save it, tell them, and start a fresh one. */
+  async function handleSaveOrder() {
+    if (!value.items.length) {
+      toast.error('Add at least one item before saving the order.');
       return;
     }
+    setSavingOrder(true);
+    const orderId = await persistOpenOrder({ silent: false });
+    setSavingOrder(false);
+    if (!orderId) return;
 
-    const activeTable = tables.find(t => t.id === activeTableId);
-    const tableName = activeTable ? activeTable.name : `Table ${activeTableId}`;
+    haptics.success();
+    toast.success(
+      orderType === 'dine_in'
+        ? `Order saved for ${activeTableName || 'the table'}. Add more any time.`
+        : `${getCafeOrderTypeLabel(orderType)} order saved. It is on the kitchen board.`,
+    );
+    setActiveTableId(null);
+    setOrderType('takeaway');
+    setEditingId(null);
+    setSessionChosen(false);
+    setRemovedLineIds([]);
+    await reset(createEmptyPosDraft());
+  }
 
-    const timer = setTimeout(async () => {
+  /** A safety net: an order in progress survives a phone going to sleep. */
+  useEffect(() => {
+    if (!isReady || !cafeMode || !sessionChosen) return;
+    if (orderType === 'dine_in' && !activeTableId) return;
+
+    const timer = setTimeout(() => {
       if (value.items.length === 0) {
-        if (editingId) {
+        // The last item came off an order that was already saved: drop it and
+        // free the table rather than leaving an empty bill behind.
+        if (!editingId) return;
+        void (async () => {
           try {
             await salesApi.remove(editingId);
-            await tablesApi.update(activeTableId, { status: 'vacant' });
+            if (orderType === 'dine_in' && activeTableId) {
+              await tablesApi.update(activeTableId, { status: 'vacant' });
+            }
             setEditingId(null);
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['tables-list'] }),
               queryClient.invalidateQueries({ queryKey: ['sales-list'] }),
             ]);
           } catch (err) {
-            console.error('Failed to discard draft', err);
+            console.error('Failed to discard the open order', err);
           }
-        }
+        })();
         return;
       }
 
-      try {
-        const payload = {
-          partyId: value.party?.id || null,
-          invoiceNo: value.invoiceNo,
-          saleDate: value.saleDate,
-          status: 'due',
-          amountReceived: 0,
-          paymentMethod: 'cash',
-          subTotal,
-          taxTotal,
-          discount: value.discount,
-          grandTotal,
-          createdBy: user?.id,
-          tableId: activeTableId,
-          attributes: {
-            ...value.attributes,
-            order_status: 'new',
-            order_type: 'dine_in',
-            table_no: tableName,
-          },
-          items: value.items.map((item) => ({
-            productId: item.productId,
-            name: item.name,
-            quantity: item.quantity,
-            unitType: item.unitType || 'primary',
-            conversionRate: item.unitType === 'secondary' ? (item.secondaryConversionRate || 0) : 0,
-            unitPrice: item.unitPrice,
-            taxRate: item.taxRate,
-            lineTotal: item.quantity * item.unitPrice,
-          })),
-        };
-
-        if (editingId) {
-          await salesApi.update(editingId, payload);
-        } else {
-          const res = await salesApi.create(payload);
-          if (res.id) {
-            setEditingId(res.id);
-          }
-        }
-
-        if (activeTable?.status !== 'occupied') {
-          await tablesApi.update(activeTableId, { status: 'occupied' });
-          await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
-        }
-      } catch (err) {
-        console.error('Failed to auto-save draft', err);
-      }
+      void persistOpenOrder();
     }, 1800);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     value.items,
     value.discount,
     value.party,
     value.notes,
     activeTableId,
+    activeTableName,
     orderType,
+    sessionChosen,
+    cafeMode,
     isReady,
     editingId,
-    tables,
     subTotal,
     taxTotal,
     grandTotal,
     user?.id,
-    queryClient
+    queryClient,
   ]);
 
   function toggleItemUnit(productId: string, unitType: 'primary' | 'secondary') {
@@ -361,6 +459,8 @@ export default function PosScreen() {
         setOrderType('takeaway');
         setEditingId(null);
         setTableModalVisible(false);
+        setSessionChosen(false);
+        setRemovedLineIds([]);
         void reset(createEmptyPosDraft());
         queryClient.removeQueries({ queryKey: ['products'] });
         queryClient.removeQueries({ queryKey: ['parties'] });
@@ -380,11 +480,16 @@ export default function PosScreen() {
         current.invoiceNo.startsWith('SAL-') && nextSequences?.sale
           ? nextSequences.sale
           : current.invoiceNo,
+      // Merge the configured defaults in; replacing the object would throw away
+      // the cafe order's own attributes (stage, type, table).
       attributes:
-        orderAttributes?.reduce<Record<string, string>>((result, attribute) => {
-          result[attribute.key] = current.attributes[attribute.key] ?? String(attribute.defaultValue ?? '');
-          return result;
-        }, {}) ?? current.attributes,
+        orderAttributes?.reduce<Record<string, string>>(
+          (result, attribute) => {
+            result[attribute.key] = current.attributes[attribute.key] ?? String(attribute.defaultValue ?? '');
+            return result;
+          },
+          { ...current.attributes },
+        ) ?? current.attributes,
     }));
   }, [isReady, nextSequences?.sale, orderAttributes, setValue]);
 
@@ -439,12 +544,9 @@ export default function PosScreen() {
         partyId: value.party?.id,
         invoiceNo: value.invoiceNo,
         saleDate: value.saleDate,
-        status:
-          amountReceived >= grandTotal
-            ? 'paid'
-            : amountReceived > 0
-              ? 'partial'
-              : 'unpaid',
+        // The server stores 'due' or 'paid' and nothing else — a bill saved as
+        // 'partial' or 'unpaid' disappears from every open-bill list there is.
+        status: apiBillStatus(grandTotal, amountReceived),
         notes: value.notes,
         amountReceived,
         paymentMethod: amountReceived > 0 ? value.paymentMethod : 'cash',
@@ -455,22 +557,41 @@ export default function PosScreen() {
         paymentNote: value.paymentNote,
         attachment: uploadedAttachments[0],
         attachments: uploadedAttachments,
-        attributes: value.attributes,
+        // Closing a cafe bill also completes the order, so it leaves the kitchen
+        // board and the floor map — both of which read order_status.
+        attributes: cafeMode
+          ? buildCafeOrderAttributes(value.attributes, {
+              orderStatus:
+                amountReceived >= grandTotal
+                  ? 'completed'
+                  : getCafeOrderAttributes({ attributes: value.attributes }).orderStatus,
+              orderType,
+              tableNo: orderType === 'dine_in' ? activeTableName : '',
+              customerName: value.party?.name ?? '',
+              customerPhone: value.party?.phone ? String(value.party.phone) : '',
+              customerAddress: value.party?.address ? String(value.party.address) : '',
+            })
+          : value.attributes,
+        tableId: orderType === 'dine_in' ? activeTableId : undefined,
         subTotal,
         taxTotal,
         discount: value.discount,
         discountTotal: value.discount,
         grandTotal,
         createdBy: user?.id,
-        items: value.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitType: item.unitType || 'primary',
-          conversionRate: item.unitType === 'secondary' ? (item.secondaryConversionRate || 0) : 0,
-          unitPrice: item.unitPrice,
-          taxRate: item.taxRate,
-          lineTotal: computeLineTotal(item),
-        })),
+        items: [
+          ...value.items.map((item) => ({
+            ...(item.saleItemId ? { id: item.saleItemId } : {}),
+            productId: item.productId,
+            quantity: item.quantity,
+            unitType: item.unitType || 'primary',
+            conversionRate: item.unitType === 'secondary' ? (item.secondaryConversionRate || 0) : 0,
+            unitPrice: item.unitPrice,
+            taxRate: item.taxRate,
+            lineTotal: computeLineTotal(item),
+          })),
+          ...removedLineIds.map((id) => ({ id, _delete: true as const })),
+        ],
       };
 
       const result = await submitWithOfflineQueue<Sale, typeof payload>({
@@ -480,11 +601,10 @@ export default function PosScreen() {
         body: payload,
       });
 
-      // Release table if dine-in and fully paid
-      if (orderType === 'dine_in' && activeTableId) {
-        if (amountReceived >= grandTotal) {
-          await tablesApi.update(activeTableId, { status: 'vacant' });
-        }
+      // A settled dine-in bill frees the table.
+      if (orderType === 'dine_in' && activeTableId && amountReceived >= grandTotal) {
+        await tablesApi.update(activeTableId, { status: 'vacant' });
+        await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
       }
 
       const receiptData = {
@@ -492,6 +612,9 @@ export default function PosScreen() {
         reference: value.invoiceNo,
         date: value.saleDate,
         subtitle: value.party?.name ?? 'Walk-in customer',
+        partyName: value.party?.name ?? 'Walk-in customer',
+        partyPhone: value.party?.phone ? String(value.party.phone) : undefined,
+        paymentMethod: value.paymentMethod,
         lines: value.items.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -503,6 +626,7 @@ export default function PosScreen() {
         discountTotal: value.discount,
         grandTotal,
         amountReceived,
+        dueAmount: Math.max(grandTotal - amountReceived, 0),
       };
 
       const receiptHtml = buildReceiptHtml(receiptData);
@@ -523,6 +647,8 @@ export default function PosScreen() {
       setActiveTableId(null);
       setOrderType('takeaway');
       setEditingId(null);
+      setSessionChosen(false);
+      setRemovedLineIds([]);
       await reset(createEmptyPosDraft());
       setCheckoutVisible(false);
       haptics.success();
@@ -613,6 +739,8 @@ export default function PosScreen() {
       onSubtract={(productId) => updateCart(productId, 'subtract')}
       onToggleUnit={toggleItemUnit}
       onCheckout={openCheckout}
+      secondaryLabel={cafeMode ? 'Save order' : undefined}
+      onSecondaryPress={cafeMode ? () => void handleSaveOrder() : undefined}
     />
   );
 
@@ -644,10 +772,12 @@ export default function PosScreen() {
                   });
                   if (!confirmed) return;
 
-                  if (orderType === 'dine_in' && activeTableId && editingId) {
+                  if (editingId) {
                     try {
                       await salesApi.remove(editingId);
-                      await tablesApi.update(activeTableId, { status: 'vacant' });
+                      if (orderType === 'dine_in' && activeTableId) {
+                        await tablesApi.update(activeTableId, { status: 'vacant' });
+                      }
                     } catch (error) {
                       console.error(error);
                     }
@@ -655,6 +785,8 @@ export default function PosScreen() {
                   setActiveTableId(null);
                   setOrderType('takeaway');
                   setEditingId(null);
+                  setSessionChosen(false);
+                  setRemovedLineIds([]);
                   void reset(createEmptyPosDraft());
                   await queryClient.invalidateQueries({ queryKey: ['tables-list'] });
                   toast.success('Bill cleared');
@@ -668,21 +800,21 @@ export default function PosScreen() {
         <PosContextBar
           partyName={value.party?.name}
           onPickParty={() => setPartyPickerVisible(true)}
-          showSession={cafeMode && tables.length > 0}
+          showSession={cafeMode}
           orderType={orderType}
-          sessionLabel={
-            orderType === 'dine_in'
-              ? tables.find((table) => table.id === activeTableId)?.name ?? 'Table'
-              : orderType === 'delivery'
-                ? 'Delivery'
-                : 'Walk-in'
-          }
+          sessionLabel={sessionChosen ? sessionLabel : 'Choose'}
           onPickSession={() => setTableModalVisible(true)}
         />
 
         <OrderSessionSheet
           visible={tableModalVisible}
-          onClose={() => setTableModalVisible(false)}
+          requireChoice={!sessionChosen}
+          onClose={() => {
+            setTableModalVisible(false);
+            // Dismissed without choosing: treat it as a takeaway counter sale
+            // rather than asking again on every tap.
+            setSessionChosen(true);
+          }}
           orderType={orderType}
           activeTableId={activeTableId}
           tables={tables}
@@ -698,7 +830,14 @@ export default function PosScreen() {
         ) : (
           <>
             {productsPane}
-            <BillSummaryBar itemCount={cartItemCount} total={grandTotal} onPress={openCheckout} />
+            <BillSummaryBar
+              itemCount={cartItemCount}
+              total={grandTotal}
+              onPress={openCheckout}
+              secondaryLabel={cafeMode ? 'Save order' : undefined}
+              onSecondaryPress={cafeMode ? () => void handleSaveOrder() : undefined}
+              secondaryBusy={savingOrder}
+            />
           </>
         )}
       </View>

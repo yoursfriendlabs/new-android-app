@@ -4,6 +4,11 @@ export type QuickEntryTab = 'expense' | 'purchase';
 
 export interface CartLineDraft {
   productId: string;
+  /**
+   * The saved line this cart row came from. Without it the server treats every
+   * re-save of an open order as brand new lines and the bill doubles up.
+   */
+  saleItemId?: string;
   name: string;
   unit: string;
   unitType?: 'primary' | 'secondary';

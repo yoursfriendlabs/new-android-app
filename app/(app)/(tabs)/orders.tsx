@@ -28,6 +28,7 @@ import {
   getCafeOrderTypeLabel,
   getCafePaymentMeta,
   getNextCafeOrderStatus,
+  isCafeOrder,
 } from '@/src/features/cafe/lib/cafeOrders';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { radius, spacing, typography } from '@/src/theme';
@@ -71,20 +72,24 @@ export default function SeatingOrdersScreen() {
     <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.primary} />
   );
 
+  // Only bills taken as cafe orders belong on the kitchen board; a plain
+  // counter sale has no order attributes and would sit in "New" forever.
+  const cafeOrders = useMemo(() => sales.filter(isCafeOrder), [sales]);
+
   const floors = useMemo(() => {
     return categories.filter((cat: any) => cat.type === 'table');
   }, [categories]);
 
   // Derive Table Map
   const tableMap = useMemo(() => {
-    return buildCafeTableMap(sales, tables.map(t => ({ 
+    return buildCafeTableMap(cafeOrders, tables.map(t => ({ 
       id: t.id, 
       label: t.name,
       categoryId: t.categoryId,
       category: t.category,
       capacity: t.capacity
     })));
-  }, [sales, tables]);
+  }, [cafeOrders, tables]);
 
   const filteredTableMap = useMemo(() => {
     return tableMap.filter((t) => {
@@ -110,26 +115,16 @@ export default function SeatingOrdersScreen() {
     });
   }, [tableMap, tables, floorFilter, statusFilter]);
 
-  // Derive Orders for Board
   const activeOrders = useMemo(() => {
-    return sales.filter((sale) => {
-      const meta = getCafeOrderAttributes(sale);
-      return meta.orderStatus !== 'completed';
-    });
-  }, [sales]);
+    return cafeOrders.filter((sale) => getCafeOrderAttributes(sale).orderStatus !== 'completed');
+  }, [cafeOrders]);
 
   const groupedOrders = useMemo(() => {
-    return CAFE_ORDER_STATUSES.map((status) => {
-      const items = sales.filter((sale) => {
-        const meta = getCafeOrderAttributes(sale);
-        return meta.orderStatus === status.value;
-      });
-      return {
-        ...status,
-        items,
-      };
-    });
-  }, [sales]);
+    return CAFE_ORDER_STATUSES.map((status) => ({
+      ...status,
+      items: cafeOrders.filter((sale) => getCafeOrderAttributes(sale).orderStatus === status.value),
+    }));
+  }, [cafeOrders]);
 
   const activeGroup = useMemo(() => {
     return groupedOrders.find((g) => g.value === selectedStatus) || groupedOrders[0];
