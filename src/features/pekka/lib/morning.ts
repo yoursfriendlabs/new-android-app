@@ -1,13 +1,10 @@
 import { formatCurrency, localIsoDate } from '@/src/shared/lib/format';
+import { normalizeSchedule, scheduleFireTimes, SCHEDULE_DAYS_AHEAD, type PekkaScheduleSettings } from './schedule';
 import type { DashboardSummary } from '@/src/types/models';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-export interface MorningSettings {
-  enabled: boolean;
-  hour: number;
-  minute: number;
-}
+export type MorningSettings = PekkaScheduleSettings;
 
 export const DEFAULT_MORNING: MorningSettings = { enabled: false, hour: 8, minute: 0 };
 
@@ -23,29 +20,16 @@ export const MORNING_TIMES = [
  * rest just invite a look, so a quiet week still gets a nudge but no one who
  * stopped using the app is pinged forever.
  */
-export const MORNING_DAYS_AHEAD = 7;
+export const MORNING_DAYS_AHEAD = SCHEDULE_DAYS_AHEAD;
 export const MORNING_ID_PREFIX = 'pekka-morning-';
 
 export function normalizeMorning(value?: Partial<MorningSettings> | null): MorningSettings {
-  const hour = Math.round(Number(value?.hour));
-  const minute = Math.round(Number(value?.minute));
-  return {
-    enabled: Boolean(value?.enabled),
-    hour: Number.isFinite(hour) ? Math.min(23, Math.max(0, hour)) : DEFAULT_MORNING.hour,
-    minute: Number.isFinite(minute) ? Math.min(59, Math.max(0, minute)) : DEFAULT_MORNING.minute,
-  };
+  return normalizeSchedule(value, DEFAULT_MORNING);
 }
 
 /** The next `count` mornings at the chosen time, starting tomorrow if today's has passed. */
 export function morningFireTimes(settings: MorningSettings, from = new Date(), count = MORNING_DAYS_AHEAD): Date[] {
-  const first = new Date(from);
-  first.setHours(settings.hour, settings.minute, 0, 0);
-  if (first.getTime() <= from.getTime() + 60_000) first.setDate(first.getDate() + 1);
-  return Array.from({ length: count }, (_, index) => {
-    const at = new Date(first);
-    at.setDate(first.getDate() + index);
-    return at;
-  });
+  return scheduleFireTimes(settings, from, count);
 }
 
 export function yesterdayRange(now = new Date()): { from: string; to: string } {
@@ -65,7 +49,18 @@ export interface MorningBrief {
 /** Yesterday's money plus what needs attention today, from one dashboard summary. */
 export function buildMorningBrief(
   summary: DashboardSummary,
-  { isPersonal, t, currency = 'NPR' }: { isPersonal: boolean; t: Translate; currency?: string },
+  {
+    isPersonal,
+    t,
+    currency = 'NPR',
+    streak,
+  }: {
+    isPersonal: boolean;
+    t: Translate;
+    currency?: string;
+    /** Days in a row the book was closed, so the morning can cheer it on. */
+    streak?: { current: number; loggedToday: boolean } | null;
+  },
 ): MorningBrief {
   const money = (value: number) => formatCurrency(value, currency);
   const income = Number(summary.revenueTotal ?? summary.incomeTotal ?? 0);
@@ -99,6 +94,10 @@ export function buildMorningBrief(
         ? t('pekka.morning.lowStockNamed', { count: lowStock, names: lowNames.join(', ') })
         : t('pekka.morning.lowStock', { count: lowStock }),
     );
+  }
+
+  if (streak && streak.current > 0) {
+    lines.push(t(streak.loggedToday ? 'pekka.morning.streak' : 'pekka.morning.streakAtRisk', { count: streak.current }));
   }
 
   let action: MorningBrief['action'] = null;
