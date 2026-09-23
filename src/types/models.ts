@@ -593,6 +593,8 @@ export interface LedgerEntry {
   category?: string;
   /** Full bill or payment amount; debit/credit only hold what is still due. */
   amount?: number;
+  /** What is still owed on this bill, straight from the server. */
+  dueAmount?: number;
   debit?: number;
   credit?: number;
   runningBalance?: number;

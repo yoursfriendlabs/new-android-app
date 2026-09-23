@@ -24,7 +24,12 @@ import { DatePeriod, formatCurrency, getRangeForPeriod, prettyDate } from '@/src
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useParties } from '@/src/shared/hooks/useAppQueries';
 import { useLedgerEntries, type PersonalBook } from '@/src/features/money/hooks/useLedgerEntries';
-import { isLedgerMoneyIn, ledgerEntryAmount, ledgerEntryDue, ledgerEntryTitle } from '@/src/features/money/lib/ledger';
+import {
+  isLedgerMoneyIn,
+  ledgerEntryAmount,
+  ledgerEntryEffect,
+  ledgerEntryTitle,
+} from '@/src/features/money/lib/ledger';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { buildLedgerReportHtml, printHtmlDocument, shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import { openReceiptPreview, type ReceiptInput } from '@/src/shared/lib/receipt';
@@ -94,10 +99,23 @@ export function LedgerScreen() {
     from: range?.from,
     to: range?.to,
   });
-  const { entries, totals } = ledger;
+  const { entries, standing, totals } = ledger;
 
-  const latestBalance = entries[0]?.runningBalance ?? entries[entries.length - 1]?.runningBalance ?? 0;
   const net = totals.credit - totals.debit;
+
+  // Said the way a shopkeeper would say it, for the party and dates on screen.
+  const who = selectedParty?.name ?? 'Everyone';
+  const standingNet = standing.toReceive - standing.toPay;
+  const shopStandingLine =
+    standing.toReceive === 0 && standing.toPay === 0
+      ? 'Nothing outstanding'
+      : standingNet > 0
+        ? `${who} owes you ${formatCurrency(standingNet, currency)}`
+        : standingNet < 0
+          ? `You owe ${formatCurrency(Math.abs(standingNet), currency)}`
+          : 'Both sides balance out';
+  const shopStandingColor =
+    standingNet > 0 ? colors.danger : standingNet < 0 ? colors.info : colors.textSoft;
 
   const partyBalanceMeta = selectedParty ? getPartyBalanceMeta(selectedParty, undefined, personal) : null;
   const partyToneColor = partyBalanceMeta ? getBalanceColor(partyBalanceMeta.tone, colors) : colors.text;
@@ -118,8 +136,10 @@ export function LedgerScreen() {
         to: range?.to,
         currency,
         entries: allEntries,
+        personal,
         totalDebit: totals.debit,
         totalCredit: totals.credit,
+        standingLine: shopStandingLine,
       }),
     };
   }
@@ -159,8 +179,10 @@ export function LedgerScreen() {
     }
     const lines = report.allEntries.map((entry) => {
       const amount = ledgerEntryAmount(entry);
-      const direction = isLedgerMoneyIn(entry) ? 'In' : 'Out';
-      const desc = `${prettyDate(entry.entryDate)} · ${ledgerEntryTitle(entry)} (${direction})`;
+      const effect = personal
+        ? { label: isLedgerMoneyIn(entry) ? 'In' : 'Out' }
+        : ledgerEntryEffect(entry);
+      const desc = `${prettyDate(entry.entryDate)} · ${ledgerEntryTitle(entry)} (${effect.label})`;
       return {
         name: desc,
         quantity: 1,
@@ -176,7 +198,9 @@ export function LedgerScreen() {
       dateLabel: 'Statement Date',
       partyName: selectedParty?.name,
       partyPhone: selectedParty?.phone ? String(selectedParty.phone) : undefined,
-      notes: `${personal ? 'In' : 'Credit'}: ${formatCurrency(totals.credit, currency)} · ${personal ? 'Out' : 'Debit'}: ${formatCurrency(totals.debit, currency)} · Net: ${formatCurrency(net, currency)}`,
+      notes: personal
+        ? `In: ${formatCurrency(totals.credit, currency)} · Out: ${formatCurrency(totals.debit, currency)} · Net: ${formatCurrency(net, currency)}`
+        : `To receive: ${formatCurrency(standing.toReceive, currency)} · To pay: ${formatCurrency(standing.toPay, currency)} · ${shopStandingLine}`,
       lines,
       subTotal: totals.debit + totals.credit,
       taxTotal: 0,
@@ -318,61 +342,86 @@ export function LedgerScreen() {
           </View>
         ) : null}
 
-        {/* Summary Metrics */}
-        <View style={styles.summaryRow}>
-          {personal && book === 'expense' ? null : (
-            <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
-              <View style={styles.summaryCardHeader}>
-                <Text style={[styles.summaryLabel, { color: colors.success }]}>
-                  {personal && book === 'income'
-                    ? 'Total Income'
-                    : personal
-                      ? 'Received'
-                      : 'Credit'}
+        {/* What this filter adds up to, in plain words */}
+        {personal ? (
+          <View style={styles.summaryRow}>
+            {book === 'expense' ? null : (
+              <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
+                <View style={styles.summaryCardHeader}>
+                  <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                    {book === 'income' ? 'Total income' : 'Money in'}
+                  </Text>
+                  <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
+                </View>
+                <Text style={[styles.summaryValue, { color: colors.success }]}>
+                  {formatCurrency(totals.credit, currency)}
                 </Text>
-                <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
               </View>
-              <Text style={[styles.summaryValue, { color: colors.success }]}>
-                {formatCurrency(totals.credit, currency)}
-              </Text>
-            </View>
-          )}
-          {personal && book === 'income' ? null : (
+            )}
+            {book === 'income' ? null : (
+              <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+                <View style={styles.summaryCardHeader}>
+                  <Text style={[styles.summaryLabel, { color: colors.danger }]}>
+                    {book === 'expense' ? 'Total expense' : 'Money out'}
+                  </Text>
+                  <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
+                </View>
+                <Text style={[styles.summaryValue, { color: colors.danger }]}>
+                  {formatCurrency(totals.debit, currency)}
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
               <View style={styles.summaryCardHeader}>
-                <Text style={[styles.summaryLabel, { color: colors.danger }]}>
-                  {personal && book === 'expense'
-                    ? 'Total Expense'
-                    : personal
-                      ? 'Paid'
-                      : 'Debit'}
-                </Text>
-                <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
+                <Text style={[styles.summaryLabel, { color: colors.danger }]}>To receive</Text>
+                <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.danger} />
               </View>
               <Text style={[styles.summaryValue, { color: colors.danger }]}>
-                {formatCurrency(totals.debit, currency)}
+                {formatCurrency(standing.toReceive, currency)}
+              </Text>
+              <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
+                Unpaid sales and service jobs
               </Text>
             </View>
-          )}
-        </View>
+            <View style={[styles.summaryCard, { backgroundColor: colors.infoSoft, borderColor: colors.border }]}>
+              <View style={styles.summaryCardHeader}>
+                <Text style={[styles.summaryLabel, { color: colors.info }]}>To pay</Text>
+                <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.info} />
+              </View>
+              <Text style={[styles.summaryValue, { color: colors.info }]}>
+                {formatCurrency(standing.toPay, currency)}
+              </Text>
+              <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
+                Unpaid purchases and expenses
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={[styles.netCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.netLabel, { color: colors.textSoft }]}>
-              {personal && book !== 'party' ? 'Total' : 'Net movement'}
+              {personal ? (book === 'party' ? 'Net movement' : 'Total') : 'Where you stand'}
             </Text>
-            <Text style={[styles.netValue, { color: net >= 0 ? colors.success : colors.danger }]}>
-              {net >= 0 ? '+' : ''}{formatCurrency(net, currency)}
-            </Text>
+            {personal ? (
+              <Text style={[styles.netValue, { color: net >= 0 ? colors.success : colors.danger }]}>
+                {net >= 0 ? '+' : ''}{formatCurrency(net, currency)}
+              </Text>
+            ) : (
+              <Text style={[styles.netValue, { color: shopStandingColor }]}>{shopStandingLine}</Text>
+            )}
           </View>
           <View style={styles.netSide}>
             <Text style={[styles.netLabel, { color: colors.textSoft }]}>
-              {selectedParty && (!personal || book === 'party') ? 'Balance' : 'Total Entries'}
+              {personal ? 'Total entries' : 'Cash in / out'}
             </Text>
             <Text style={[styles.netValue, { color: colors.text }]}>
-              {selectedParty && (!personal || book === 'party')
-                ? formatCurrency(Number(latestBalance || 0), currency)
-                : `${ledger.total} items`}
+              {personal
+                ? `${ledger.total} items`
+                : `${formatCurrency(standing.cashIn, currency)} / ${formatCurrency(standing.cashOut, currency)}`}
             </Text>
           </View>
         </View>
@@ -405,7 +454,19 @@ export function LedgerScreen() {
           {entries.map((entry) => {
             const isCredit = isLedgerMoneyIn(entry);
             const amount = ledgerEntryAmount(entry);
-            const due = ledgerEntryDue(entry);
+            const effect = ledgerEntryEffect(entry);
+            // Red when the money is coming to us, blue when it is going out —
+            // the same reading the party screens use.
+            const effectColor =
+              effect.kind === 'to_receive'
+                ? colors.danger
+                : effect.kind === 'to_pay'
+                  ? colors.info
+                  : effect.kind === 'received'
+                    ? colors.success
+                    : effect.kind === 'paid_out'
+                      ? colors.warning
+                      : colors.textSoft;
             const note = String(entry.note || '').trim();
             const iconMeta = getEntryIcon(entry.refType || (isCredit ? 'payment_in' : 'payment_out'));
 
@@ -454,17 +515,25 @@ export function LedgerScreen() {
                   ) : null}
                 </View>
                 <View style={styles.side}>
-                  <Text style={[styles.value, { color: isCredit ? colors.success : colors.danger }]}>
-                    {isCredit ? '+' : '-'}{formatCurrency(amount, currency)}
-                  </Text>
-                  {due > 0 ? (
-                    <Text style={[styles.runningBalance, { color: colors.warning }]}>
-                      Due {formatCurrency(due, currency)}
+                  {personal ? (
+                    <Text style={[styles.value, { color: isCredit ? colors.success : colors.danger }]}>
+                      {isCredit ? '+' : '-'}{formatCurrency(amount, currency)}
                     </Text>
-                  ) : null}
+                  ) : (
+                    <>
+                      <Text style={[styles.value, { color: colors.text }]}>
+                        {formatCurrency(amount, currency)}
+                      </Text>
+                      <Text style={[styles.effectLabel, { color: effectColor }]}>
+                        {effect.amount > 0
+                          ? `${effect.label} ${formatCurrency(effect.amount, currency)}`
+                          : effect.label}
+                      </Text>
+                    </>
+                  )}
                   {typeof entry.runningBalance === 'number' ? (
                     <Text style={[styles.runningBalance, { color: colors.textSoft }]}>
-                      Bal {formatCurrency(entry.runningBalance, currency)}
+                      Balance {formatCurrency(entry.runningBalance, currency)}
                     </Text>
                   ) : null}
                 </View>
@@ -609,6 +678,9 @@ const createStyles = (colors: AppPalette) =>
       fontSize: typography.subheading,
       fontWeight: '800',
     },
+    summaryHint: {
+      fontSize: 11,
+    },
     netCard: {
       flexDirection: 'row',
       justifyContent: 'space-between',
@@ -677,6 +749,11 @@ const createStyles = (colors: AppPalette) =>
     value: {
       fontSize: typography.body,
       fontWeight: '800',
+    },
+    effectLabel: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      textAlign: 'right',
     },
     runningBalance: {
       fontSize: 11,

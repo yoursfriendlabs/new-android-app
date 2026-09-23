@@ -4,7 +4,12 @@ import { Alert } from 'react-native';
 
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { getStatementRowTitle, getStatementTypeLabel, toAmount } from '@/src/features/parties/lib/party';
-import { ledgerEntryTitle } from '@/src/features/money/lib/ledger';
+import {
+  isLedgerMoneyIn,
+  ledgerEntryAmount,
+  ledgerEntryEffect,
+  ledgerEntryTitle,
+} from '@/src/features/money/lib/ledger';
 import type { LedgerEntry, Party, PartyStatementRow, Purchase } from '@/src/types/models';
 
 export function escapeHtml(value: unknown) {
@@ -60,36 +65,51 @@ export function buildLedgerReportHtml(input: {
   to?: string;
   currency: string;
   entries: LedgerEntry[];
+  /** Personal books send money in and money out; shops send what is owed. */
+  personal?: boolean;
   totalDebit: number;
   totalCredit: number;
+  standingLine?: string;
 }) {
   const period =
     input.from && input.to
       ? `${prettyDate(input.from)} – ${prettyDate(input.to)}`
       : 'All dates';
   const rows = input.entries
-    .map(
-      (entry) => `
+    .map((entry) => {
+      const effect = ledgerEntryEffect(entry);
+      const meaning = input.personal
+        ? isLedgerMoneyIn(entry)
+          ? 'In'
+          : 'Out'
+        : effect.amount > 0
+          ? `${effect.label} ${money(effect.amount, input.currency)}`
+          : effect.label;
+      return `
         <tr>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8;">${escapeHtml(prettyDate(entry.entryDate))}</td>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8;">
             <strong>${escapeHtml(ledgerEntryTitle(entry))}</strong><br />
             <span style="color:#6d6257;">${escapeHtml([entry.partyName, entry.note].filter(Boolean).join(' · '))}</span>
           </td>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(Number(entry.debit || 0), input.currency)}</td>
-          <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(Number(entry.credit || 0), input.currency)}</td>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(ledgerEntryAmount(entry), input.currency)}</td>
+          <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${escapeHtml(meaning)}</td>
           <td style="padding: 8px 6px; border-bottom: 1px solid #ece2d8; text-align: right;">${money(Number(entry.runningBalance || 0), input.currency)} ${escapeHtml(entry.balanceDirection || '')}</td>
-        </tr>`,
-    )
+        </tr>`;
+    })
     .join('');
 
   const body = `
     <p style="margin: 0 0 12px 0;"><strong>${escapeHtml(input.businessName)}</strong></p>
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
       <tr>
-        <td style="padding: 8px; background: #f7efe7;">Debit<br /><strong>${money(input.totalDebit, input.currency)}</strong></td>
-        <td style="padding: 8px; background: #f7efe7;">Credit<br /><strong>${money(input.totalCredit, input.currency)}</strong></td>
-        <td style="padding: 8px; background: #f7efe7;">Net<br /><strong>${money(input.totalCredit - input.totalDebit, input.currency)}</strong></td>
+        <td style="padding: 8px; background: #f7efe7;">${input.personal ? 'Money out' : 'To receive'}<br /><strong>${money(input.totalDebit, input.currency)}</strong></td>
+        <td style="padding: 8px; background: #f7efe7;">${input.personal ? 'Money in' : 'To pay'}<br /><strong>${money(input.totalCredit, input.currency)}</strong></td>
+        <td style="padding: 8px; background: #f7efe7;">${input.personal ? 'Net' : 'Where you stand'}<br /><strong>${
+          input.personal
+            ? money(input.totalCredit - input.totalDebit, input.currency)
+            : escapeHtml(input.standingLine || money(input.totalDebit - input.totalCredit, input.currency))
+        }</strong></td>
       </tr>
     </table>
     <table style="width: 100%; border-collapse: collapse;">
@@ -97,8 +117,8 @@ export function buildLedgerReportHtml(input: {
         <tr>
           <th style="text-align: left; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Date</th>
           <th style="text-align: left; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Particulars</th>
-          <th style="text-align: right; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Debit</th>
-          <th style="text-align: right; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Credit</th>
+          <th style="text-align: right; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Amount</th>
+          <th style="text-align: right; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">${input.personal ? 'In / Out' : 'Still owed'}</th>
           <th style="text-align: right; padding: 8px 6px; border-bottom: 2px solid #d8c4b0;">Balance</th>
         </tr>
       </thead>
