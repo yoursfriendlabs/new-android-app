@@ -68,6 +68,7 @@ export default function AppLayout() {
         <Stack.Screen name="tasks/form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="tasks/notifications" />
         <Stack.Screen name="coins" />
+        <Stack.Screen name="pricing" />
         <Stack.Screen name="purchases" />
         <Stack.Screen name="sales" />
         <Stack.Screen name="parties" />

@@ -321,6 +321,12 @@ export default function SettingsScreen() {
       </SurfaceCard>
       ) : null}
 
+      <SurfaceCard title={t('billing.title')} subtitle={t('billing.settingsSubtitle')}>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/pricing')}>
+          <Text style={styles.secondaryButtonLabel}>{t('billing.seePlans')}</Text>
+        </Pressable>
+      </SurfaceCard>
+
       <SurfaceCard title={t('settings.security')} subtitle={t('settings.securitySubtitle')}>
         <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/change-password')}>
           <Text style={styles.secondaryButtonLabel}>{t('settings.changePassword')}</Text>
