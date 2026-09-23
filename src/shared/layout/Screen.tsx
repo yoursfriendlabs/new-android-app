@@ -82,7 +82,7 @@ export function Screen({
           {footer}
         </View>
       ) : (
-        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding" automaticOffset>
           {content}
           {footer}
         </KeyboardAvoidingView>

@@ -1,17 +1,15 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { useRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-import { useKeyboardHeight } from '@/src/shared/hooks/useKeyboardHeight';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 
 /** Breathing room kept between the top of the sheet and the status bar. */
-const TOP_GAP = spacing.lg;
-/** A sheet never shrinks below this, even with a tall keyboard open. */
-const MIN_SHEET_HEIGHT = 220;
+const TOP_GAP = spacing.sm;
 
 interface BottomSheetProps extends PropsWithChildren {
   visible: boolean;
@@ -47,19 +45,13 @@ export function BottomSheet({
   const colors = usePalette();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const scroller = useRef<ScrollView>(null);
 
-  // Android draws this modal edge-to-edge, so the window does not shrink when
-  // the keyboard opens. We lift the sheet ourselves and shrink it to whatever
-  // room is left, so the top never slides off the screen and the footer — Save
-  // buttons, Pekka's box — stays above the keys. Nothing inside the sheet may
-  // lift a second time or the two offsets stack and push the body out of view.
-  const keyboardHeight = useKeyboardHeight();
-  const roomAboveKeyboard = Math.max(
-    windowHeight - keyboardHeight - insets.top - TOP_GAP,
-    MIN_SHEET_HEIGHT,
-  );
-
+  // How tall the sheet would like to be with no keyboard in the way. It is a
+  // wish, not a rule: `flexShrink` below lets the layout cut it down to
+  // whatever room KeyboardAvoidingView leaves, so nothing has to be measured
+  // or added up by hand.
   const preferredHeight = heightRatio
     ? Math.round(windowHeight * Math.min(Math.max(heightRatio, 0.35), 0.96))
     : compact
@@ -67,7 +59,6 @@ export function BottomSheet({
       : fullHeight
         ? Math.round(windowHeight * 0.94)
         : Math.round(windowHeight * 0.9);
-  const sheetHeight = Math.min(preferredHeight, roomAboveKeyboard);
 
   const body = (
     <View style={[styles.contentInner, !scrollable && styles.contentFill]}>{children}</View>
@@ -78,52 +69,76 @@ export function BottomSheet({
       visible={visible}
       transparent
       animationType="slide"
+      // Both flags must match KeyboardProvider's, or the keyboard height comes
+      // back measured against a different window and every offset is wrong.
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}>
-      <View style={[styles.root, { paddingBottom: keyboardHeight }]}>
+      <View style={styles.root}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View
-          style={[
-            styles.sheet,
-            { backgroundColor: colors.surface, height: sheetHeight },
-            fullHeight && styles.sheetFull,
-          ]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        {/*
+          The one thing in a sheet that moves for the keyboard. It pads from the
+          native keyboard animation, frame for frame, so the sheet rides up with
+          the keys instead of jumping once they have finished. `automaticOffset`
+          tells it where it sits inside this modal window.
+        */}
+        <KeyboardAvoidingView
+          behavior="padding"
+          automaticOffset
+          style={[styles.avoider, { paddingTop: insets.top + TOP_GAP }]}>
+          <View
+            style={[
+              styles.sheet,
+              { backgroundColor: colors.surface, height: preferredHeight },
+              fullHeight && styles.sheetFull,
+            ]}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
 
-          <View style={styles.headerContainer}>
-            <View style={styles.headerTextWrap}>
-              {title ? <Text style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
-              {subtitle ? <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
+            <View style={styles.headerContainer}>
+              <View style={styles.headerTextWrap}>
+                {title ? <Text style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
+                {subtitle ? <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
+              </View>
+              <Pressable style={[styles.closeBtn, { backgroundColor: colors.background }]} onPress={onClose}>
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSoft} />
+              </Pressable>
             </View>
-            <Pressable style={[styles.closeBtn, { backgroundColor: colors.background }]} onPress={onClose}>
-              <MaterialCommunityIcons name="close" size={20} color={colors.textSoft} />
-            </Pressable>
-          </View>
 
-          <View style={styles.body}>
-            {scrollable ? (
-              <ScrollView
-                ref={scroller}
-                bounces={false}
-                keyboardShouldPersistTaps="handled"
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined}
-                style={styles.contentFill}
-                contentContainerStyle={styles.contentGrow}>
-                {body}
-              </ScrollView>
-            ) : (
-              body
-            )}
-            {footer ? (
-              <SafeAreaView
-                edges={keyboardHeight > 0 ? [] : ['bottom']}
-                style={[styles.footerSafeArea, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-                <View style={styles.footer}>{footer}</View>
-              </SafeAreaView>
-            ) : null}
+            <View style={styles.body}>
+              {scrollable ? (
+                <ScrollView
+                  ref={scroller}
+                  bounces={false}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  onContentSizeChange={
+                    stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined
+                  }
+                  style={styles.contentFill}
+                  contentContainerStyle={styles.contentGrow}>
+                  {body}
+                </ScrollView>
+              ) : (
+                body
+              )}
+              {footer ? (
+                <View
+                  style={[
+                    styles.footer,
+                    {
+                      backgroundColor: colors.surface,
+                      borderTopColor: colors.border,
+                      // The keyboard covers the navigation bar, so that strip of
+                      // safe area is only needed while the keys are down.
+                      paddingBottom: (keyboardVisible ? 0 : insets.bottom) + spacing.sm,
+                    },
+                  ]}>
+                  {footer}
+                </View>
+              ) : null}
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -132,11 +147,17 @@ export function BottomSheet({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(21, 16, 12, 0.32)',
+  },
+  avoider: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   sheet: {
     width: '100%',
+    // The sheet gives up height before it ever overflows the room left above
+    // the keyboard, so its top can never slide off the screen.
+    flexShrink: 1,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingTop: spacing.sm,
@@ -195,12 +216,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.md,
   },
-  footerSafeArea: {
-    borderTopWidth: 1,
-  },
   footer: {
+    borderTopWidth: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
   },
 });

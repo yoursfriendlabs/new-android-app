@@ -145,8 +145,15 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
-        {/* Tracks the keyboard for every screen and sheet (Android edge-to-edge needs it). */}
-        <KeyboardProvider>
+        {/*
+          Tracks the keyboard for every screen and sheet (Android edge-to-edge
+          needs it). Both translucent flags must match what BottomSheet passes
+          its Modal: they tell the provider which window edges to measure the
+          keyboard against. Without them every reported height is short by the
+          status and navigation bars, and nothing that moves for the keyboard
+          lands where it should.
+        */}
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
         <QueryClientProvider client={queryClient}>
           <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <BootstrapRuntime />
