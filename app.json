@@ -2,7 +2,7 @@
   "expo": {
     "name": "PM",
     "slug": "pasalmanager",
-    "version": "1.5.0",
+    "version": "1.5.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pasalmanager",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yoursfriend.pasalmanager",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "NSContactsUsageDescription": "PM uses your contacts so you can add people you pay or get paid by."
       }
@@ -23,7 +23,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.yoursfriend.pasalmanager",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "READ_CONTACTS",
         "POST_NOTIFICATIONS",
