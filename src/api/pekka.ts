@@ -35,3 +35,25 @@ export function matchPekkaNames(kind: 'product' | 'party', names: string[]) {
     method: 'POST', path: '/api/pekka/match', body: { kind, names },
   });
 }
+
+export interface PekkaChatTurn {
+  role: 'user' | 'pekka';
+  text: string;
+}
+export interface PekkaChatReply {
+  answer: string;
+  /** Where to send the user next, when the answer points at a screen. */
+  action?: { label: string; route: string };
+  /** Questions used and allowed today, counted by the server. */
+  usage?: { used: number; limit: number };
+}
+/**
+ * The open-ended question path. The AI lives behind our server — the phone
+ * never holds a provider key — and the server counts every call against the
+ * plan's daily allowance. A 402 or 429 means the allowance is used up.
+ */
+export function askPekkaChat(question: string, history: PekkaChatTurn[] = []) {
+  return apiRequest<PekkaChatReply, { question: string; history: PekkaChatTurn[] }>({
+    method: 'POST', path: '/api/pekka/chat', body: { question, history: history.slice(-6) },
+  });
+}
