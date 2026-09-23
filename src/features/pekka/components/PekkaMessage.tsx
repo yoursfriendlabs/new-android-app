@@ -13,6 +13,10 @@ export interface PekkaMessageAction {
   route?: string;
   /** Id of a prepared sale or money draft (see pekka-handoff). */
   handoffId?: string;
+  /** A link to open outside the app, e.g. a ready-made WhatsApp message. */
+  url?: string;
+  /** Party to write a payment reminder for. */
+  collectId?: string;
 }
 
 export interface PekkaChatMessage {
@@ -21,12 +25,15 @@ export interface PekkaChatMessage {
   text: string;
   /** A button under the answer: opens a screen, or a draft Pekka prepared. */
   action?: PekkaMessageAction;
+  /** Ready-made text the user can send on WhatsApp or Viber. */
+  shareText?: string;
 }
 
-export function PekkaMessage({ message, onSpeak, onAction }: {
+export function PekkaMessage({ message, onSpeak, onAction, onShare }: {
   message: PekkaChatMessage;
   onSpeak?: (text: string) => void;
   onAction?: (action: PekkaMessageAction) => void;
+  onShare?: (text: string) => void;
 }) {
   const colors = usePalette();
   const { t } = useTranslation();
@@ -53,6 +60,17 @@ export function PekkaMessage({ message, onSpeak, onAction }: {
               {message.action.label}
             </Text>
             <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
+          </Pressable>
+        ) : null}
+        {message.shareText && onShare ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onShare(message.shareText!)}
+            style={[styles.action, { borderColor: colors.primary }]}>
+            <Text variant="label" color={colors.primary}>
+              {t('pekka.share.button')}
+            </Text>
+            <MaterialCommunityIcons name="share-variant" size={16} color={colors.primary} />
           </Pressable>
         ) : null}
       </View>

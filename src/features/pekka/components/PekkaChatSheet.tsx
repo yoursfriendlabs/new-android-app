@@ -2,16 +2,18 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
-import { askPekka, type PekkaChoice, type PekkaReply } from '@/src/api/pekka';
+import { partiesApi } from '@/src/api';
+import { askPekka, askPekkaChat, type PekkaChoice, type PekkaReply } from '@/src/api/pekka';
 import { PekkaIntroduction } from './PekkaIntroduction';
 import { PekkaComposer } from './PekkaComposer';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Text } from '@/src/shared/ui/Text';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { formatCurrency, getRangeForPeriod, type DatePeriod } from '@/src/shared/lib/format';
-import { useDashboardSummary } from '@/src/shared/hooks/useAppQueries';
+import { formatCurrency, getRangeForPeriod, localIsoDate, prettyDate, type DatePeriod } from '@/src/shared/lib/format';
+import { useDashboardSummary, useSubscription } from '@/src/shared/hooks/useAppQueries';
+import type { DashboardSummary } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useLanguageStore } from '@/src/stores/language-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -20,9 +22,16 @@ import { radius, spacing } from '@/src/theme';
 
 import { usePekkaNudges } from '../hooks/usePekkaNudges';
 import { usePekkaWorkspace } from '../hooks/usePekkaWorkspace';
+import { computeStreak } from '@/src/features/habits/lib/habits';
+import { COIN_REWARDS } from '@/src/features/habits/lib/coins';
+import { useHabitStore } from '@/src/stores/habit-store';
+import { buildCollectMessage, phoneForLinks, whatsappUrl } from '../lib/collect';
+import { buildDayClose, todayRange } from '../lib/day-close';
+import { aiEnabled, canAskAi, dailyLimit } from '../lib/quota';
+import { buildShareSummary } from '../lib/share-summary';
 import { buildMorningBrief, yesterdayRange } from '../lib/morning';
 import { usePekkaStore } from '../stores/pekka-store';
-import { PekkaMorningCard } from './PekkaMorningCard';
+import { PekkaDailyCards } from './PekkaDailyCards';
 import { guideForWorkspace } from '../lib/guide';
 import { prepareMoney, prepareSale, type PreparedReply } from '../lib/entry-draft';
 import { parseEntry } from '../lib/entry-parser';
@@ -46,6 +55,15 @@ export function PekkaChatSheet() {
   const user = useAuthStore((state) => state.user);
   const { isPersonal, currency } = usePekkaWorkspace();
   const briefRequested = usePekkaStore((state) => state.briefRequested);
+  const closeRequested = usePekkaStore((state) => state.closeRequested);
+  const tipsRequested = usePekkaStore((state) => state.tipsRequested);
+  const closeDays = usePekkaStore((state) => state.closeDays);
+  const aiUsage = usePekkaStore((state) => state.aiUsage);
+  const { data: subscription } = useSubscription();
+  // The AI is a paid, counted thing; everything Pekka works out on the phone stays free.
+  const aiOn = aiEnabled(subscription);
+  const aiLimit = dailyLimit(subscription);
+  const businessName = useAuthStore((state) => String(state.businessProfile?.businessName ?? ''));
 
   const questions = useMemo(() => questionsForWorkspace(isPersonal), [isPersonal]);
   const guideTopics = useMemo(() => guideForWorkspace(isPersonal), [isPersonal]);
@@ -71,6 +89,11 @@ export function PekkaChatSheet() {
   const briefRange = useMemo(() => yesterdayRange(), [briefPending]);
   const briefQuery = useDashboardSummary(briefRange, open && briefPending);
 
+  // Closing today's book: today's numbers, the streak, and a coin for keeping it up.
+  const [closePending, setClosePending] = useState(false);
+  const closeRange = useMemo(() => todayRange(), [closePending]);
+  const closeQuery = useDashboardSummary(closeRange, open && closePending);
+
   // Tips share the floating button's query, so opening Pekka costs no extra requests.
   const tips = usePekkaNudges(open);
   const [tipsPending, setTipsPending] = useState(false);
@@ -85,8 +108,13 @@ export function PekkaChatSheet() {
   const answerAloud = useRef(false);
   useEffect(() => { if (!open) stopPekkaSpeech(); }, [open]);
 
-  const pushMessage = (role: PekkaChatMessage['role'], text: string, action?: PekkaChatMessage['action']) => {
-    setMessages((prev) => [...prev, { id: nextId(), role, text, action }]);
+  const pushMessage = (
+    role: PekkaChatMessage['role'],
+    text: string,
+    action?: PekkaChatMessage['action'],
+    shareText?: string,
+  ) => {
+    setMessages((prev) => [...prev, { id: nextId(), role, text, action, shareText }]);
     if (role === 'pekka' && answerAloud.current) {
       answerAloud.current = false;
       speakPekka(text, speechLang);
@@ -142,14 +170,72 @@ export function PekkaChatSheet() {
       pushMessage('pekka', t('pekka.noData'));
       return;
     }
-    const brief = buildMorningBrief(briefQuery.data, { isPersonal, t, currency });
+    const brief = buildMorningBrief(briefQuery.data, {
+      isPersonal,
+      t,
+      currency,
+      streak: computeStreak(closeDays, localIsoDate()),
+    });
     pushMessage(
       'pekka',
       brief.lines.join('\n'),
       brief.action ? { label: t(brief.action.labelKey), route: brief.action.route } : undefined,
+      buildShareSummary(briefQuery.data, {
+        isPersonal,
+        t,
+        currency,
+        title: businessName,
+        dateLabel: prettyDate(briefRange.from),
+      }),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [briefPending, briefQuery.data, briefQuery.isLoading, briefQuery.isFetching, briefQuery.isError]);
+
+  const askDayClose = (fromNotification = false) => {
+    if (!fromNotification) void Haptics.selectionAsync();
+    answerAloud.current = false;
+    setAwaiting(null);
+    pushMessage('user', t('pekka.close.question'));
+    setClosePending(true);
+  };
+
+  useEffect(() => {
+    if (!open || !closeRequested) return;
+    usePekkaStore.getState().consumeDayClose();
+    if (!closePending) askDayClose(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, closeRequested]);
+
+  // Closing the book records the day, keeps the streak and pays a coin for it.
+  const finishDayClose = async (summary: DashboardSummary) => {
+    const today = localIsoDate();
+    const days = await usePekkaStore.getState().recordDayClose(today);
+    const streak = computeStreak(days, today);
+    const brief = buildDayClose(summary, { isPersonal, t, currency, streak });
+    const coins = await useHabitStore.getState().awardCoins(COIN_REWARDS.checkin, {
+      claimId: `pekka-close:${today}`,
+      reason: 'checkin',
+      label: t('pekka.close.cardTitle'),
+    });
+    const lines = coins ? [...brief.lines, t('pekka.close.coins', { count: coins })] : brief.lines;
+    pushMessage(
+      'pekka',
+      lines.join('\n'),
+      brief.action ? { label: t(brief.action.labelKey), route: brief.action.route } : undefined,
+      buildShareSummary(summary, { isPersonal, t, currency, title: businessName, dateLabel: prettyDate(today) }),
+    );
+  };
+
+  useEffect(() => {
+    if (!closePending || closeQuery.isLoading || closeQuery.isFetching) return;
+    setClosePending(false);
+    if (closeQuery.isError || !closeQuery.data) {
+      pushMessage('pekka', t('pekka.noData'));
+      return;
+    }
+    void finishDayClose(closeQuery.data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closePending, closeQuery.data, closeQuery.isLoading, closeQuery.isFetching, closeQuery.isError]);
 
   const askTips = () => {
     void Haptics.selectionAsync();
@@ -160,13 +246,26 @@ export function PekkaChatSheet() {
   };
 
   useEffect(() => {
+    if (!open || !tipsRequested) return;
+    usePekkaStore.getState().consumeTips();
+    if (!tipsPending) askTips();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tipsRequested]);
+
+  useEffect(() => {
     if (!tipsPending || tips.isLoading) return;
     setTipsPending(false);
     if (!tips.nudges.length) {
       pushMessage('pekka', t('pekka.tips.none'));
       return;
     }
-    for (const nudge of tips.nudges) pushMessage('pekka', nudge.text, nudge.action);
+    for (const nudge of tips.nudges) {
+      // Money owed comes with an offer to write the reminder, not just a link.
+      const action = nudge.party
+        ? { label: t('pekka.collect.button'), collectId: nudge.party.id }
+        : nudge.action;
+      pushMessage('pekka', nudge.text, action);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipsPending, tips.isLoading]);
 
@@ -200,8 +299,15 @@ export function PekkaChatSheet() {
     setAwaiting(null);
     setPending(null);
     setBriefPending(false);
+    setClosePending(false);
     setTipsPending(false);
     usePekkaHandoff.getState().clear();
+  };
+
+  // Sending the day's numbers to WhatsApp, Viber or anywhere else the phone offers.
+  const handleShare = (text: string) => {
+    void Haptics.selectionAsync();
+    void Share.share({ message: text }).catch(() => undefined);
   };
 
   const handleGuide = (route?: string) => {
@@ -211,7 +317,38 @@ export function PekkaChatSheet() {
     router.push(route as never);
   };
 
+  /** Fetches the person's number, then offers the message ready to send. */
+  const writeReminder = async (partyId: string) => {
+    const overdue = tips.nudges.find((nudge) => nudge.party?.id === partyId)?.party;
+    if (!overdue) return;
+    const message = buildCollectMessage(overdue, { t, currency });
+    let phone = '';
+    try {
+      const party = await partiesApi.get(partyId);
+      phone = phoneForLinks(typeof party?.phone === 'string' ? party.phone : '');
+    } catch {
+      // Offline or no access: the message can still be shared by hand.
+    }
+    pushMessage(
+      'pekka',
+      message,
+      phone ? { label: t('pekka.collect.whatsapp'), url: whatsappUrl(phone, message) } : undefined,
+      message,
+    );
+    if (!phone) pushMessage('pekka', t('pekka.collect.noPhone', { name: overdue.name }));
+  };
+
   const handleAction = (action: PekkaMessageAction) => {
+    if (action.collectId) {
+      void Haptics.selectionAsync();
+      void writeReminder(action.collectId);
+      return;
+    }
+    if (action.url) {
+      void Haptics.selectionAsync();
+      void Linking.openURL(action.url).catch(() => pushMessage('pekka', t('pekka.collect.failed')));
+      return;
+    }
     if (!action.handoffId) {
       handleGuide(action.route);
       return;
@@ -240,7 +377,7 @@ export function PekkaChatSheet() {
     if (reply.status === 'choose') return t('pekka.chooseMatch');
     if (reply.status === 'not-found') return t('pekka.noMatch');
     if (reply.status === 'personal') return t('pekka.personalLookup');
-    if (reply.status !== 'answer') return t(isPersonal ? 'pekka.lookupHelpPersonal' : 'pekka.lookupHelp');
+    if (reply.status !== 'answer') return t(isPersonal ? 'pekka.lookupHelpPersonal' : 'pekka.lookupHelp', { name: greetingName });
     const value = formatCurrency(reply.amount ?? 0, reply.currency || currency);
     if (reply.kind === 'product') return t('pekka.productAnswer', { name: reply.name || '', value, unit: reply.unit ? ` / ${reply.unit}` : '' });
     return t(`pekka.partyAnswer.${reply.direction || 'settled'}`, { name: reply.name || '', value });
@@ -306,19 +443,46 @@ export function PekkaChatSheet() {
       return;
     }
 
+    // Anything left over goes to the AI, when the plan includes it and the day's
+    // allowance is not spent. Otherwise the server's own lookup answers.
+    if (!choice && aiOn) {
+      if (!canAskAi(aiUsage, aiLimit)) {
+        pushMessage('pekka', t('pekka.ai.limitReached', { limit: aiLimit, name: greetingName }), {
+          label: t('pekka.ai.seePlans'),
+          route: '/(app)/pricing',
+        });
+        inFlight.current = false;
+        setAsking(false);
+        return;
+      }
+      try {
+        const history = messages.slice(-6).map((message) => ({ role: message.role, text: message.text }));
+        const reply = await askPekkaChat(question, history);
+        await usePekkaStore.getState().countAiQuestion(reply.usage);
+        if (requestVersion.current !== version) return;
+        pushMessage('pekka', reply.answer, reply.action);
+        inFlight.current = false;
+        setAsking(false);
+        return;
+      } catch {
+        // No AI on this server yet, or it failed: fall back to the lookup below.
+      }
+    }
+
     try {
       const reply = await askPekka(question, choice ? { id: choice.id, kind: choice.kind } : undefined);
       if (requestVersion.current !== version) return;
       pushMessage('pekka', replyText(reply));
       setChoices(reply.candidates ?? []);
-    } catch (error) {
-      if (requestVersion.current === version) pushMessage('pekka', error instanceof Error ? error.message : t('pekka.noData'));
+    } catch {
+      // Plumbing errors ("Request failed with status 404") help nobody here.
+      if (requestVersion.current === version) pushMessage('pekka', t('pekka.noData'));
     } finally {
       if (requestVersion.current === version) { inFlight.current = false; setAsking(false); }
     }
   }
 
-  const busy = Boolean(pending) || asking || briefPending || tipsPending;
+  const busy = Boolean(pending) || asking || briefPending || closePending || tipsPending;
   const periodOptions = PERIOD_ORDER.map((value) => ({
     value,
     label: t(`common.${periodCommonKey(value)}`),
@@ -331,6 +495,7 @@ export function PekkaChatSheet() {
       title={t('pekka.title')}
       subtitle={t('pekka.subtitle')}
       heightRatio={0.9}
+      stickToBottom
       footer={
         <View style={styles.footer}>
           {awaiting ? (
@@ -346,6 +511,15 @@ export function PekkaChatSheet() {
               showsHorizontalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.chipRow}>
+              <Pressable
+                onPress={() => askDayClose()}
+                disabled={busy}
+                style={[styles.chip, { backgroundColor: colors.accentSoft, opacity: busy ? 0.6 : 1 }]}>
+                <MaterialCommunityIcons name="weather-night" size={15} color={colors.primaryText} />
+                <Text variant="label" style={styles.chipLabel}>
+                  {t('pekka.close.question')}
+                </Text>
+              </Pressable>
               <Pressable
                 onPress={() => askBrief()}
                 disabled={busy}
@@ -416,7 +590,7 @@ export function PekkaChatSheet() {
         {messages.length === 0 ? (
           <>
             <PekkaIntroduction personal={isPersonal} topics={guideTopics} onOpen={handleGuide} />
-            <PekkaMorningCard />
+            <PekkaDailyCards />
           </>
         ) : null}
 
@@ -426,6 +600,7 @@ export function PekkaChatSheet() {
             message={message}
             onSpeak={(text) => speakPekka(text, speechLang)}
             onAction={handleAction}
+            onShare={handleShare}
           />
         ))}
 

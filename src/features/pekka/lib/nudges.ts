@@ -37,6 +37,8 @@ export interface PekkaNudge {
   kind: 'overdue' | 'categoryUp' | 'monthLoss' | 'salesUp' | 'salesDown';
   text: string;
   action?: { label: string; route: string };
+  /** Who the money is owed by, so Pekka can offer to write them a reminder. */
+  party?: OverdueParty;
 }
 
 export const NUDGE_RULES = {
@@ -89,6 +91,7 @@ export function buildNudges(input: NudgeInputs, { t, currency = 'NPR' }: { t: Tr
       kind: 'overdue',
       text: t('pekka.tips.overdue', { name: party.name, value: money(party.amount), days: party.days }),
       action: { label: t('pekka.tips.openParty', { name: party.name }), route: `/(app)/parties/${party.id}` },
+      party,
     });
   }
 

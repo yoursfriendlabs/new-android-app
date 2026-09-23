@@ -26,7 +26,7 @@ export function PekkaFab() {
   const setOpen = usePekkaStore((state) => state.setOpen);
   const lift = usePekkaStore((state) => state.lift);
   const nudgesSeen = usePekkaStore((state) => state.nudgesSeen);
-  const seenReady = usePekkaStore((state) => state.morningReady);
+  const seenReady = usePekkaStore((state) => state.schedulesReady);
 
   const appear = useRef(new Animated.Value(0)).current;
   const signedIn = status === 'signed-in';

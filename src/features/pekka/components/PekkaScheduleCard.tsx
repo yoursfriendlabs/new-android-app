@@ -1,5 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import * as Haptics from 'expo-haptics';
+import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
@@ -10,15 +11,30 @@ import { Text } from '@/src/shared/ui/Text';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing } from '@/src/theme';
 
-import { MORNING_TIMES } from '../lib/morning';
-import { usePekkaStore } from '../stores/pekka-store';
+import type { PekkaScheduleSettings } from '../lib/schedule';
 
-/** Turn the morning summary on or off and pick its time. Hidden where notifications can't run. */
-export function PekkaMorningCard() {
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Turn one of Pekka's daily moments on or off and pick its time. Hidden where notifications can't run. */
+export function PekkaScheduleCard({
+  icon,
+  titleKey,
+  onKey,
+  offKey,
+  times,
+  settings,
+  onChange,
+}: {
+  icon: IconName;
+  titleKey: string;
+  onKey: string;
+  offKey: string;
+  times: Array<{ hour: number; minute: number }>;
+  settings: PekkaScheduleSettings;
+  onChange: (patch: Partial<PekkaScheduleSettings>) => Promise<void>;
+}) {
   const colors = usePalette();
   const { t } = useTranslation();
-  const morning = usePekkaStore((state) => state.morning);
-  const setMorning = usePekkaStore((state) => state.setMorning);
   const [blocked, setBlocked] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -27,7 +43,7 @@ export function PekkaMorningCard() {
   const toggle = async (next: boolean) => {
     void Haptics.selectionAsync();
     if (!next) {
-      await setMorning({ enabled: false });
+      await onChange({ enabled: false });
       return;
     }
     setBusy(true);
@@ -35,29 +51,29 @@ export function PekkaMorningCard() {
       const { requestReminderPermission } = await import('@/src/features/habits/lib/interval-reminders');
       const allowed = await requestReminderPermission();
       setBlocked(!allowed);
-      if (allowed) await setMorning({ enabled: true });
+      if (allowed) await onChange({ enabled: true });
     } finally {
       setBusy(false);
     }
   };
 
-  const time = formatClockTime(morning.hour, morning.minute);
+  const time = formatClockTime(settings.hour, settings.minute);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.header}>
         <View style={[styles.icon, { backgroundColor: colors.accentSoft }]}>
-          <MaterialCommunityIcons name="weather-sunset-up" size={20} color={colors.primary} />
+          <MaterialCommunityIcons name={icon} size={20} color={colors.primary} />
         </View>
         <View style={styles.copy}>
-          <Text variant="bodyStrong">{t('pekka.morning.cardTitle')}</Text>
+          <Text variant="bodyStrong">{t(titleKey)}</Text>
           <Text variant="caption" tone="muted">
-            {morning.enabled ? t('pekka.morning.cardOn', { time }) : t('pekka.morning.cardOff')}
+            {settings.enabled ? t(onKey, { time }) : t(offKey)}
           </Text>
         </View>
         <Switch
-          accessibilityLabel={t('pekka.morning.cardTitle')}
-          value={morning.enabled}
+          accessibilityLabel={t(titleKey)}
+          value={settings.enabled}
           disabled={busy}
           onValueChange={(value) => void toggle(value)}
           trackColor={{ false: colors.border, true: colors.primary }}
@@ -71,10 +87,10 @@ export function PekkaMorningCard() {
         </Text>
       ) : null}
 
-      {morning.enabled ? (
+      {settings.enabled ? (
         <View style={styles.times}>
-          {MORNING_TIMES.map((option) => {
-            const active = option.hour === morning.hour && option.minute === morning.minute;
+          {times.map((option) => {
+            const active = option.hour === settings.hour && option.minute === settings.minute;
             return (
               <Pressable
                 key={`${option.hour}:${option.minute}`}
@@ -82,7 +98,7 @@ export function PekkaMorningCard() {
                 accessibilityState={{ selected: active }}
                 onPress={() => {
                   void Haptics.selectionAsync();
-                  void setMorning({ hour: option.hour, minute: option.minute });
+                  void onChange({ hour: option.hour, minute: option.minute });
                 }}
                 style={[
                   styles.time,
