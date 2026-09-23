@@ -35,7 +35,7 @@ test('thanks, identity, help and corrections each have a relevant response', () 
 });
 
 test('greetings never swallow a records question, entry or product lookup', () => {
-  for (const text of ['Hello, how much did I spend this month?', 'Hi, how do I add stock?', 'Hi, price of Sugar', 'Hello, Ram ko baki', 'Hi, sold 2 coke', 'thanks, show sales today', 'What is the weather?', '', '   ']) {
+  for (const text of ['Hello, how much did I spend this month?', 'Hi, how do I add stock?', 'Hi, price of Sugar', 'Hello, Ram ko baki', 'Hi, sold 2 coke', 'thanks, show sales today', '', '   ']) {
     assert.equal(match(text), null, text);
   }
   assert.equal(matchPekkaIntent('Hello, how much did I spend this month?', false)?.id, 'expense');
@@ -43,9 +43,32 @@ test('greetings never swallow a records question, entry or product lookup', () =
   assert.equal(parseEntry('spent 250 on tea')?.type, 'money');
 });
 
+test('everyday talk — mood, praise, complaints, jokes and off-topic — gets a human answer', () => {
+  for (const text of ['I am tired', 'business is slow', 'no customers today', 'thakai lagyo', 'आज राम्रो भएन']) {
+    assert.equal(match(text), 'mood', text);
+  }
+  for (const text of ['Good job!', 'you are the best', 'wow', 'ramro cha', 'nice work']) {
+    assert.equal(match(text), 'praise', text);
+  }
+  for (const text of ['you are useless', 'that is not right', 'you dont understand', 'kaam lagdaina']) {
+    assert.equal(match(text), 'sorry', text);
+  }
+  assert.equal(match('Tell me a joke'), 'joke');
+  for (const text of ['What is the weather?', 'what time is it', 'any news', 'cricket score']) {
+    assert.equal(match(text), 'offTopic', text);
+  }
+  for (const text of ['are you there?', 'what are you doing', 'hello, are you busy?']) {
+    assert.equal(match(text), 'checkIn', text);
+  }
+  assert.equal(match('are you real?'), 'identity');
+  assert.equal(match('how are you doing bro'), 'wellbeing');
+  assert.equal(match('thanks pekka'), 'thanks');
+  assert.equal(match('ok na'), 'acknowledge');
+});
+
 test('conversation responses are translated and personal fallback stays relevant', () => {
   for (const dictionary of [en, ne]) {
-    for (const id of ['hello', 'wellbeing', 'thanks', 'goodbye', 'identity', 'acknowledge', 'clarify']) {
+    for (const id of ['hello', 'wellbeing', 'thanks', 'goodbye', 'identity', 'acknowledge', 'clarify', 'checkIn', 'mood', 'praise', 'sorry', 'joke', 'offTopic']) {
       assert.ok(dictionary.pekka.conversation[id]?.length, id);
     }
     assert.ok(dictionary.pekka.lookupHelpPersonal);
