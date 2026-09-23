@@ -56,6 +56,41 @@ export default function SettingsScreen() {
     officeRadiusMeters: businessSettings?.officeRadiusMeters !== null && businessSettings?.officeRadiusMeters !== undefined ? String(businessSettings.officeRadiusMeters) : '100',
   }));
   const [geofenceMessage, setGeofenceMessage] = useState('');
+  // What gets printed at the top of every bill. Stored on business settings,
+  // the same record the web app's invoice header reads.
+  const [billHeaderForm, setBillHeaderForm] = useState(() => ({
+    companyName: String(businessSettings?.companyName ?? businessProfile?.businessName ?? ''),
+    address: String(businessSettings?.address ?? ''),
+    phone: String(businessSettings?.phone ?? ''),
+    email: String(businessSettings?.email ?? ''),
+    panVat: String(businessSettings?.panVat ?? ''),
+  }));
+  const [savingBillHeader, setSavingBillHeader] = useState(false);
+
+  async function handleBillHeaderSave() {
+    setSavingBillHeader(true);
+    try {
+      const nextSettings = {
+        ...(businessSettings ?? {}),
+        companyName: billHeaderForm.companyName.trim(),
+        address: billHeaderForm.address.trim(),
+        phone: billHeaderForm.phone.trim(),
+        email: billHeaderForm.email.trim(),
+        panVat: billHeaderForm.panVat.trim(),
+      };
+      await metaApi.updateBusinessSettings(nextSettings);
+      await updateSettings(nextSettings);
+      setSnackbar({ visible: true, message: 'Bill header saved', tone: 'success' });
+    } catch (error) {
+      setSnackbar({
+        visible: true,
+        message: error instanceof Error ? error.message : t('common.error'),
+        tone: 'danger',
+      });
+    } finally {
+      setSavingBillHeader(false);
+    }
+  }
 
   async function handleGeofencingSave() {
     setGeofenceMessage('');
@@ -203,6 +238,52 @@ export default function SettingsScreen() {
             : 'Use the web app for longer edits. Mobile keeps the essentials at the counter.'}
         </Text>
       </SurfaceCard>
+
+      {isPersonal ? null : (
+        <SurfaceCard
+          title="Bill header"
+          subtitle="Printed at the top of every invoice and receipt.">
+          <FormField
+            label="Business name"
+            value={billHeaderForm.companyName}
+            onChangeText={(companyName) => setBillHeaderForm((current) => ({ ...current, companyName }))}
+            placeholder="Name as it should appear on the bill"
+          />
+          <FormField
+            label="Address"
+            value={billHeaderForm.address}
+            onChangeText={(address) => setBillHeaderForm((current) => ({ ...current, address }))}
+            placeholder="Street, city"
+          />
+          <FormField
+            label="Phone"
+            value={billHeaderForm.phone}
+            onChangeText={(phone) => setBillHeaderForm((current) => ({ ...current, phone }))}
+            keyboardType="phone-pad"
+          />
+          <FormField
+            label="Email"
+            value={billHeaderForm.email}
+            onChangeText={(email) => setBillHeaderForm((current) => ({ ...current, email }))}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <FormField
+            label="PAN / VAT number"
+            value={billHeaderForm.panVat}
+            onChangeText={(panVat) => setBillHeaderForm((current) => ({ ...current, panVat }))}
+            placeholder="Leave empty if you do not have one"
+          />
+          <Pressable
+            disabled={savingBillHeader}
+            style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: savingBillHeader ? 0.6 : 1 }]}
+            onPress={() => void handleBillHeaderSave()}>
+            <Text style={styles.primaryButtonLabel}>
+              {savingBillHeader ? t('common.saving') : 'Save bill header'}
+            </Text>
+          </Pressable>
+        </SurfaceCard>
+      )}
 
       <SurfaceCard
         title={t('settings.profile')}
