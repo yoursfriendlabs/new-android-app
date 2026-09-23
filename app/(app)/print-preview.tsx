@@ -9,7 +9,8 @@ import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
-import { useAuthStore } from '@/src/stores/auth-store';
+import { billDue, billState, billStateLabel } from '@/src/shared/lib/bill-status';
+import { useInvoiceIdentity } from '@/src/shared/lib/invoice-identity';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
@@ -17,7 +18,7 @@ import type { AppPalette } from '@/src/theme/app-palette';
 export default function PrintPreviewScreen() {
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
-  const businessProfile = useAuthStore((state) => state.businessProfile);
+  const biz = useInvoiceIdentity();
   const title = useReceiptStore((state) => state.title);
   const subtitle = useReceiptStore((state) => state.subtitle);
   const html = useReceiptStore((state) => state.html);
@@ -49,10 +50,14 @@ export default function PrintPreviewScreen() {
     }
   }
 
-  const due =
-    data && data.amountReceived !== undefined
-      ? Math.max(data.grandTotal - data.amountReceived, 0)
-      : undefined;
+  const showPaymentBand = Boolean(data) && (data?.amountReceived !== undefined || data?.dueAmount !== undefined);
+  const due = showPaymentBand ? billDue(data) : undefined;
+  const state = showPaymentBand ? billState(data) : undefined;
+  const settledTone = state === 'paid' ? 'success' : state === 'partial' ? 'warning' : 'danger';
+  const bandColor =
+    settledTone === 'success' ? colors.success : settledTone === 'warning' ? colors.warning : colors.danger;
+  const bandSoftColor =
+    settledTone === 'success' ? colors.successSoft : settledTone === 'warning' ? colors.warningSoft : colors.dangerSoft;
 
   return (
     <Screen scrollable>
@@ -68,23 +73,15 @@ export default function PrintPreviewScreen() {
             <View style={styles.storeLogoBox}>
               <MaterialCommunityIcons name="storefront" size={24} color={colors.primary} />
             </View>
-            <Text style={styles.storeName}>
-              {String(businessProfile?.businessName || businessProfile?.name || 'PM')}
-            </Text>
-            {businessProfile?.address ? (
-              <Text style={styles.storeMeta}>{String(businessProfile.address)}</Text>
-            ) : null}
-            {businessProfile?.phone ? (
-              <Text style={styles.storeMeta}>Phone: {String(businessProfile.phone)}</Text>
-            ) : null}
-            {(businessProfile?.panNumber || businessProfile?.pan || businessProfile?.vatNumber || businessProfile?.vat || businessProfile?.taxNumber) ? (
+            <Text style={styles.storeName}>{biz.name}</Text>
+            {biz.address ? <Text style={styles.storeMeta}>{biz.address}</Text> : null}
+            {biz.phone ? <Text style={styles.storeMeta}>Phone: {biz.phone}</Text> : null}
+            {biz.panVat ? (
               <Text style={[styles.storeMeta, { fontWeight: '700', color: colors.primary }]}>
-                PAN / VAT No: {String(businessProfile.panNumber || businessProfile.pan || businessProfile.vatNumber || businessProfile.vat || businessProfile.taxNumber)}
+                PAN / VAT No: {biz.panVat}
               </Text>
             ) : null}
-            {businessProfile?.email ? (
-              <Text style={styles.storeMeta}>Email: {String(businessProfile.email)}</Text>
-            ) : null}
+            {biz.email ? <Text style={styles.storeMeta}>Email: {biz.email}</Text> : null}
           </View>
 
           <View style={styles.dividerDashed} />
@@ -101,10 +98,16 @@ export default function PrintPreviewScreen() {
                 {data?.date ? prettyDate(data.date) : prettyDate(new Date().toISOString())}
               </Text>
             </View>
-            {subtitle || data?.subtitle ? (
+            {data?.partyName || subtitle || data?.subtitle ? (
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Customer:</Text>
-                <Text style={styles.metaValue}>{subtitle || data?.subtitle}</Text>
+                <Text style={styles.metaValue}>{data?.partyName || subtitle || data?.subtitle}</Text>
+              </View>
+            ) : null}
+            {data?.partyPhone ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Phone:</Text>
+                <Text style={styles.metaValue}>{data.partyPhone}</Text>
               </View>
             ) : null}
           </View>
@@ -169,33 +172,22 @@ export default function PrintPreviewScreen() {
                 <Text style={styles.grandTotalValue}>{formatCurrency(data.grandTotal)}</Text>
               </View>
 
-              {data.amountReceived !== undefined ? (
+              {showPaymentBand && state ? (
                 <>
                   <View style={styles.finRow}>
                     <Text style={styles.finLabel}>Paid / Received</Text>
-                    <Text style={styles.finValue}>{formatCurrency(data.amountReceived)}</Text>
+                    <Text style={styles.finValue}>{formatCurrency(Number(data.amountReceived ?? 0))}</Text>
                   </View>
                   <View
                     style={[
                       styles.dueBanner,
-                      {
-                        backgroundColor: (due ?? 0) > 0 ? colors.dangerSoft : colors.successSoft,
-                        borderColor: (due ?? 0) > 0 ? colors.danger : colors.success,
-                      },
+                      { backgroundColor: bandSoftColor, borderColor: bandColor },
                     ]}>
-                    <Text
-                      style={[
-                        styles.dueBannerLabel,
-                        { color: (due ?? 0) > 0 ? colors.danger : colors.success },
-                      ]}>
-                      {(due ?? 0) > 0 ? 'Balance Due' : 'Payment Status'}
+                    <Text style={[styles.dueBannerLabel, { color: bandColor }]}>
+                      {billStateLabel(state)}
                     </Text>
-                    <Text
-                      style={[
-                        styles.dueBannerValue,
-                        { color: (due ?? 0) > 0 ? colors.danger : colors.success },
-                      ]}>
-                      {(due ?? 0) > 0 ? formatCurrency(due ?? 0) : 'Fully Paid'}
+                    <Text style={[styles.dueBannerValue, { color: bandColor }]}>
+                      {(due ?? 0) > 0 ? `Balance due ${formatCurrency(due ?? 0)}` : 'Nothing outstanding'}
                     </Text>
                   </View>
                 </>

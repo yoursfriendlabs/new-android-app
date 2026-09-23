@@ -26,6 +26,7 @@ import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { partyInitials } from '@/src/features/parties/lib/party';
+import { billDue, billPaid } from '@/src/shared/lib/bill-status';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
 import { shareHtmlAsPdf } from '@/src/shared/lib/report-pdf';
 import {
@@ -245,6 +246,9 @@ export default function DetailedSalesScreen() {
       reference: sale.invoiceNo,
       date: sale.saleDate,
       subtitle: customer.name,
+      partyName: customer.name,
+      partyPhone: customer.phone ? String(customer.phone) : undefined,
+      paymentMethod: sale.paymentMethod,
       lines: (sale.items ?? []).map((item) => ({
         name: (item as any).product?.name || item.productId || 'Item',
         quantity: item.quantity,
@@ -255,7 +259,8 @@ export default function DetailedSalesScreen() {
       taxTotal: sale.taxTotal,
       discountTotal: sale.discountTotal ?? sale.discount ?? 0,
       grandTotal: sale.grandTotal,
-      amountReceived: sale.amountReceived,
+      amountReceived: billPaid(sale),
+      dueAmount: billDue(sale),
     };
     const html = buildReceiptHtml(receiptData);
 
@@ -278,6 +283,9 @@ export default function DetailedSalesScreen() {
         reference: sale.invoiceNo,
         date: sale.saleDate,
         subtitle: customer.name,
+        partyName: customer.name,
+        partyPhone: customer.phone ? String(customer.phone) : undefined,
+        paymentMethod: sale.paymentMethod,
         lines: (sale.items ?? []).map((item) => ({
           name: (item as any).product?.name || item.productId || 'Item',
           quantity: item.quantity,
@@ -288,7 +296,8 @@ export default function DetailedSalesScreen() {
         taxTotal: sale.taxTotal,
         discountTotal: sale.discountTotal ?? sale.discount ?? 0,
         grandTotal: sale.grandTotal,
-        amountReceived: sale.amountReceived,
+        amountReceived: billPaid(sale),
+        dueAmount: billDue(sale),
       });
 
       await shareHtmlAsPdf(html, `Invoice-${sale.invoiceNo}`);

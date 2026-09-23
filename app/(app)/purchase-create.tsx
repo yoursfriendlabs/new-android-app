@@ -19,7 +19,7 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { TotalsCard } from '@/src/shared/ui/TotalsCard';
-import { buildReceiptHtml } from '@/src/shared/lib/receipt';
+import { buildReceiptHtml, type ReceiptInput } from '@/src/shared/lib/receipt';
 import { computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
 import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
@@ -178,26 +178,33 @@ export default function PurchaseCreateScreen() {
         body: payload,
       });
 
+      const receiptData: ReceiptInput = {
+        heading: 'Purchase Bill',
+        reference: draft.value.invoiceNo,
+        date: draft.value.purchaseDate,
+        subtitle: draft.value.supplier.name,
+        partyName: draft.value.supplier.name,
+        partyPhone: draft.value.supplier.phone ? String(draft.value.supplier.phone) : undefined,
+        paymentMethod: draft.value.paymentMethod,
+        lines: draft.value.items.map((item) => ({
+          name: item.product?.name ?? (item.description || 'Line item'),
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: computeLineTotal(item),
+        })),
+        subTotal,
+        taxTotal,
+        discountTotal: draft.value.discount,
+        grandTotal,
+        amountReceived: draft.value.amountPaid,
+        dueAmount: Math.max(grandTotal - Number(draft.value.amountPaid || 0), 0),
+      };
+
       setReceipt({
         title: draft.value.invoiceNo,
         subtitle: draft.value.supplier.name,
-        html: buildReceiptHtml({
-          heading: 'Purchase Entry',
-          reference: draft.value.invoiceNo,
-          date: draft.value.purchaseDate,
-          subtitle: draft.value.supplier.name,
-          lines: draft.value.items.map((item) => ({
-            name: item.product?.name ?? (item.description || 'Line item'),
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: computeLineTotal(item),
-          })),
-          subTotal,
-          taxTotal,
-          discountTotal: draft.value.discount,
-          grandTotal,
-          amountReceived: draft.value.amountPaid,
-        }),
+        html: buildReceiptHtml(receiptData),
+        data: receiptData,
       });
 
       if (result.data) {

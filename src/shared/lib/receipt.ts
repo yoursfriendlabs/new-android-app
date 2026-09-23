@@ -1,5 +1,11 @@
 import { router } from 'expo-router';
+import { billDue, billPaid, billState, billStateLabel } from '@/src/shared/lib/bill-status';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
+import {
+  isInvoiceIdentity,
+  resolveInvoiceIdentity,
+  type InvoiceIdentity,
+} from '@/src/shared/lib/invoice-identity';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { getStatementRowTitle, getStatementTypeLabel, toAmount } from '@/src/features/parties/lib/party';
 import type {
@@ -32,6 +38,8 @@ export interface ReceiptInput {
   discountTotal: number;
   grandTotal: number;
   amountReceived?: number;
+  /** What the server says is still owed. Beats any arithmetic done here. */
+  dueAmount?: number;
   paymentMethod?: string;
   accountName?: string;
   notes?: string;
@@ -39,13 +47,23 @@ export interface ReceiptInput {
   partyPhone?: string;
 }
 
-export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile | null) {
-  const businessName = profile?.businessName || profile?.name || 'PM';
-  const businessPhone = profile?.phone ? `Phone: ${profile.phone}` : '';
-  const businessAddress = profile?.address ? `${profile.address}` : '';
-  const panVat = profile?.panNumber || profile?.pan || profile?.vatNumber || profile?.vat || profile?.taxNumber;
-  const panLine = panVat ? `PAN / VAT No: ${panVat}` : '';
-  const emailLine = profile?.email ? `Email: ${profile.email}` : '';
+export function buildReceiptHtml(
+  input: ReceiptInput,
+  identity?: InvoiceIdentity | BusinessProfile | null,
+) {
+  // Callers may hand over a ready identity, a business profile, or nothing at
+  // all; either way the bill gets a proper letterhead.
+  const biz = isInvoiceIdentity(identity)
+    ? identity
+    : resolveInvoiceIdentity((identity as BusinessProfile | null | undefined) ?? null);
+  const businessName = biz.name;
+  const businessPhone = biz.phone ? `Phone: ${biz.phone}` : '';
+  const businessAddress = biz.address;
+  const panLine = biz.panVat ? `PAN / VAT No: ${biz.panVat}` : '';
+  const emailLine = biz.email ? `Email: ${biz.email}` : '';
+  const logoTag = biz.logoUrl
+    ? `<img class="store-logo" src="${biz.logoUrl}" alt="" />`
+    : '';
 
   const lineRows = (input.lines || [])
     .map(
@@ -66,10 +84,20 @@ export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile 
     ? `${input.dateLabel}: ${prettyDate(input.date)}`
     : prettyDate(input.date);
 
-  const due =
-    input.amountReceived !== undefined
-      ? Math.max(input.grandTotal - input.amountReceived, 0)
-      : 0;
+  // Paid / part-paid / unpaid comes from one shared rule, so a bill can never
+  // print as settled while money is still owed on it.
+  const settled = Number(input.amountReceived ?? 0);
+  const due = billDue({
+    grandTotal: input.grandTotal,
+    amountReceived: input.amountReceived,
+    dueAmount: input.dueAmount,
+  });
+  const state = billState({
+    grandTotal: input.grandTotal,
+    amountReceived: input.amountReceived,
+    dueAmount: input.dueAmount,
+  });
+  const showPaymentBand = input.amountReceived !== undefined || input.dueAmount !== undefined;
 
   return `
     <!DOCTYPE html>
@@ -94,6 +122,13 @@ export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile 
             margin-bottom: 20px;
             padding-bottom: 14px;
             border-bottom: 2px solid #0A2E20;
+          }
+          .store-logo {
+            display: block;
+            margin: 0 auto 6px auto;
+            max-height: 64px;
+            max-width: 160px;
+            object-fit: contain;
           }
           .store-name {
             font-size: 22px;
@@ -194,6 +229,16 @@ export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile 
             color: #b91c1c;
             border: 1px solid #f8b4b4;
           }
+          .status-partial {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+          }
+          .status-cancelled {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+          }
           .footer {
             margin-top: 24px;
             text-align: center;
@@ -206,6 +251,7 @@ export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile 
       </head>
       <body>
         <div class="header">
+          ${logoTag}
           <div class="store-name">${businessName}</div>
           ${businessAddress ? `<div class="store-meta">${businessAddress}</div>` : ''}
           ${businessPhone ? `<div class="store-meta">${businessPhone}</div>` : ''}
@@ -294,15 +340,15 @@ export function buildReceiptHtml(input: ReceiptInput, profile?: BusinessProfile 
           </div>
 
           ${
-            input.amountReceived !== undefined
+            showPaymentBand
               ? `
               <div class="total-row" style="margin-top:6px;">
                 <span>Paid / Settled:</span>
-                <span>${formatCurrency(input.amountReceived)}</span>
+                <span>${formatCurrency(settled)}</span>
               </div>
-              <div class="status-badge ${due > 0 ? 'status-due' : 'status-paid'}">
-                <span>${due > 0 ? 'Balance Due:' : 'Status:'}</span>
-                <span>${due > 0 ? formatCurrency(due) : 'Fully Settled / Paid'}</span>
+              <div class="status-badge status-${state === 'paid' ? 'paid' : state === 'partial' ? 'partial' : state === 'cancelled' ? 'cancelled' : 'due'}">
+                <span>${billStateLabel(state)}</span>
+                <span>${due > 0 ? `Balance due ${formatCurrency(due)}` : state === 'cancelled' ? '—' : 'Nothing outstanding'}</span>
               </div>
               `
               : ''
@@ -381,7 +427,7 @@ export function buildExpenseReceipt(
     ? 'INCOME VOUCHER'
     : isExpense ? 'EXPENSE VOUCHER' : 'PURCHASE BILL';
   const grandTotal = Number(purchase.grandTotal || 0);
-  const amountReceived = Number(purchase.amountReceived || 0);
+  const amountReceived = billPaid(purchase);
 
   const lines: ReceiptLine[] =
     purchase.items && purchase.items.length > 0
@@ -414,6 +460,7 @@ export function buildExpenseReceipt(
     discountTotal: Number(purchase.discountTotal || 0),
     grandTotal,
     amountReceived,
+    dueAmount: billDue(purchase),
   };
 
   const html = buildReceiptHtml(input, profile);
@@ -429,7 +476,7 @@ export function buildSaleReceipt(
   bankName?: string
 ) {
   const grandTotal = Number(sale.grandTotal || 0);
-  const amountReceived = Number(sale.amountReceived || 0);
+  const amountReceived = billPaid(sale);
 
   const lines: ReceiptLine[] =
     sale.items && sale.items.length > 0
@@ -463,6 +510,7 @@ export function buildSaleReceipt(
     discountTotal: Number(sale.discountTotal || 0),
     grandTotal,
     amountReceived,
+    dueAmount: billDue(sale),
   };
 
   const html = buildReceiptHtml(input, profile);
@@ -481,7 +529,7 @@ export function buildServiceReceipt(
   const isGym = profile?.businessType === 'gym' || profile?.type === 'gym';
   const heading = isGym ? 'MEMBERSHIP / SERVICE INVOICE' : 'SERVICE JOB INVOICE';
   const grandTotal = Number(service.grandTotal || 0);
-  const receivedTotal = Number(service.receivedTotal || 0);
+  const receivedTotal = billPaid(service);
 
   const lines: ReceiptLine[] =
     service.items && service.items.length > 0
@@ -537,6 +585,7 @@ export function buildServiceReceipt(
     discountTotal: Number(service.discount || (service as any).discountTotal || 0),
     grandTotal,
     amountReceived: receivedTotal,
+    dueAmount: billDue(service),
   };
 
   const html = buildReceiptHtml(input, profile);
@@ -601,6 +650,7 @@ export function buildPartyStatementReceipt(
     discountTotal: 0,
     grandTotal: totalVolume,
     amountReceived: settled,
+    dueAmount: totalDue,
   };
 
   const html = buildReceiptHtml(input, profile);
