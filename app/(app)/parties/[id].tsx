@@ -212,7 +212,7 @@ export default function PartyDetailScreen() {
         paymentMethod: (row.paymentMethod as any) || 'cash',
         bankId: row.bankId ? String(row.bankId) : undefined,
         txDate: row.date ? String(row.date) : new Date().toISOString(),
-        note: row.description ? String(row.description) : '',
+        note: row.note ? String(row.note) : '',
         createdAt: row.date ? String(row.date) : new Date().toISOString(),
         updatedAt: row.date ? String(row.date) : new Date().toISOString(),
       };
@@ -259,7 +259,7 @@ export default function PartyDetailScreen() {
         discountTotal: 0,
         grandTotal: getStatementAmount(row),
         amountReceived: getStatementAmount(row) - toAmount(row.dueAmount),
-        notes: row.description ? String(row.description) : '',
+        notes: row.note ? String(row.note) : '',
         items: [],
         createdAt: row.date ? String(row.date) : new Date().toISOString(),
         updatedAt: row.date ? String(row.date) : new Date().toISOString(),
