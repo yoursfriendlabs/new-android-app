@@ -87,6 +87,7 @@ export default function AppLayout() {
         <Stack.Screen name="tables" />
         <Stack.Screen name="item-form" options={{ presentation: 'modal' }} />
         <Stack.Screen name="item-detail" />
+        <Stack.Screen name="service-detail" />
       </Stack.Protected>
       <Stack.Protected guard={showTour}>
         <Stack.Screen name="welcome" options={{ gestureEnabled: false }} />

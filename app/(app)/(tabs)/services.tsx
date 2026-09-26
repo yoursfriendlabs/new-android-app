@@ -1,69 +1,44 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { servicesApi } from '@/src/api';
-import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
-import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
-import { FormField } from '@/src/shared/forms/FormField';
-import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
-import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { buildServiceReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import {
-  invalidateAfterBill,
+  dueAmount,
+  getServiceDeviceOrProblem,
+  getServiceDisplay,
+  getToneColors,
+  isClosedStatus,
+  isOverdue,
+  resolveServiceCustomer,
+} from '@/src/features/services/lib/service-view';
+import {
   useBanks,
   usePagedServices,
   useParties,
-  useServiceById,
   useServiceStats,
 } from '@/src/shared/hooks/useAppQueries';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
-import { todayIso } from '@/src/shared/lib/format';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { radius, shadows, spacing, typography } from '@/src/theme';
-import type { Party, Service, ServiceStatus } from '@/src/types/models';
+import type { Service, ServiceStatus } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type ServiceFilter = 'all' | 'in_progress' | 'overdue' | 'closed';
-type StatusTone = 'info' | 'warning' | 'success' | 'danger' | 'muted';
-
-function dueAmount(total: number, paid: number) {
-  return Math.max(0, Number(total || 0) - Number(paid || 0));
-}
-
-function isClosedStatus(status: string) {
-  return ['closed', 'completed', 'delivered', 'cancelled'].includes(String(status || '').toLowerCase());
-}
-
-/** Overdue once the delivery day has passed; a job due today is not late yet. */
-function isOverdue(service: Service) {
-  if (isClosedStatus(service.status) || !service.deliveryDate || !service.deliveryDate.trim()) return false;
-  return service.deliveryDate.slice(0, 10) < todayIso();
-}
 
 const SERVER_STAGE: Record<ServiceFilter, 'open' | 'overdue' | 'closed' | undefined> = {
   all: undefined,
@@ -71,89 +46,6 @@ const SERVER_STAGE: Record<ServiceFilter, 'open' | 'overdue' | 'closed' | undefi
   overdue: 'overdue',
   closed: 'closed',
 };
-
-function getServiceDisplay(service: Service, isGym: boolean) {
-  if (isClosedStatus(service.status)) {
-    return {
-      label: isGym ? 'Completed' : 'Closed',
-      tone: 'muted' as StatusTone,
-      icon: 'check-circle-outline' as const,
-    };
-  }
-  if (isOverdue(service)) {
-    return {
-      label: isGym ? 'Expired' : 'Overdue',
-      tone: 'danger' as StatusTone,
-      icon: 'alert-circle-outline' as const,
-    };
-  }
-  return {
-    label: isGym ? 'Active' : 'In Progress',
-    tone: 'warning' as StatusTone,
-    icon: 'progress-wrench' as const,
-  };
-}
-
-function getToneColors(tone: StatusTone, colors: AppPalette) {
-  if (tone === 'danger') return { bg: colors.dangerSoft, text: colors.danger, border: colors.danger };
-  if (tone === 'success') return { bg: colors.successSoft, text: colors.success, border: colors.success };
-  if (tone === 'warning') return { bg: colors.warningSoft, text: colors.warning, border: colors.warning };
-  if (tone === 'info') return { bg: colors.accentSoft, text: colors.accent, border: colors.accent };
-  return { bg: colors.backgroundAlt, text: colors.textMuted, border: colors.border };
-}
-
-function resolveServiceCustomer(service: Service, partyMap?: Map<string, Party>) {
-  const directParty = (service as any).party || (service as any).Party || (service as any).customer;
-  const directName = service.partyName || directParty?.name || (service as any).customerName;
-  const directPhone = directParty?.phone || (service as any).customerPhone || (service as any).phone;
-
-  if (service.partyId && partyMap?.has(service.partyId)) {
-    const matched = partyMap.get(service.partyId)!;
-    return {
-      name: directName || matched.name || 'Customer',
-      phone: directPhone || matched.phone || '',
-      address: matched.address || '',
-      party: matched,
-    };
-  }
-
-  return {
-    name: directName || 'Walk-in Customer',
-    phone: directPhone || '',
-    address: directParty?.address || '',
-    party: directParty,
-  };
-}
-
-function getServiceDeviceOrProblem(service: Service): string {
-  const attrs = service.attributes || {};
-  const candidates = [
-    attrs.device,
-    attrs.deviceName,
-    attrs.model,
-    attrs.brand,
-    attrs.vehicleNo,
-    attrs.problem,
-    attrs.issue,
-    attrs.serviceType,
-    service.notes,
-  ].filter(Boolean);
-
-  if (candidates.length) {
-    return String(candidates.slice(0, 2).join(' · '));
-  }
-
-  if (service.items?.length) {
-    const customItems = service.items
-      .map((i) => i.description || i.productId || i.itemType)
-      .filter((desc) => desc && desc !== 'labor' && desc !== 'part');
-    if (customItems.length) {
-      return customItems.slice(0, 2).join(', ');
-    }
-  }
-
-  return '';
-}
 
 function matchesFilter(service: Service, filter: ServiceFilter) {
   if (filter === 'all') return true;
@@ -165,7 +57,6 @@ function matchesFilter(service: Service, filter: ServiceFilter) {
 export default function ServicesScreen() {
   const colors = usePalette();
   const toast = useToast();
-  const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
   const queryClient = useQueryClient();
   const currency = useAuthStore((state) => state.businessProfile?.currencyCode) || 'NPR';
@@ -181,15 +72,6 @@ export default function ServicesScreen() {
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ServiceFilter>('all');
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
-  const { data: serviceDetail, isLoading: isDetailLoading } = useServiceById(selectedServiceId ?? undefined);
-
-  const [statusDraft, setStatusDraft] = useState<ServiceStatus>('in_progress');
-  const [receivedDraft, setReceivedDraft] = useState('0');
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash');
-  const [bankId, setBankId] = useState('');
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search);
   const servicesQuery = usePagedServices({ stage: SERVER_STAGE[filter], search: debouncedSearch });
   const statsQuery = useServiceStats();
@@ -262,12 +144,7 @@ export default function ServicesScreen() {
   }, [debouncedSearch, filter, partyMap, services]);
 
   function openService(serviceId: string) {
-    setSelectedServiceId(serviceId);
-    const selected = services.find((entry) => entry.id === serviceId);
-    setStatusDraft(selected?.status ?? 'in_progress');
-    setReceivedDraft(String(selected?.receivedTotal ?? 0));
-    setPaymentMethod((selected?.paymentMethod as 'cash' | 'bank') ?? 'cash');
-    setBankId(selected?.bankId ?? '');
+    router.push({ pathname: '/(app)/service-detail' as any, params: { id: serviceId } });
   }
 
   function handlePrintService(service: Service) {
@@ -293,57 +170,6 @@ export default function ServicesScreen() {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     }
   }
-
-  async function saveServiceUpdate() {
-    if (!selectedServiceId) return;
-    setUpdatingStatus(true);
-    try {
-      await servicesApi.update(selectedServiceId, {
-        status: statusDraft,
-        receivedTotal: Number(receivedDraft || 0),
-        paymentMethod,
-        bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
-      });
-      // Money received moves the customer's balance, the bank and the dashboard too.
-      await Promise.all([
-        invalidateAfterBill(queryClient, [serviceDetail?.partyId]),
-        queryClient.invalidateQueries({ queryKey: ['service', selectedServiceId] }),
-      ]);
-      setSelectedServiceId(null);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Please try again.');
-    } finally {
-      setUpdatingStatus(false);
-    }
-  }
-
-  async function confirmRemoveService() {
-    const confirmed = await confirm({
-      title: 'Delete this service job?',
-      message: 'The job and everything recorded against it will go.',
-      confirmLabel: 'Delete job',
-      destructive: true,
-    });
-    if (confirmed) await removeService();
-  }
-
-  async function removeService() {
-    if (!selectedServiceId) return;
-    try {
-      await servicesApi.remove(selectedServiceId);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['services-list'] }),
-        queryClient.invalidateQueries({ queryKey: ['recent-services'] }),
-      ]);
-      setSelectedServiceId(null);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Please try again.');
-    }
-  }
-
-  const selectedCustomer = serviceDetail ? resolveServiceCustomer(serviceDetail, partyMap) : null;
-  const selectedDisplay = serviceDetail ? getServiceDisplay(serviceDetail, isGym) : null;
-  const selectedDue = serviceDetail ? dueAmount(Number(serviceDetail.grandTotal || 0), Number(serviceDetail.receivedTotal || 0)) : 0;
 
   return (
     <Screen
@@ -604,199 +430,6 @@ export default function ServicesScreen() {
         <ListFooterLoader list={servicesQuery} />
       </ScrollView>
 
-      {/* Service Detail and Payment Sheet */}
-      <BottomSheet
-        visible={Boolean(selectedServiceId)}
-        title={selectedCustomer?.name || serviceDetail?.orderNo || 'Job Details'}
-        subtitle={
-          serviceDetail
-            ? `Order #${serviceDetail.orderNo || 'N/A'} · ${selectedDisplay?.label ?? ''}`
-            : 'Service update'
-        }
-        onClose={() => setSelectedServiceId(null)}
-        fullHeight
-        footer={
-          <View style={styles.footerActions}>
-            <Pressable style={[styles.secondaryButton, { backgroundColor: colors.dangerSoft }]} onPress={() => void confirmRemoveService()}>
-              <Text style={[styles.secondaryLabel, { color: colors.danger }]}>Delete</Text>
-            </Pressable>
-            <Pressable
-              disabled={updatingStatus}
-              style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-              onPress={() => void saveServiceUpdate()}>
-              {updatingStatus ? (
-                <ActivityIndicator color={colors.onPrimary} />
-              ) : (
-                <Text style={styles.primaryLabel}>Save Updates</Text>
-              )}
-            </Pressable>
-          </View>
-        }>
-        {isDetailLoading || !serviceDetail ? (
-          <View style={styles.detailLoadingWrap}>
-            <SkeletonList count={4} avatar={false} />
-          </View>
-        ) : (
-          <View style={styles.sheetContent}>
-            {/* Quick Bill Action Banner */}
-            <Pressable
-              style={[styles.printBannerBtn, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}
-              onPress={() => handlePrintService(serviceDetail)}>
-              <MaterialCommunityIcons name="file-document-outline" size={20} color={colors.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.printBannerTitle, { color: colors.accent }]}>View & Print Service Bill</Text>
-                <Text style={[styles.printBannerSub, { color: colors.textMuted }]}>
-                  Includes business header, tax/PAN, parts, labor & payment status
-                </Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.accent} />
-            </Pressable>
-
-            {/* Customer Contact Card */}
-            <SurfaceCard title="Customer Information">
-              <View style={styles.customerDetailRow}>
-                <View style={[styles.avatarLarge, { backgroundColor: colors.primary }]}>
-                  <Text style={[styles.avatarLargeText, { color: colors.onPrimary }]}>
-                    {partyInitials(selectedCustomer?.name || 'Customer')}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[styles.detailCustomerName, { color: colors.text }]}>
-                    {selectedCustomer?.name}
-                  </Text>
-                  <Text style={[styles.helperText, { color: colors.textMuted }]}>
-                    {selectedCustomer?.phone || 'No phone number provided'}
-                  </Text>
-                  {selectedCustomer?.address ? (
-                    <Text style={[styles.helperText, { color: colors.textSoft }]}>
-                      {selectedCustomer.address}
-                    </Text>
-                  ) : null}
-                </View>
-                {selectedCustomer?.phone ? (
-                  <Pressable
-                    style={[styles.callActionPill, { backgroundColor: colors.successSoft }]}
-                    onPress={() => void Linking.openURL(`tel:${selectedCustomer.phone}`)}>
-                    <MaterialCommunityIcons name="phone" size={18} color={colors.success} />
-                    <Text style={[styles.callActionText, { color: colors.success }]}>Call</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </SurfaceCard>
-
-            {/* Status Selector */}
-            <View style={styles.formSection}>
-              <Text style={[styles.formSectionTitle, { color: colors.text }]}>Update Status</Text>
-              <SegmentedTabs
-                value={statusDraft === 'closed' ? 'closed' : 'in_progress'}
-                onChange={(value) => setStatusDraft(value as ServiceStatus)}
-                options={[
-                  { label: 'In Progress', value: 'in_progress' },
-                  { label: isGym ? 'Completed' : 'Closed', value: 'closed' },
-                ]}
-              />
-            </View>
-
-            {/* Payment & Balance Due */}
-            <SurfaceCard
-              title="Bill & Payment"
-              subtitle={`Grand Total: ${formatCurrency(Number(serviceDetail.grandTotal || 0), currency)} · Balance Due: ${formatCurrency(selectedDue, currency)}`}>
-              <FormField
-                label="Total Amount Received (रू)"
-                value={receivedDraft}
-                onChangeText={setReceivedDraft}
-                keyboardType="numeric"
-              />
-              <PaymentMethodSelector
-                value={paymentMethod}
-                onChange={setPaymentMethod}
-                bankId={bankId}
-                onBankChange={setBankId}
-              />
-            </SurfaceCard>
-
-            {/* Itemized Parts and Labor */}
-            <SurfaceCard title="Line Items & Parts" subtitle={`${serviceDetail.items?.length || 0} items attached`}>
-              <View style={styles.itemList}>
-                {(serviceDetail.items ?? []).map((item, index) => (
-                  <View key={`${serviceDetail.id}-${index}`} style={[styles.itemRow, { backgroundColor: colors.backgroundAlt }]}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[styles.itemTitle, { color: colors.text }]}>
-                        {item.description || item.productId || item.itemType}
-                      </Text>
-                      <Text style={[styles.itemMeta, { color: colors.textMuted }]}>
-                        Qty: {item.quantity} {item.unitType || ''} @ {formatCurrency(item.unitPrice, currency)}
-                      </Text>
-                    </View>
-                    <Text style={[styles.itemAmount, { color: colors.primary }]}>
-                      {formatCurrency(item.lineTotal, currency)}
-                    </Text>
-                  </View>
-                ))}
-                {!serviceDetail.items?.length ? (
-                  <Text style={styles.helperText}>No individual parts or labor added.</Text>
-                ) : null}
-              </View>
-            </SurfaceCard>
-
-            {/* Attached Photos & Documents */}
-            {(() => {
-              const attachments = (
-                serviceDetail.attachments?.length
-                  ? serviceDetail.attachments
-                  : serviceDetail.attachment
-                    ? [serviceDetail.attachment]
-                    : []
-              ).filter(Boolean);
-
-              if (!attachments.length) return null;
-
-              return (
-                <SurfaceCard title="Attached Photos" subtitle={`${attachments.length} photo${attachments.length === 1 ? '' : 's'} uploaded`}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.attachmentGallery}>
-                    {attachments.map((uri, idx) => (
-                      <Pressable
-                        key={`${uri}-${idx}`}
-                        style={[styles.attachmentThumbCard, { borderColor: colors.border }]}
-                        onPress={() => setPreviewImage(uri)}>
-                        <Image source={{ uri }} style={styles.attachmentImg} resizeMode="cover" />
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                </SurfaceCard>
-              );
-            })()}
-
-            {/* Notes and Dates */}
-            <SurfaceCard title="Job Timeline & Notes">
-              <View style={styles.timelineRow}>
-                <Text style={[styles.helperText, { color: colors.textMuted }]}>
-                  {isGym ? 'Expiry Date' : 'Target Delivery'}: <Text style={{ fontWeight: '700', color: colors.text }}>{prettyDate(serviceDetail.deliveryDate)}</Text>
-                </Text>
-              </View>
-              {serviceDetail.notes ? (
-                <Text style={[styles.notesText, { color: colors.text }]}>
-                  {serviceDetail.notes}
-                </Text>
-              ) : (
-                <Text style={[styles.helperText, { color: colors.textSoft }]}>No notes provided.</Text>
-              )}
-            </SurfaceCard>
-          </View>
-        )}
-      </BottomSheet>
-
-      {/* Full-Screen Image Preview Modal */}
-      <Modal visible={Boolean(previewImage)} transparent animationType="fade" onRequestClose={() => setPreviewImage(null)}>
-        <View style={styles.imageModalBackdrop}>
-          <Pressable style={styles.closeModalBtn} onPress={() => setPreviewImage(null)}>
-            <MaterialCommunityIcons name="close" size={26} color={colors.onPrimary} />
-          </Pressable>
-          {previewImage ? (
-            <Image source={{ uri: previewImage }} style={styles.modalImage} resizeMode="contain" />
-          ) : null}
-        </View>
-      </Modal>
     </Screen>
   );
 }
@@ -1023,210 +656,5 @@ const createStyles = (colors: AppPalette) =>
       color: colors.onPrimary,
       fontWeight: '800',
       fontSize: typography.body,
-    },
-    detailLoadingWrap: {
-      paddingVertical: spacing.xxl,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    sheetContent: {
-      gap: spacing.md,
-      paddingBottom: spacing.xxl,
-    },
-    printBannerBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      padding: spacing.md,
-      borderRadius: radius.lg,
-      borderWidth: 1,
-    },
-    printBannerTitle: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    printBannerSub: {
-      fontSize: typography.caption,
-      marginTop: 2,
-    },
-    customerDetailRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.md,
-    },
-    avatarLarge: {
-      width: 52,
-      height: 52,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarLargeText: {
-      fontSize: 18,
-      fontWeight: '800',
-    },
-    detailCustomerName: {
-      fontSize: typography.subheading,
-      fontWeight: '800',
-    },
-    callActionPill: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-      borderRadius: radius.pill,
-    },
-    callActionText: {
-      fontSize: 12,
-      fontWeight: '800',
-    },
-    formSection: {
-      gap: spacing.xs,
-    },
-    formSectionTitle: {
-      fontSize: typography.label,
-      fontWeight: '800',
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    helperText: {
-      fontSize: typography.caption,
-      lineHeight: 18,
-    },
-    bankWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.sm,
-      marginTop: spacing.xs,
-    },
-    bankChip: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
-    },
-    bankChipActive: {
-      backgroundColor: colors.primary,
-    },
-    bankChipLabel: {
-      color: colors.text,
-      fontWeight: '700',
-      fontSize: 12,
-    },
-    bankChipLabelActive: {
-      color: colors.onPrimary,
-    },
-    emptyBankInfo: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      padding: spacing.md,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      backgroundColor: colors.backgroundAlt,
-    },
-    emptyBankText: {
-      flex: 1,
-      fontSize: typography.caption,
-      color: colors.textMuted,
-      fontWeight: '500',
-    },
-    itemList: {
-      gap: spacing.xs,
-    },
-    itemRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      borderRadius: radius.md,
-      padding: spacing.sm,
-      gap: spacing.md,
-    },
-    itemTitle: {
-      fontSize: typography.body,
-      fontWeight: '700',
-    },
-    itemMeta: {
-      fontSize: typography.caption,
-    },
-    itemAmount: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    timelineRow: {
-      marginBottom: spacing.xs,
-    },
-    notesText: {
-      fontSize: typography.body,
-      lineHeight: 20,
-    },
-    footerActions: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    secondaryButton: {
-      flex: 1,
-      minHeight: 50,
-      borderRadius: radius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    secondaryLabel: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    primaryButton: {
-      flex: 2,
-      minHeight: 50,
-      borderRadius: radius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    primaryLabel: {
-      color: colors.onPrimary,
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    attachmentGallery: {
-      gap: spacing.sm,
-      paddingVertical: spacing.xs,
-    },
-    attachmentThumbCard: {
-      width: 100,
-      height: 100,
-      borderRadius: radius.md,
-      overflow: 'hidden',
-      borderWidth: 1,
-    },
-    attachmentImg: {
-      width: '100%',
-      height: '100%',
-    },
-    imageModalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.92)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: spacing.md,
-    },
-    modalImage: {
-      width: '100%',
-      height: '80%',
-    },
-    closeModalBtn: {
-      position: 'absolute',
-      top: 50,
-      right: 20,
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 10,
     },
   });
