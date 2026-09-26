@@ -10,6 +10,7 @@ import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { radius, shadows, spacing, typography } from '@/src/theme';
 import { useReceiptStore } from '@/src/stores/receipt-store';
 import { billDue, billState, billStateLabel } from '@/src/shared/lib/bill-status';
+import { getBalanceColor, getBalanceSoftColor } from '@/src/features/parties/lib/party';
 import { useInvoiceIdentity } from '@/src/shared/lib/invoice-identity';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -50,7 +51,10 @@ export default function PrintPreviewScreen() {
     }
   }
 
-  const showPaymentBand = Boolean(data) && (data?.amountReceived !== undefined || data?.dueAmount !== undefined);
+  // A statement closes on a balance (to receive / to pay); a bill on paid or due.
+  const standing = data?.standing;
+  const showPaymentBand =
+    !standing && Boolean(data) && (data?.amountReceived !== undefined || data?.dueAmount !== undefined);
   const due = showPaymentBand ? billDue(data) : undefined;
   const state = showPaymentBand ? billState(data) : undefined;
   const settledTone = state === 'paid' ? 'success' : state === 'partial' ? 'warning' : 'danger';
@@ -118,17 +122,21 @@ export default function PrintPreviewScreen() {
           {data?.lines && data.lines.length > 0 ? (
             <View style={styles.itemsSection}>
               <View style={styles.tableHeaderRow}>
-                <Text style={[styles.colItem, styles.tableHeadText]}>Item</Text>
-                <Text style={[styles.colQty, styles.tableHeadText]}>Qty</Text>
+                <Text style={[styles.colItem, styles.tableHeadText]}>{standing ? 'Entry' : 'Item'}</Text>
+                {standing ? null : <Text style={[styles.colQty, styles.tableHeadText]}>Qty</Text>}
                 <Text style={[styles.colTotal, styles.tableHeadText]}>Amount</Text>
               </View>
               {data.lines.map((line, idx) => (
                 <View key={`${line.name}-${idx}`} style={styles.itemRow}>
                   <View style={styles.colItem}>
                     <Text style={styles.itemName}>{line.name}</Text>
-                    <Text style={styles.itemRate}>@ {formatCurrency(line.unitPrice)}</Text>
+                    {standing ? null : (
+                      <Text style={styles.itemRate}>@ {formatCurrency(line.unitPrice)}</Text>
+                    )}
                   </View>
-                  <Text style={[styles.colQty, styles.itemQty]}>{line.quantity}</Text>
+                  {standing ? null : (
+                    <Text style={[styles.colQty, styles.itemQty]}>{line.quantity}</Text>
+                  )}
                   <Text style={[styles.colTotal, styles.itemTotal]}>
                     {formatCurrency(line.lineTotal)}
                   </Text>
@@ -149,10 +157,12 @@ export default function PrintPreviewScreen() {
           {/* Financials & Dues */}
           {data ? (
             <View style={styles.financialSection}>
-              <View style={styles.finRow}>
-                <Text style={styles.finLabel}>Subtotal</Text>
-                <Text style={styles.finValue}>{formatCurrency(data.subTotal)}</Text>
-              </View>
+              {standing ? null : (
+                <View style={styles.finRow}>
+                  <Text style={styles.finLabel}>Subtotal</Text>
+                  <Text style={styles.finValue}>{formatCurrency(data.subTotal)}</Text>
+                </View>
+              )}
               {data.taxTotal > 0 ? (
                 <View style={styles.finRow}>
                   <Text style={styles.finLabel}>VAT / Tax</Text>
@@ -168,9 +178,47 @@ export default function PrintPreviewScreen() {
                 </View>
               ) : null}
               <View style={[styles.finRow, styles.grandTotalRow]}>
-                <Text style={styles.grandTotalLabel}>Total Amount</Text>
+                <Text style={styles.grandTotalLabel}>{data.totalLabel || 'Total Amount'}</Text>
                 <Text style={styles.grandTotalValue}>{formatCurrency(data.grandTotal)}</Text>
               </View>
+
+              {standing ? (
+                <>
+                  {standing.paidIn > 0 ? (
+                    <View style={styles.finRow}>
+                      <Text style={styles.finLabel}>
+                        {standing.personal ? 'Money in' : 'Received from them'}
+                      </Text>
+                      <Text style={styles.finValue}>{formatCurrency(standing.paidIn)}</Text>
+                    </View>
+                  ) : null}
+                  {standing.paidOut > 0 ? (
+                    <View style={styles.finRow}>
+                      <Text style={styles.finLabel}>
+                        {standing.personal ? 'Money out' : 'Paid to them'}
+                      </Text>
+                      <Text style={styles.finValue}>{formatCurrency(standing.paidOut)}</Text>
+                    </View>
+                  ) : null}
+                  <View
+                    style={[
+                      styles.dueBanner,
+                      {
+                        backgroundColor: getBalanceSoftColor(standing.tone, colors),
+                        borderColor: getBalanceColor(standing.tone, colors),
+                      },
+                    ]}>
+                    <Text style={[styles.dueBannerLabel, { color: getBalanceColor(standing.tone, colors) }]}>
+                      {standing.label}
+                    </Text>
+                    <Text style={[styles.dueBannerValue, { color: getBalanceColor(standing.tone, colors) }]}>
+                      {standing.tone === 'settled'
+                        ? 'Nothing outstanding'
+                        : formatCurrency(standing.amount)}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
 
               {showPaymentBand && state ? (
                 <>

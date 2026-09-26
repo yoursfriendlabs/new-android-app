@@ -7,7 +7,13 @@ import {
   type InvoiceIdentity,
 } from '@/src/shared/lib/invoice-identity';
 import { useReceiptStore } from '@/src/stores/receipt-store';
-import { getStatementRowTitle, getStatementTypeLabel, toAmount } from '@/src/features/parties/lib/party';
+import {
+  getStatementAmount,
+  getStatementRowTitle,
+  getStatementTypeLabel,
+  summarizePartyStatement,
+  type PartyBalanceTone,
+} from '@/src/features/parties/lib/party';
 import type {
   BusinessProfile,
   Party,
@@ -26,6 +32,18 @@ export interface ReceiptLine {
   lineTotal: number;
 }
 
+/** Where a party stands once every bill and payment is counted. */
+export interface ReceiptStanding {
+  tone: PartyBalanceTone;
+  /** 'To Receive' / 'To Pay' / 'Settled' — the party screen's own words. */
+  label: string;
+  /** What is still owed, one way or the other. Always positive. */
+  amount: number;
+  paidIn: number;
+  paidOut: number;
+  personal?: boolean;
+}
+
 export interface ReceiptInput {
   heading: string;
   reference: string;
@@ -37,9 +55,16 @@ export interface ReceiptInput {
   taxTotal: number;
   discountTotal: number;
   grandTotal: number;
+  /** Defaults to 'Total Amount'. A statement calls it something else. */
+  totalLabel?: string;
   amountReceived?: number;
   /** What the server says is still owed. Beats any arithmetic done here. */
   dueAmount?: number;
+  /**
+   * Set on a party / contact statement instead of the paid-unpaid amounts.
+   * A statement closes on a direction, not on a 'Paid' stamp.
+   */
+  standing?: ReceiptStanding;
   paymentMethod?: string;
   accountName?: string;
   notes?: string;
@@ -65,13 +90,16 @@ export function buildReceiptHtml(
     ? `<img class="store-logo" src="${biz.logoUrl}" alt="" />`
     : '';
 
+  // A statement lists whole entries, so the "1 × Rs x" line under each one is noise.
+  const isStatement = Boolean(input.standing);
+
   const lineRows = (input.lines || [])
     .map(
       (line) => `
       <tr>
         <td style="padding: 9px 0; border-bottom: 1px solid #e2e8f0;">
           <div style="font-weight:700; color:#0f172a; font-size:13px;">${line.name}</div>
-          <div style="color:#64748b; font-size:12px; margin-top:2px;">${line.quantity} × ${formatCurrency(line.unitPrice)}</div>
+          ${isStatement ? '' : `<div style="color:#64748b; font-size:12px; margin-top:2px;">${line.quantity} × ${formatCurrency(line.unitPrice)}</div>`}
         </td>
         <td style="text-align:right; padding: 9px 0; border-bottom: 1px solid #e2e8f0; font-weight:700; color:#0f172a; font-size:13px;">
           ${formatCurrency(line.lineTotal)}
@@ -97,7 +125,10 @@ export function buildReceiptHtml(
     amountReceived: input.amountReceived,
     dueAmount: input.dueAmount,
   });
-  const showPaymentBand = input.amountReceived !== undefined || input.dueAmount !== undefined;
+  // A statement closes on a balance, a bill on a paid / unpaid stamp. Never both.
+  const standing = input.standing;
+  const showPaymentBand =
+    !standing && (input.amountReceived !== undefined || input.dueAmount !== undefined);
 
   return `
     <!DOCTYPE html>
@@ -234,6 +265,11 @@ export function buildReceiptHtml(
             color: #92400e;
             border: 1px solid #fcd34d;
           }
+          .status-pay {
+            background: #e6effd;
+            color: #1d4ed8;
+            border: 1px solid #bfd6fb;
+          }
           .status-cancelled {
             background: #f1f5f9;
             color: #475569;
@@ -301,7 +337,7 @@ export function buildReceiptHtml(
             <table class="items">
               <thead>
                 <tr>
-                  <th style="text-align:left;">Item / Description</th>
+                  <th style="text-align:left;">${isStatement ? 'Entry' : 'Item / Description'}</th>
                   <th style="text-align:right;">Amount</th>
                 </tr>
               </thead>
@@ -314,10 +350,14 @@ export function buildReceiptHtml(
         }
 
         <div class="totals">
-          <div class="total-row">
-            <span>Subtotal:</span>
-            <span>${formatCurrency(input.subTotal)}</span>
-          </div>
+          ${
+            isStatement
+              ? ''
+              : `<div class="total-row">
+                  <span>Subtotal:</span>
+                  <span>${formatCurrency(input.subTotal)}</span>
+                </div>`
+          }
           ${
             input.taxTotal > 0
               ? `<div class="total-row">
@@ -335,9 +375,36 @@ export function buildReceiptHtml(
               : ''
           }
           <div class="total-row grand-total">
-            <span>Total Amount:</span>
+            <span>${input.totalLabel || 'Total Amount'}:</span>
             <span>${formatCurrency(input.grandTotal)}</span>
           </div>
+
+          ${
+            standing
+              ? `
+              ${
+                standing.paidIn > 0
+                  ? `<div class="total-row" style="margin-top:6px;">
+                      <span>${standing.personal ? 'Money in:' : 'Received from them:'}</span>
+                      <span>${formatCurrency(standing.paidIn)}</span>
+                    </div>`
+                  : ''
+              }
+              ${
+                standing.paidOut > 0
+                  ? `<div class="total-row">
+                      <span>${standing.personal ? 'Money out:' : 'Paid to them:'}</span>
+                      <span>${formatCurrency(standing.paidOut)}</span>
+                    </div>`
+                  : ''
+              }
+              <div class="status-badge status-${standing.tone === 'settled' ? 'paid' : standing.tone === 'pay' ? 'pay' : 'due'}">
+                <span>${standing.label}</span>
+                <span>${standing.tone === 'settled' ? 'Nothing outstanding' : formatCurrency(standing.amount)}</span>
+              </div>
+              `
+              : ''
+          }
 
           ${
             showPaymentBand
@@ -602,19 +669,23 @@ export function buildPartyStatementReceipt(
   profile?: BusinessProfile | null,
   personal = false
 ): { input: ReceiptInput; html: string } {
-  const currentAmount =
-    typeof summaryOrCurrentAmount === 'number'
-      ? summaryOrCurrentAmount
-      : Number(summaryOrCurrentAmount?.currentAmount ?? party.currentAmount ?? 0);
+  const balanceSource =
+    summaryOrCurrentAmount === undefined || summaryOrCurrentAmount === null
+      ? party.currentAmount ?? 0
+      : summaryOrCurrentAmount;
+  const standing = summarizePartyStatement(party, rows, balanceSource);
 
   const lines: ReceiptLine[] =
     rows.length > 0
-      ? rows.map((r) => ({
-          name: `${prettyDate(r.date)} - ${r.notes || r.type || 'Tx'}`,
-          quantity: 1,
-          unitPrice: toAmount(r.totalAmount || r.amount),
-          lineTotal: toAmount(r.totalAmount || r.amount),
-        }))
+      ? rows.map((r) => {
+          const amount = getStatementAmount(r);
+          return {
+            name: `${prettyDate(r.date)} · ${getStatementTypeLabel(r.type, personal)} — ${getStatementRowTitle(r)}`,
+            quantity: 1,
+            unitPrice: amount,
+            lineTotal: amount,
+          };
+        })
       : [
           {
             name: 'No transaction history',
@@ -624,17 +695,7 @@ export function buildPartyStatementReceipt(
           },
         ];
 
-  const totalVolume = rows.reduce((acc, r) => acc + toAmount(r.totalAmount || r.amount), 0);
-  const totalDue = rows.reduce((acc, r) => acc + toAmount(r.dueAmount), 0);
-  const settled = Math.max(0, totalVolume - totalDue);
-
-  const heading = personal ? 'CONTACT STATEMENT BILL' : 'PARTY STATEMENT BILL';
-  const balanceLabel =
-    currentAmount > 0
-      ? `To Receive: ${formatCurrency(currentAmount)}`
-      : currentAmount < 0
-        ? `To Pay: ${formatCurrency(Math.abs(currentAmount))}`
-        : 'Balance Settled (0)';
+  const heading = personal ? 'CONTACT STATEMENT' : 'PARTY STATEMENT';
 
   const input: ReceiptInput = {
     heading,
@@ -643,14 +704,21 @@ export function buildPartyStatementReceipt(
     dateLabel: 'Statement Date',
     partyName: party.name,
     partyPhone: party.phone ? String(party.phone) : undefined,
-    notes: `Account Status: ${balanceLabel} · Total ${rows.length} transactions`,
+    notes: `${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} listed above. The balance below is what is still open after every bill and payment.`,
     lines,
-    subTotal: totalVolume,
+    subTotal: standing.billedTotal,
     taxTotal: 0,
     discountTotal: 0,
-    grandTotal: totalVolume,
-    amountReceived: settled,
-    dueAmount: totalDue,
+    grandTotal: standing.billedTotal,
+    totalLabel: personal ? 'Total recorded' : 'Total billed',
+    standing: {
+      tone: standing.tone,
+      label: standing.label,
+      amount: standing.amount,
+      paidIn: standing.paidIn,
+      paidOut: standing.paidOut,
+      personal,
+    },
   };
 
   const html = buildReceiptHtml(input, profile);
