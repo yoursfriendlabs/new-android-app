@@ -1,5 +1,10 @@
 import type { AppPalette } from '@/src/theme/app-palette';
-import type { Party, PartyStatementRow, PartyStatementType } from '@/src/types/models';
+import type {
+  Party,
+  PartyStatementRow,
+  PartyStatementSummary,
+  PartyStatementType,
+} from '@/src/types/models';
 
 export type PartyBalanceTone = 'receive' | 'pay' | 'settled';
 
@@ -138,6 +143,67 @@ export function getStatementAmount(row: PartyStatementRow) {
     return toAmount(row.amount);
   }
   return toAmount(row.totalAmount || row.amount);
+}
+
+export function isStatementPaymentRow(row: PartyStatementRow) {
+  return row.type === 'payment_in' || row.type === 'payment_out';
+}
+
+export interface PartyStatementStanding {
+  /** Everything billed to (or by) this party over the statement. */
+  billedTotal: number;
+  paidIn: number;
+  paidOut: number;
+  tone: PartyBalanceTone;
+  /** 'To Receive' / 'To Pay' / 'Settled' — the same words the party screen uses. */
+  label: string;
+  /** What is still owed, one way or the other. Always positive. */
+  amount: number;
+}
+
+/**
+ * Where a party stands at the end of their statement.
+ *
+ * A statement is not a bill: single payments and an opening balance move the
+ * balance without touching any bill's due, so a statement can never be stamped
+ * "Paid". It closes on a direction — to receive, to pay, or settled — read from
+ * the same signed balance the party screen shows, so the two always agree.
+ */
+export function summarizePartyStatement(
+  party: Party | null | undefined,
+  rows: PartyStatementRow[],
+  summaryOrCurrentAmount?: PartyStatementSummary | number | null,
+): PartyStatementStanding {
+  const summary =
+    summaryOrCurrentAmount && typeof summaryOrCurrentAmount === 'object' ? summaryOrCurrentAmount : null;
+  const signedAmount =
+    typeof summaryOrCurrentAmount === 'number'
+      ? summaryOrCurrentAmount
+      : summary
+        ? toAmount(summary.currentAmount)
+        : undefined;
+
+  const list = rows || [];
+  const billedTotal = list
+    .filter((row) => !isStatementPaymentRow(row))
+    .reduce((acc, row) => acc + getStatementAmount(row), 0);
+  const rowPaidIn = list
+    .filter((row) => row.type === 'payment_in')
+    .reduce((acc, row) => acc + getStatementAmount(row), 0);
+  const rowPaidOut = list
+    .filter((row) => row.type === 'payment_out')
+    .reduce((acc, row) => acc + getStatementAmount(row), 0);
+
+  const balance = getPartyBalanceMeta(party, signedAmount);
+
+  return {
+    billedTotal,
+    paidIn: summary && toAmount(summary.totalPaymentIn) > 0 ? toAmount(summary.totalPaymentIn) : rowPaidIn,
+    paidOut: summary && toAmount(summary.totalPaymentOut) > 0 ? toAmount(summary.totalPaymentOut) : rowPaidOut,
+    tone: balance.tone,
+    label: balance.label,
+    amount: balance.absoluteAmount,
+  };
 }
 
 export function isEditableStatementRow(row: PartyStatementRow) {
