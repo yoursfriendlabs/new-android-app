@@ -29,6 +29,7 @@ import type {
   Sale,
   SequenceMap,
   Service,
+  ServiceItem,
   StaffMember,
   Subscription,
   Unit,
@@ -648,10 +649,42 @@ export function normalizePurchase(raw: unknown): Purchase {
   };
 }
 
+/**
+ * Money and quantity columns arrive as strings from the server ("1500.00"),
+ * so every price has to be turned back into a number before the screens can
+ * add it up or show it.
+ */
+export function normalizeServiceItem(raw: unknown): ServiceItem {
+  const record = asRecord(raw) ?? {};
+  const productName = asString(firstDefined(record.productName, asRecord(record.product)?.name), '');
+  const quantity = asNumber(record.quantity, 0);
+  const unitPrice = asNumber(record.unitPrice, 0);
+
+  return {
+    ...(record as ServiceItem),
+    id: asString(firstDefined(record.id, record._id), '') || undefined,
+    itemType: asString(firstDefined(record.itemType, record.productId ? 'part' : 'labor'), 'labor'),
+    description: asString(firstDefined(record.description, productName), ''),
+    productId: asString(firstDefined(record.productId, asRecord(record.product)?.id), '') || undefined,
+    productName: productName || undefined,
+    quantity,
+    unitType: asString(firstDefined(record.unitType, record.unit, 'primary'), 'primary'),
+    conversionRate: asNumber(record.conversionRate, 0),
+    unitPrice,
+    taxRate: asNumber(record.taxRate, 0),
+    lineTotal: asNumber(record.lineTotal, quantity * unitPrice),
+  };
+}
+
 export function normalizeService(raw: unknown): Service {
   const record = asRecord(raw) ?? {};
   const nestedParty = asRecord(record.party);
   const attributes = asRecord(record.attributes);
+  const rawItems = Array.isArray(record.items)
+    ? record.items
+    : Array.isArray(record.ServiceItems)
+      ? (record.ServiceItems as unknown[])
+      : undefined;
 
   return {
     ...(record as Service),
@@ -674,6 +707,9 @@ export function normalizeService(raw: unknown): Service {
       : record.attachment
         ? [String(record.attachment)]
         : [],
+    discount: asNumber(firstDefined(record.discount, record.discountTotal)),
+    discountTotal: asNumber(firstDefined(record.discountTotal, record.discount)),
+    items: rawItems ? rawItems.map(normalizeServiceItem) : [],
   };
 }
 
