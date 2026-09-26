@@ -3,7 +3,12 @@ import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
-import { getStatementRowTitle, getStatementTypeLabel, toAmount } from '@/src/features/parties/lib/party';
+import {
+  getStatementRowTitle,
+  getStatementTypeLabel,
+  summarizePartyStatement,
+  toAmount,
+} from '@/src/features/parties/lib/party';
 import {
   isLedgerMoneyIn,
   ledgerEntryAmount,
@@ -157,10 +162,20 @@ export function buildPartyStatementHtml(input: {
     )
     .join('');
 
+  const standing = summarizePartyStatement(
+    input.party,
+    input.rows,
+    input.currentAmount ?? input.party.currentAmount ?? 0,
+  );
+
   const body = `
     <p style="margin: 0 0 4px 0;"><strong>${escapeHtml(input.businessName)}</strong></p>
     <p style="margin: 0 0 12px 0; color: #6d6257;">${escapeHtml([input.party.phone, input.party.address].filter(Boolean).join(' · '))}</p>
-    <p style="margin: 0 0 16px 0;">Current balance: <strong>${money(Number(input.currentAmount || 0), input.currency)}</strong></p>
+    <p style="margin: 0 0 16px 0;">${
+      standing.tone === 'settled'
+        ? 'Balance: <strong>Settled — nothing outstanding</strong>'
+        : `${escapeHtml(standing.label)}: <strong>${money(standing.amount, input.currency)}</strong>`
+    }</p>
     <table style="width: 100%; border-collapse: collapse;">
       <thead>
         <tr>
