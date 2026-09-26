@@ -1043,7 +1043,9 @@ export default function ServiceCreateScreen() {
                   </Text>
                   <Text style={styles.selectorSubtitle}>
                     {editingLine.product
-                      ? `Stock: ${editingLine.product.stockOnHand ?? 0} · Tap to change`
+                      ? `${formatCurrency(editingLine.product.salePrice)} each · Stock: ${
+                          editingLine.product.stockOnHand ?? 0
+                        } · Tap to change`
                       : 'Search products in stock'}
                   </Text>
                 </Pressable>
