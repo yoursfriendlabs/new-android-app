@@ -56,7 +56,8 @@ export async function shrinkImageForUpload(uri: string): Promise<string> {
 
     // A modest picture that is already within the pixel cap is left untouched,
     // which also keeps a transparent PNG logo transparent.
-    if (longestEdge <= MAX_EDGE && originalSize !== null && originalSize <= LEAVE_ALONE_BYTES) {
+    const browserImage = /\.(png|jpe?g|webp)(?:[?#]|$)/i.test(uri);
+    if (browserImage && longestEdge <= MAX_EDGE && originalSize !== null && originalSize <= LEAVE_ALONE_BYTES) {
       return uri;
     }
 

@@ -2,6 +2,8 @@ import { uploadsApi } from '@/src/api';
 import { ApiError } from '@/src/api/client';
 import { normalizeUploadResult, unwrapEntity } from '@/src/api/normalize';
 import { isRemoteAttachment } from '@/src/shared/lib/business';
+import { attachmentFileName, attachmentMimeType, completeUploadUrls, isImageAttachment } from '@/src/shared/lib/upload-files';
+export { isImageAttachment } from '@/src/shared/lib/upload-files';
 import {
   formatBytes,
   MAX_UPLOAD_BYTES,
@@ -9,51 +11,19 @@ import {
   shrinkImageForUpload,
 } from '@/src/shared/lib/image';
 
-function normalizedAttachmentPath(uri: string) {
-  return uri.split('?')[0].toLowerCase();
-}
-
-function inferMimeType(uri: string) {
-  const normalized = normalizedAttachmentPath(uri);
-  if (normalized.endsWith('.png')) return 'image/png';
-  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return 'image/jpeg';
-  if (normalized.endsWith('.webp')) return 'image/webp';
-  if (normalized.endsWith('.pdf')) return 'application/pdf';
-  if (normalized.endsWith('.doc')) return 'application/msword';
-  if (normalized.endsWith('.docx')) {
-    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  }
-  return 'application/octet-stream';
-}
-
-function inferFileName(uri: string) {
-  const segments = uri.split('/');
-  return segments[segments.length - 1] || `upload-${Date.now()}`;
-}
-
-export function isImageAttachment(uri: string) {
-  const normalized = normalizedAttachmentPath(uri);
-  return (
-    normalized.endsWith('.png') ||
-    normalized.endsWith('.jpg') ||
-    normalized.endsWith('.jpeg') ||
-    normalized.endsWith('.webp')
-  );
-}
-
 export function getAttachmentLabel(uri: string) {
   try {
-    return decodeURIComponent(inferFileName(uri));
+    return decodeURIComponent(attachmentFileName(uri));
   } catch {
-    return inferFileName(uri);
+    return attachmentFileName(uri);
   }
 }
 
 function buildFilePart(uri: string) {
   return {
     uri,
-    name: inferFileName(uri),
-    type: inferMimeType(uri),
+    name: attachmentFileName(uri),
+    type: attachmentMimeType(uri),
   } as unknown as Blob;
 }
 
@@ -83,7 +53,8 @@ export function resolveUploadMessage(error: unknown) {
 
 /** Shrinks pictures so the server never refuses them for size. */
 async function prepareForUpload(uri: string) {
-  const prepared = isImageAttachment(uri) || !uri.includes('.') ? await shrinkImageForUpload(uri) : uri;
+  const prepared = isImageAttachment(uri) || attachmentMimeType(uri) === 'application/octet-stream'
+    ? await shrinkImageForUpload(uri) : uri;
   const size = readFileSize(prepared);
   if (size !== null && size > MAX_UPLOAD_BYTES) {
     throw new ApiError(`That file is too big. Keep it under ${formatBytes(MAX_UPLOAD_BYTES)}.`, 413);
@@ -123,19 +94,12 @@ export async function uploadAttachments(uris: string[]) {
 
   const response = await uploadsApi.attachments(formData);
   const record = unwrapEntity<Record<string, unknown>>(response);
-  const normalizedItems =
-    (Array.isArray(record.items) ? record.items : [])
+  const normalizedItems = (Array.isArray(record.items) ? record.items : [])
       .map(normalizeUploadResult)
       .map((item) => item.url)
-      .filter(Boolean) || [];
-  const urls = Array.isArray(record.urls)
-    ? record.urls.map((entry) => String(entry)).filter(Boolean)
-    : [];
+      .filter(Boolean);
+  const uploaded = completeUploadUrls(normalizedItems, Array.isArray(record.urls) ? record.urls : [], local.length);
 
-  const uploaded = [...normalizedItems, ...urls];
-  if (!uploaded.length) {
-    throw new ApiError('The server did not return links for those files. Please try again.');
-  }
-
-  return [...remote, ...uploaded];
+  let uploadedIndex = 0;
+  return uris.map((uri) => isRemoteAttachment(uri) ? uri : uploaded[uploadedIndex++]);
 }
