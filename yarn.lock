@@ -3564,6 +3564,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"expo-image-manipulator@npm:57.0.20":
+  version: 57.0.20
+  resolution: "expo-image-manipulator@npm:57.0.20"
+  dependencies:
+    expo-image-loader: "npm:~57.0.1"
+  peerDependencies:
+    expo: "*"
+  checksum: 10c0/4a6f1f7e26cf5db1d364844e0c72c05402a406c9f302a0bcc565a16e119a214c1803f550b26ae22cfcafb2c5c371a9fc4ccbf34589eec3cbeb8c4d2044822302
+  languageName: node
+  linkType: hard
+
 "expo-image-picker@npm:~57.0.16":
   version: 57.0.20
   resolution: "expo-image-picker@npm:57.0.20"
@@ -5299,6 +5310,7 @@ __metadata:
     expo-document-picker: "npm:~57.0.1"
     expo-font: "npm:~57.0.3"
     expo-haptics: "npm:~57.0.2"
+    expo-image-manipulator: "npm:57.0.20"
     expo-image-picker: "npm:~57.0.16"
     expo-linear-gradient: "npm:~57.0.1"
     expo-linking: "npm:~57.0.9"

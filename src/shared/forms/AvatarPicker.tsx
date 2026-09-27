@@ -14,12 +14,10 @@ import {
 
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
-import { uploadSingleAttachment } from '@/src/shared/lib/uploads';
+import { resolveUploadMessage, uploadSingleAttachment } from '@/src/shared/lib/uploads';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, typography } from '@/src/theme';
-
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 export interface AvatarPickerProps {
   value?: string | null;
@@ -53,18 +51,13 @@ export function AvatarPicker({
     }
 
     const asset = pickerResult.assets[0];
-    if (asset.fileSize && asset.fileSize > MAX_FILE_SIZE_BYTES) {
-      toast.error('Pick an image smaller than 5MB.');
-      return;
-    }
 
     try {
       setUploading(true);
       const uploadedUrl = await uploadSingleAttachment(asset.uri);
       await onChange?.(uploadedUrl);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Please check your connection and try again.';
-      toast.error(msg);
+      toast.error(resolveUploadMessage(error));
     } finally {
       setUploading(false);
     }

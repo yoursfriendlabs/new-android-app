@@ -11,6 +11,7 @@ import { quickExpensesApi } from '@/src/api';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { resolveUploadMessage, uploadSingleAttachment } from '@/src/shared/lib/uploads';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -150,8 +151,8 @@ export function MoneyEntrySheet({
       if (!result.canceled && result.assets?.[0]?.uri) {
         setReceiptImage(result.assets[0].uri);
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not open photos.');
     }
   }
 
@@ -181,6 +182,15 @@ export function MoneyEntrySheet({
     if (!submission.tryStart()) return;
     setSaving(true);
     try {
+      let receiptUrl: string | null = null;
+      if (receiptImage) {
+        try {
+          receiptUrl = await uploadSingleAttachment(receiptImage);
+        } catch (error) {
+          toast.error(resolveUploadMessage(error));
+          return;
+        }
+      }
       let moneySourceId = '';
       const payload = buildMoneyPurchasePayload({
         kind: form.kind,
@@ -191,7 +201,7 @@ export function MoneyEntrySheet({
         notes: form.notes,
         paymentMethod: form.paymentMethod,
         bankId: form.bankId,
-        attachment: receiptImage,
+        attachment: receiptUrl,
       });
       const queued = await withWorkspaceRetry(() =>
         submitWithOfflineQueue<{ id?: string }, typeof payload>({

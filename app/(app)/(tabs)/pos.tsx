@@ -29,7 +29,7 @@ import { haptics } from '@/src/shared/lib/haptics';
 import { SkeletonCardGrid } from '@/src/shared/ui/Skeleton';
 import { apiBillStatus } from '@/src/shared/lib/bill-status';
 import { buildReceiptHtml } from '@/src/shared/lib/receipt';
-import { uploadAttachments } from '@/src/shared/lib/uploads';
+import { resolveUploadMessage, uploadAttachments } from '@/src/shared/lib/uploads';
 import { todayIso } from '@/src/shared/lib/format';
 import { isCafeWorkspace } from '@/src/shared/lib/business';
 import {
@@ -540,7 +540,14 @@ export default function PosScreen() {
     if (!submission.tryStart()) return;
     setSavingMode(mode);
     try {
-      const uploadedAttachments = await uploadAttachments(value.attachments);
+      // A failed picture upload must not read like a failed sale.
+      let uploadedAttachments: string[];
+      try {
+        uploadedAttachments = await uploadAttachments(value.attachments);
+      } catch (error) {
+        toast.error(resolveUploadMessage(error));
+        return;
+      }
 
       const payload = {
         partyId: value.party?.id,

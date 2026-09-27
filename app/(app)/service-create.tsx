@@ -22,7 +22,12 @@ import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { buildServiceReceipt } from '@/src/shared/lib/receipt';
-import { getAttachmentLabel, isImageAttachment, uploadAttachments } from '@/src/shared/lib/uploads';
+import {
+  getAttachmentLabel,
+  isImageAttachment,
+  resolveUploadMessage,
+  uploadAttachments,
+} from '@/src/shared/lib/uploads';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
 import { computeLineTotal, computeSubTotal, computeTaxTotal } from '@/src/shared/lib/totals';
 import {
@@ -278,7 +283,14 @@ export default function ServiceCreateScreen() {
 
     if (!submission.tryStart()) return;
     try {
-      const uploadedAttachmentUrls = await uploadAttachments(draft.value.attachments);
+      // A picture that will not upload is a picture problem, not a save problem.
+      let uploadedAttachmentUrls: string[];
+      try {
+        uploadedAttachmentUrls = await uploadAttachments(draft.value.attachments);
+      } catch (error) {
+        setFormError(resolveUploadMessage(error));
+        return;
+      }
 
       const payload = {
         partyId: draft.value.customer.id,
