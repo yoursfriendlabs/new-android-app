@@ -12,6 +12,29 @@ export function isServiceProduct(product: Product): boolean {
   return String(product.itemType || 'goods').toLowerCase() === 'service';
 }
 
+export function hasSecondaryUnit(line: CartLineDraft): boolean {
+  return Boolean(line.secondaryUnit) && Number.isFinite(line.secondaryConversionRate) && Number(line.secondaryConversionRate) > 0;
+}
+
+export function primaryQuantity(line: CartLineDraft, quantity = line.quantity): number {
+  return line.unitType === 'secondary' && hasSecondaryUnit(line)
+    ? quantity / Number(line.secondaryConversionRate)
+    : quantity;
+}
+
+export function changeCartUnit(line: CartLineDraft, unitType: 'primary' | 'secondary'): CartLineDraft {
+  if (unitType === (line.unitType || 'primary') || !hasSecondaryUnit(line)) return line;
+  const rate = Number(line.secondaryConversionRate);
+  const primaryUnitPrice = line.primaryUnitPrice ?? (line.unitType === 'secondary' ? line.unitPrice * rate : line.unitPrice);
+  return {
+    ...line,
+    unitType,
+    primaryUnitPrice,
+    unit: (unitType === 'secondary' ? line.secondaryUnit : line.primaryUnit) || line.unit,
+    unitPrice: Number((unitType === 'secondary' ? primaryUnitPrice / rate : primaryUnitPrice).toFixed(2)),
+  };
+}
+
 /** A bill line for a product at its listed sale price. */
 export function toCartLine(product: Product, quantity = 1): CartLineDraft {
   return {
@@ -26,6 +49,7 @@ export function toCartLine(product: Product, quantity = 1): CartLineDraft {
     stockOnHand: sellableStock(product),
     quantity,
     unitPrice: product.salePrice,
+    primaryUnitPrice: product.salePrice,
     taxRate: product.taxRate ?? 0,
   };
 }

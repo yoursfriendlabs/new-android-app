@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 
-import { isServiceProduct, sellableStock as sellableOf, toCartLine } from '@/src/features/pos/lib/cart-line';
+import { isServiceProduct, primaryQuantity, sellableStock as sellableOf, toCartLine } from '@/src/features/pos/lib/cart-line';
 import type { Product } from '@/src/types/models';
 import type { PosDraft } from '@/src/types/forms';
 
@@ -41,7 +41,7 @@ export function usePosCart(
         if (
           direction === 'add' &&
           !isServiceProduct(product) &&
-          nextQty > sellableStock
+          primaryQuantity(existing, nextQty) > sellableStock
         ) {
           Alert.alert(
             'Insufficient sellable stock',

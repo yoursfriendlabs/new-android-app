@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeSale } from '../src/api/normalize.ts';
+import { changeCartUnit, hasSecondaryUnit, primaryQuantity, toCartLine } from '../src/features/pos/lib/cart-line.ts';
 
 const product = { id: 'p1', name: 'Tea', primaryUnit: 'box', secondaryUnit: 'piece', secondaryConversionRate: 12, salePrice: 100, stockOnHand: 2 };
 
@@ -30,4 +31,30 @@ test('normalized items and secondary units work without Sequelize aliases', () =
 test('explicit zero prices and totals stay zero', () => {
   const sale = normalizeSale({ items: [{ quantity: 2, unitPrice: 100, lineTotal: 0 }] });
   assert.equal(sale.items[0].lineTotal, 0);
+});
+
+test('unit choice updates price without rounding drift when switched back', () => {
+  const primary = toCartLine(product, 3);
+  const secondary = changeCartUnit(primary, 'secondary');
+  assert.equal(secondary.unit, 'piece');
+  assert.equal(secondary.quantity, 3);
+  assert.equal(secondary.unitPrice, 8.33);
+  assert.equal(primaryQuantity(secondary), 0.25);
+  assert.equal(changeCartUnit(secondary, 'primary').unitPrice, 100);
+  assert.equal(changeCartUnit(secondary, 'secondary'), secondary);
+});
+
+test('stock limits compare pieces to boxes, including fractional stock', () => {
+  const line = changeCartUnit(toCartLine(product), 'secondary');
+  assert.equal(primaryQuantity(line, 24), 2);
+  assert.ok(primaryQuantity(line, 25) > 2);
+  assert.equal(primaryQuantity(line, 6), 0.5);
+});
+
+test('invalid conversions never enable a secondary unit', () => {
+  for (const rate of [0, -1, NaN, Infinity, undefined]) {
+    const line = { ...toCartLine(product), secondaryConversionRate: rate };
+    assert.equal(hasSecondaryUnit(line), false);
+    assert.equal(changeCartUnit(line, 'secondary'), line);
+  }
 });

@@ -8,6 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
+import { changeCartUnit, primaryQuantity, isServiceProduct, sellableStock } from '@/src/features/pos/lib/cart-line';
 import { normalizeSale, unwrapEntity, extractListItems } from '@/src/api/normalize';
 import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
@@ -432,34 +433,16 @@ export default function PosScreen() {
   ]);
 
   function toggleItemUnit(productId: string, unitType: 'primary' | 'secondary') {
-    const product = (products ?? []).find((p) => p.id === productId);
-    if (!product) return;
-
-    setValue((current) => {
-      const items = current.items.map((item) => {
-        if (item.productId === productId) {
-          const isSecondary = unitType === 'secondary';
-          const convRate = item.secondaryConversionRate || 1;
-          const unitPrice = isSecondary 
-            ? Number((product.salePrice / convRate).toFixed(2))
-            : product.salePrice;
-          const unit = isSecondary && item.secondaryUnit ? item.secondaryUnit : item.primaryUnit || product.primaryUnit;
-
-          return {
-            ...item,
-            unitType,
-            unit,
-            unitPrice,
-          };
-        }
-        return item;
-      });
-
-      return {
-        ...current,
-        items,
-      };
-    });
+    const line = value.items.find((item) => item.productId === productId);
+    if (!line || submission.isBusy()) return;
+    const next = changeCartUnit(line, unitType);
+    const product = (products ?? []).find((item) => item.id === productId);
+    const available = product ? sellableStock(product) : line.stockOnHand;
+    if (!(product && isServiceProduct(product)) && available !== undefined && primaryQuantity(next) > available) {
+      toast.error(`Only ${available} ${line.primaryUnit || 'units'} available. Reduce the quantity first.`);
+      return;
+    }
+    setValue((current) => ({ ...current, items: current.items.map((item) => item.productId === productId ? next : item) }));
   }
 
   useFocusEffect(
@@ -751,7 +734,6 @@ export default function PosScreen() {
   const billPane = (
     <PosCartPane
       items={value.items}
-      products={products ?? []}
       subTotal={subTotal}
       taxTotal={taxTotal}
       discountTotal={value.discount}
@@ -869,6 +851,7 @@ export default function PosScreen() {
         visible={checkoutVisible}
         busy={submission.busy}
         savingMode={savingMode}
+        onToggleUnit={toggleItemUnit}
         cafeMode={cafeMode}
         value={value}
         setValue={setValue}

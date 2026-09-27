@@ -19,6 +19,7 @@ export interface CartLineDraft {
   stockOnHand?: number;
   quantity: number;
   unitPrice: number;
+  primaryUnitPrice?: number;
   taxRate: number;
 }
 
