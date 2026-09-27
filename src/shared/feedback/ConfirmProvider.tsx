@@ -13,6 +13,7 @@ import {
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { haptics } from '@/src/shared/lib/haptics';
+import { useReducedMotion } from '@/src/shared/hooks/useReducedMotion';
 import { Text } from '@/src/shared/ui/Text';
 import { usePalette } from '@/src/stores/theme-store';
 import { motion, radius, shadows, spacing } from '@/src/theme';
@@ -91,21 +92,24 @@ interface ConfirmDialogProps {
 
 function ConfirmDialog({ onCancel, onConfirm, options, visible }: ConfirmDialogProps) {
   const colors = usePalette();
+  const reducedMotion = useReducedMotion();
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!visible) {
-      progress.setValue(0);
+    if (!visible || reducedMotion) {
+      progress.setValue(visible ? 1 : 0);
       return;
     }
-    Animated.spring(progress, {
+    const animation = Animated.spring(progress, {
       damping: motion.spring.snappy.damping,
       mass: motion.spring.snappy.mass,
       stiffness: motion.spring.snappy.stiffness,
       toValue: 1,
       useNativeDriver: true,
-    }).start();
-  }, [progress, visible]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [progress, visible, reducedMotion]);
 
   if (!visible || !options) return null;
 
@@ -115,10 +119,12 @@ function ConfirmDialog({ onCancel, onConfirm, options, visible }: ConfirmDialogP
   const icon = options.icon ?? (destructive ? 'trash-can-outline' : 'help-circle-outline');
 
   return (
-    <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onCancel}>
+    <Modal visible transparent statusBarTranslucent animationType={reducedMotion ? 'none' : 'fade'} onRequestClose={onCancel}>
       <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} accessibilityLabel="Dismiss" />
+        <Pressable accessible={false} importantForAccessibility="no" style={StyleSheet.absoluteFill} onPress={onCancel} />
         <Animated.View
+          accessibilityViewIsModal
+          onAccessibilityEscape={onCancel}
           style={[
             styles.card,
             {
@@ -135,7 +141,7 @@ function ConfirmDialog({ onCancel, onConfirm, options, visible }: ConfirmDialogP
             <MaterialCommunityIcons name={icon} size={24} color={accent} />
           </View>
 
-          <Text variant="heading" align="center">
+          <Text accessibilityRole="header" variant="heading" align="center">
             {options.title}
           </Text>
           {options.message ? (
@@ -212,5 +218,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
 });

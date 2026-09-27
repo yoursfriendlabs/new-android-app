@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { haptics } from '@/src/shared/lib/haptics';
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, shadows, spacing, typography } from '@/src/theme';
+import { a11y, radius, shadows, spacing, typography } from '@/src/theme';
 
 interface ActionProps {
   label: string;
@@ -98,12 +98,17 @@ const styles = StyleSheet.create({
   },
   button: {
     flex: 1,
-    minHeight: 46,
+    minWidth: 0,
+    minHeight: a11y.minTouchTarget,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonLabel: {
+    textAlign: 'center',
+    flexShrink: 1,
     fontSize: typography.body,
     fontWeight: '700',
   },

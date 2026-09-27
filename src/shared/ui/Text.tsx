@@ -22,7 +22,7 @@ function toneColor(tone: TextTone, colors: AppPalette) {
     case 'soft':
       return colors.textSoft;
     case 'primary':
-      return colors.primary;
+      return colors.primaryText;
     case 'success':
       return colors.success;
     case 'danger':

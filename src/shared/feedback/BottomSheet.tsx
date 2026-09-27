@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, spacing, typography } from '@/src/theme';
+import { useReducedMotion } from '@/src/shared/hooks/useReducedMotion';
+import { useTranslation } from '@/src/i18n';
+import { a11y, radius, spacing, typography } from '@/src/theme';
 
 /** Breathing room kept between the top of the sheet and the status bar. */
 const TOP_GAP = spacing.sm;
@@ -43,6 +45,8 @@ export function BottomSheet({
   visible,
 }: BottomSheetProps) {
   const colors = usePalette();
+  const { t } = useTranslation();
+  const reducedMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
@@ -68,14 +72,14 @@ export function BottomSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={reducedMotion ? 'none' : 'slide'}
       // Both flags must match KeyboardProvider's, or the keyboard height comes
       // back measured against a different window and every offset is wrong.
       statusBarTranslucent
       navigationBarTranslucent
       onRequestClose={onClose}>
       <View style={styles.root}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable accessible={false} importantForAccessibility="no" style={StyleSheet.absoluteFill} onPress={onClose} />
         {/*
           The one thing in a sheet that moves for the keyboard. It pads from the
           native keyboard animation, frame for frame, so the sheet rides up with
@@ -87,6 +91,8 @@ export function BottomSheet({
           automaticOffset
           style={[styles.avoider, { paddingTop: insets.top + TOP_GAP }]}>
           <View
+            accessibilityViewIsModal
+            onAccessibilityEscape={onClose}
             style={[
               styles.sheet,
               { backgroundColor: colors.surface, height: preferredHeight },
@@ -96,11 +102,15 @@ export function BottomSheet({
 
             <View style={styles.headerContainer}>
               <View style={styles.headerTextWrap}>
-                {title ? <Text style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
+                {title ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
                 {subtitle ? <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
               </View>
-              <Pressable style={[styles.closeBtn, { backgroundColor: colors.background }]} onPress={onClose}>
-                <MaterialCommunityIcons name="close" size={20} color={colors.textSoft} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+                style={({ pressed }) => [styles.closeBtn, { backgroundColor: colors.background }, pressed && { opacity: 0.7 }]}
+                onPress={onClose}>
+                <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="close" size={20} color={colors.textMuted} />
               </Pressable>
             </View>
 
@@ -112,10 +122,10 @@ export function BottomSheet({
                   keyboardShouldPersistTaps="handled"
                   showsVerticalScrollIndicator={false}
                   onContentSizeChange={
-                    stickToBottom ? () => scroller.current?.scrollToEnd({ animated: true }) : undefined
+                    stickToBottom ? () => scroller.current?.scrollToEnd({ animated: !reducedMotion }) : undefined
                   }
                   style={styles.contentFill}
-                  contentContainerStyle={styles.contentGrow}>
+                  contentContainerStyle={[styles.contentGrow, !footer && { paddingBottom: keyboardVisible ? 0 : insets.bottom }]}>
                   {body}
                 </ScrollView>
               ) : (
@@ -187,12 +197,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: a11y.minTouchTarget,
+    height: a11y.minTouchTarget,
+    borderRadius: a11y.minTouchTarget / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
   title: {
     fontSize: typography.heading,

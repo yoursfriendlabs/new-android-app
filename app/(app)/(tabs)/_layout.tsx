@@ -9,6 +9,7 @@ import { MoneyEntrySheet } from '@/src/features/money/components/MoneyEntrySheet
 import { usePekkaHandoff, type PekkaMoneyHandoff } from '@/src/features/pekka/stores/pekka-handoff';
 import { useTaskNotificationSummary } from '@/src/features/notes/hooks/useTaskQueries';
 import { haptics } from '@/src/shared/lib/haptics';
+import { useReducedMotion } from '@/src/shared/hooks/useReducedMotion';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
@@ -90,17 +91,24 @@ function TabIcon({
   inactiveColor: ColorValue;
   inactiveIcon: IconName;
 }) {
+  const reducedMotion = useReducedMotion();
   const progress = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
-    Animated.spring(progress, {
+    if (reducedMotion) {
+      progress.setValue(focused ? 1 : 0);
+      return;
+    }
+    const animation = Animated.spring(progress, {
       damping: motion.spring.snappy.damping,
       mass: motion.spring.snappy.mass,
       stiffness: motion.spring.snappy.stiffness,
       toValue: focused ? 1 : 0,
       useNativeDriver: true,
-    }).start();
-  }, [focused, progress]);
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [focused, progress, reducedMotion]);
 
   return (
     <View style={styles.iconWrap}>
@@ -115,7 +123,7 @@ function TabIcon({
         ]}
       />
       <MaterialCommunityIcons
-        color={focused ? colors.primary : inactiveColor}
+        color={focused ? colors.primaryText : inactiveColor}
         name={focused ? activeIcon : inactiveIcon}
         size={22}
       />
@@ -130,6 +138,7 @@ function TabIcon({
 
 /** The raised centre button. Presses scale it down instead of just flashing. */
 function CenterFab({ colors, onPress }: { colors: AppPalette; onPress: () => void }) {
+  const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
 
   const animateTo = (value: number) =>
@@ -145,13 +154,14 @@ function CenterFab({ colors, onPress }: { colors: AppPalette; onPress: () => voi
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Add entry"
-      onPressIn={() => animateTo(motion.pressScale - 0.05)}
-      onPressOut={() => animateTo(1)}
+      style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
+      onPressIn={() => { if (!reducedMotion) animateTo(motion.pressScale - 0.05); }}
+      onPressOut={() => { if (!reducedMotion) animateTo(1); }}
       onPress={onPress}>
       <Animated.View
         style={[
           styles.centerFab,
-          { backgroundColor: colors.primary, borderColor: colors.surface, transform: [{ scale }] },
+          { backgroundColor: colors.primary, borderColor: colors.surface, transform: [{ scale: reducedMotion ? 1 : scale }] },
         ]}>
         <MaterialCommunityIcons name="plus" size={28} color={colors.onPrimary} />
       </Animated.View>
@@ -211,7 +221,7 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: colors.primary,
+          tabBarActiveTintColor: colors.primaryText,
           tabBarInactiveTintColor: colors.textSoft,
           tabBarStyle: {
             height: 62 + bottomPadding,
@@ -292,7 +302,7 @@ export default function TabsLayout() {
                     numberOfLines={1}
                     style={[
                       styles.tabLabel,
-                      { color: focused ? colors.primary : color },
+                      { color: focused ? colors.primaryText : color },
                       focused && styles.tabLabelActive,
                     ]}>
                     {t(def.titleKey) || def.fallbackTitle}

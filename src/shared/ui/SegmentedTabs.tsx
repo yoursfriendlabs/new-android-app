@@ -1,7 +1,7 @@
 import { type StyleProp, type ViewStyle, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, spacing, typography } from '@/src/theme';
+import { a11y, radius, spacing, typography } from '@/src/theme';
 
 interface SegmentedTabsProps<T extends string> {
   value: T;
@@ -43,14 +43,17 @@ export function SegmentedTabs<T extends string>({
         return (
           <Pressable
             key={option.value}
-            style={[
+            accessibilityRole="button"
+            accessibilityLabel={option.label}
+            accessibilityState={{ selected: active }}
+            style={({ pressed }) => [
               styles.pill,
               { backgroundColor: resolvedInactiveBackground },
               active && [styles.pillActive, { backgroundColor: resolvedActiveBackground }],
+              pressed && { opacity: 0.8 },
             ]}
             onPress={() => onChange(option.value)}>
             <Text
-              numberOfLines={1}
               style={[
                 styles.label,
                 { color: resolvedInactiveText },
@@ -75,9 +78,10 @@ const styles = StyleSheet.create({
   pill: {
     flexShrink: 0,
     alignSelf: 'flex-start',
-    minHeight: 34,
+    minWidth: a11y.minTouchTarget,
+    minHeight: a11y.minTouchTarget,
     paddingHorizontal: spacing.md,
-    paddingVertical: 0,
+    paddingVertical: spacing.xs,
     borderRadius: radius.pill,
     justifyContent: 'center',
     maxWidth: 220,

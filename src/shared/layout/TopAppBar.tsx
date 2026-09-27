@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BrandMark } from '@/src/shared/ui/BrandMark';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
-import { spacing, typography } from '@/src/theme';
+import { a11y, spacing, typography } from '@/src/theme';
 
 const segmentTitleKeyMap: Record<string, string> = {
   home: 'nav.home',
@@ -76,7 +76,9 @@ export function TopAppBar({
       <View style={styles.left}>
         {resolvedLeadingMode === 'back' ? (
           <Pressable
-            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.back')}
+            style={({ pressed }) => [styles.iconButton, { backgroundColor: pressed ? colors.surfaceMuted : colors.surface, borderColor: colors.border }]}
             onPress={() => {
               if (router.canGoBack()) {
                 router.back();
@@ -84,7 +86,7 @@ export function TopAppBar({
                 router.replace('/(app)/(tabs)/home');
               }
             }}>
-            <MaterialCommunityIcons color={colors.text} name="arrow-left" size={22} />
+            <MaterialCommunityIcons accessible={false} importantForAccessibility="no" color={colors.text} name="arrow-left" size={22} />
           </Pressable>
         ) : resolvedLeadingMode === 'brand' ? (
           <BrandMark size={40} />
@@ -93,9 +95,7 @@ export function TopAppBar({
         )}
         <View style={styles.copy}>
           <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.8}
+            accessibilityRole="header"
             style={[styles.title, { color: colors.text }]}>
             {title}
           </Text>
@@ -129,11 +129,11 @@ const styles = StyleSheet.create({
     marginLeft: spacing.md,
   },
   iconButton: {
-    width: 40,
-    height: 40,
+    width: a11y.minTouchTarget,
+    height: a11y.minTouchTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
+    borderRadius: a11y.minTouchTarget / 2,
     borderWidth: 1,
   },
   leadingSpacer: {

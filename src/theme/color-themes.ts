@@ -426,6 +426,22 @@ export function bestForeground(background: string, darkOption: string, lightOpti
     : darkOption;
 }
 
+/** Keep the original hue, adjusting only lightness for the surfaces it appears on. */
+export function readableTextColor(hex: string, backgrounds: string[]) {
+  const rgb = hexToRgb(hex);
+  if (!rgb || backgrounds.length === 0) return hex;
+  const minimumContrast = (color: string) => Math.min(...backgrounds.map((bg) => contrastBetween(color, bg)));
+  if (minimumContrast(hex) >= 4.5) return hex;
+
+  const lighten = minimumContrast('#ffffff') > minimumContrast('#000000');
+  const hsl = rgbToHsl(rgb);
+  for (let step = 1; step <= 100; step += 1) {
+    const color = shade(hsl, hsl.l + (lighten ? step : -step));
+    if (minimumContrast(color) >= 4.5) return color;
+  }
+  return lighten ? '#ffffff' : '#000000';
+}
+
 export function ensureReadablePrimary(hex: string) {
   const parsed = parseHexColor(hex);
   if (!parsed) return '';

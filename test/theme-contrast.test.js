@@ -22,11 +22,14 @@ function contrast(a, b) {
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
 
-const THEMES = [...COLOR_THEMES, buildPaletteFromHex('#e91e63')];
+const THEMES = [
+  ...COLOR_THEMES,
+  ...['#e91e63', '#ffffff', '#000000', '#ffff00', '#00ffff', '#777777'].map(buildPaletteFromHex),
+];
 
 for (const mode of ['light', 'dark']) {
   for (const theme of THEMES) {
-    test(`${mode} palette for "${theme.id}" stays readable`, () => {
+    test(`${mode} palette for "${theme.sourceHex || theme.id}" stays readable`, () => {
       const colors = buildAppPalette(theme, mode);
 
       assert.ok(contrast(colors.text, colors.surface) >= 7, 'body text on cards');
@@ -36,7 +39,14 @@ for (const mode of ['light', 'dark']) {
       assert.ok(contrast(colors.onPrimary, colors.primary) >= 4.5, 'label on a primary button');
       assert.ok(contrast(colors.onSuccess, colors.success) >= 4, 'label on a success fill');
       assert.ok(contrast(colors.onDanger, colors.danger) >= 4, 'label on a danger fill');
-      assert.ok(contrast(colors.primaryText, colors.surface) >= 3, 'accent-coloured text on cards');
+      for (const foreground of ['textMuted', 'textSoft', 'primaryText']) {
+        for (const background of ['surface', 'background', 'backgroundAlt', 'accentSoft', 'input']) {
+          assert.ok(
+            contrast(colors[foreground], colors[background]) >= 4.5,
+            `${foreground} on ${background}: ${contrast(colors[foreground], colors[background]).toFixed(2)}:1`,
+          );
+        }
+      }
     });
   }
 }

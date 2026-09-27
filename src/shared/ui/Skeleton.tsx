@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
+import { useReducedMotion } from '@/src/shared/hooks/useReducedMotion';
 import { radius, spacing } from '@/src/theme';
 
 /**
@@ -10,9 +11,14 @@ import { radius, spacing } from '@/src/theme';
  */
 
 function usePulse() {
+  const reducedMotion = useReducedMotion();
   const pulse = useRef(new Animated.Value(0.45)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      pulse.setValue(0.65);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -31,7 +37,7 @@ function usePulse() {
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [pulse, reducedMotion]);
 
   return pulse;
 }

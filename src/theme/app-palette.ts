@@ -1,9 +1,8 @@
 import {
   bestForeground,
   deriveDarkTheme,
-  ensureReadablePrimary,
   getColorTheme,
-  onPrimaryColor,
+  readableTextColor,
   type ColorThemeDefinition,
 } from '@/src/theme/color-themes';
 
@@ -46,17 +45,16 @@ export function buildAppPalette(theme: ColorThemeDefinition, mode: ThemeMode = '
   const status = STATUS_COLORS[mode];
   const primary = source.colors.primary;
   const mist = source.colors.mist;
-  // Light mode keeps its established rule; dark accents are light, so there the
-  // foreground has to be picked by contrast or white-on-lime becomes unreadable.
-  const onPrimary =
-    mode === 'dark'
-      ? bestForeground(primary.DEFAULT, mist)
-      : onPrimaryColor(primary.DEFAULT, source.colors.ink);
+  const onPrimary = readableTextColor(
+    bestForeground(primary.DEFAULT, mode === 'dark' ? mist : source.colors.ink),
+    [primary.DEFAULT],
+  );
+  const textSurfaces = [source.colors.surface, mist, primary[50], primary[100], primary[200]];
 
   return {
     primary: primary.DEFAULT,
     /** Use for primary-coloured *text* — some accents (Signal Lime) are unreadable on a light surface. */
-    primaryText: mode === 'dark' ? primary.DEFAULT : ensureReadablePrimary(primary.DEFAULT) || primary.DEFAULT,
+    primaryText: readableTextColor(primary.DEFAULT, textSurfaces),
     primaryPressed: primary[600],
     onPrimary,
     onSuccess: bestForeground(status.success, mode === 'dark' ? mist : '#0b1f16'),
@@ -76,8 +74,8 @@ export function buildAppPalette(theme: ColorThemeDefinition, mode: ThemeMode = '
     surfaceMuted: mist,
     input: primary[100],
     text: source.colors.ink,
-    textMuted: source.colors.inkLight,
-    textSoft: status.textSoft,
+    textMuted: readableTextColor(source.colors.inkLight, textSurfaces),
+    textSoft: readableTextColor(status.textSoft, textSurfaces),
     border: primary[200],
     borderStrong: status.borderStrong,
     success: status.success,

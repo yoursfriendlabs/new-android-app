@@ -1,6 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { useState, type ComponentProps } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import {
+  AccessibilityInfo,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -12,7 +14,8 @@ import {
 } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, spacing, typography } from '@/src/theme';
+import { useTranslation } from '@/src/i18n';
+import { a11y, radius, spacing, typography } from '@/src/theme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -62,9 +65,17 @@ export function FormField({
   value,
 }: FormFieldProps) {
   const colors = usePalette();
+  const { t } = useTranslation();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [focused, setFocused] = useState(false);
   const showPasswordToggle = secureTextEntry && !multiline;
+
+  useEffect(() => {
+    // Android/web announce the live region below; VoiceOver needs an announcement.
+    if (error && Platform.OS === 'ios') {
+      AccessibilityInfo.announceForAccessibility(`${label}. ${error}`);
+    }
+  }, [error, label]);
 
   return (
     <View style={styles.wrap}>
@@ -73,20 +84,26 @@ export function FormField({
         style={[
           styles.inputWrap,
           {
-            borderColor: error ? colors.danger : focused ? colors.primary : colors.border,
+            borderColor: error ? colors.danger : focused ? colors.primaryText : colors.borderStrong,
             backgroundColor: error ? colors.dangerSoft : !editable ? colors.surfaceMuted : colors.surface,
           },
           multiline && styles.inputWrapMultiline,
         ]}>
         {icon ? (
           <MaterialCommunityIcons
+            accessible={false}
+            importantForAccessibility="no"
             name={icon}
             size={20}
-            color={error ? colors.danger : focused ? colors.primary : colors.textSoft}
+            color={error ? colors.danger : focused ? colors.primaryText : colors.textSoft}
             style={[styles.leadingIcon, multiline && styles.leadingIconMultiline]}
           />
         ) : null}
         <TextInput
+          accessibilityLabel={label}
+          accessibilityHint={error || helperText}
+          accessibilityState={{ disabled: !editable }}
+          aria-invalid={Boolean(error)}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -111,16 +128,17 @@ export function FormField({
             { color: colors.text },
             icon ? styles.inputWithIcon : null,
             multiline && styles.inputMultiline,
-            showPasswordToggle && styles.inputWithAction,
           ]}
         />
         {showPasswordToggle ? (
           <Pressable
-            style={styles.actionButton}
-            hitSlop={8}
-            accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+            style={({ pressed }) => [styles.actionButton, pressed && { backgroundColor: colors.surfaceMuted }]}
+            accessibilityRole="button"
+            accessibilityLabel={t(passwordVisible ? 'common.hidePassword' : 'common.showPassword')}
             onPress={() => setPasswordVisible((current) => !current)}>
             <MaterialCommunityIcons
+              accessible={false}
+              importantForAccessibility="no"
               name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
               size={20}
               color={colors.textSoft}
@@ -128,7 +146,7 @@ export function FormField({
           </Pressable>
         ) : null}
       </View>
-      {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
+      {error ? <Text accessibilityLiveRegion="polite" style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
       {!error && helperText ? <Text style={[styles.helper, { color: colors.textSoft }]}>{helperText}</Text> : null}
     </View>
   );
@@ -161,15 +179,13 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
     minHeight: 52,
     paddingHorizontal: spacing.md,
     fontSize: typography.body,
   },
   inputWithIcon: {
     paddingLeft: spacing.sm,
-  },
-  inputWithAction: {
-    paddingRight: 44,
   },
   inputMultiline: {
     minHeight: 92,
@@ -186,10 +202,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   actionButton: {
-    position: 'absolute',
-    right: spacing.sm,
-    height: 40,
-    width: 36,
+    height: a11y.minTouchTarget,
+    width: a11y.minTouchTarget,
+    marginRight: spacing.xxs,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },

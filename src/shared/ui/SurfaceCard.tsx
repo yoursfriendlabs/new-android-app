@@ -26,7 +26,7 @@ export function SurfaceCard({ children, onPress, right, subtitle, title, style }
   const header = (title || subtitle || right) && (
     <View style={styles.header}>
       <View style={styles.headerText}>
-        {title ? <Text style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
+        {title ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
         {subtitle ? <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text> : null}
       </View>
       {right}
@@ -35,7 +35,7 @@ export function SurfaceCard({ children, onPress, right, subtitle, title, style }
 
   if (onPress) {
     return (
-      <Pressable style={({ pressed }) => [cardStyle, pressed && styles.cardPressed]} onPress={onPress}>
+      <Pressable accessibilityRole="button" style={({ pressed }) => [cardStyle, pressed && styles.cardPressed]} onPress={onPress}>
         {header}
         {children}
       </Pressable>
@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
   },
   cardPressed: {
     opacity: 0.88,
-    transform: [{ scale: 0.995 }],
   },
   header: {
     flexDirection: 'row',

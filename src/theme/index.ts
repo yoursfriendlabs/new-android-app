@@ -121,7 +121,8 @@ export const motion = {
 } as const;
 
 export const a11y = {
-  minTouchTarget: 44,
+  // Meets both Android's 48dp and iOS's 44pt minimum.
+  minTouchTarget: 48,
   hitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
 } as const;
 

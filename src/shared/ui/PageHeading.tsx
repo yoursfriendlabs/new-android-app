@@ -15,7 +15,7 @@ export function PageHeading({ right, subtitle, title }: PageHeadingProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.textWrap}>
-        {title ? <Text style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
+        {title ? <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{title}</Text> : null}
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
       </View>
       {right}
