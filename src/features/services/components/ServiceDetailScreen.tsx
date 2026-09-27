@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { servicesApi } from '@/src/api';
 import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
@@ -96,6 +97,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
   const [pickedProduct, setPickedProduct] = useState<Product | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
 
   const debouncedProductSearch = useDebouncedValue(productSearch);
@@ -278,6 +280,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
       }
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await servicesApi.update(serviceId, payload);
@@ -290,6 +293,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -326,7 +330,8 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
         <StickyActionBar
           secondary={{ label: 'Print bill', onPress: handlePrint }}
           primary={{
-            label: saving ? 'Saving…' : 'Save changes',
+            label: 'Save changes',
+            loading: saving,
             tone: 'primary',
             onPress: () => void handleSave(),
           }}

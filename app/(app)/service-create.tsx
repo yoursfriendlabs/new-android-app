@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { cacheRecentServices } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
@@ -85,6 +86,7 @@ function createLine(itemType: 'labor' | 'part'): DraftServiceLine {
 }
 
 export default function ServiceCreateScreen() {
+  const submission = useSubmissionLock();
   const colors = usePalette();
   const styles = useThemedStyles(createStyles);
   const setReceipt = useReceiptStore((state) => state.setReceipt);
@@ -274,6 +276,7 @@ export default function ServiceCreateScreen() {
       return;
     }
 
+    if (!submission.tryStart()) return;
     try {
       const uploadedAttachmentUrls = await uploadAttachments(draft.value.attachments);
 
@@ -401,6 +404,8 @@ export default function ServiceCreateScreen() {
       }
 
       setFormError(message);
+    } finally {
+      submission.finish();
     }
   }
 
@@ -985,6 +990,7 @@ export default function ServiceCreateScreen() {
           }}
           primary={{
             label: stepIndex === steps.length - 1 ? 'Save service' : 'Next',
+            loading: submission.busy,
             onPress: () => {
               if (stepIndex === steps.length - 1) {
                 void saveService();

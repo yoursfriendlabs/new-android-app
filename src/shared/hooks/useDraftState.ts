@@ -2,8 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { clearDraft, readDraft, saveDraft } from '@/src/data/database';
 
-export function useDraftState<T>(draftKey: string, initialValue: T) {
+interface DraftOptions {
+  /**
+   * Throw the saved copy away when the screen closes, so the form opens empty
+   * next time. The draft still survives the app being killed mid-entry, which
+   * is the only thing it is really there for.
+   */
+  discardOnUnmount?: boolean;
+}
+
+export function useDraftState<T>(draftKey: string, initialValue: T, options: DraftOptions = {}) {
   const initialValueRef = useRef(initialValue);
+  const discardOnUnmountRef = useRef(options.discardOnUnmount ?? false);
+  discardOnUnmountRef.current = options.discardOnUnmount ?? false;
   const [value, setValue] = useState(initialValueRef.current);
   const [isReady, setIsReady] = useState(false);
   const isResettingRef = useRef(false);
@@ -50,6 +61,17 @@ export function useDraftState<T>(draftKey: string, initialValue: T) {
       }
     };
   }, [draftKey, isReady, value]);
+
+  useEffect(
+    () => () => {
+      // Runs after the save timer above has been cleared, so nothing writes the
+      // draft back out behind this.
+      if (discardOnUnmountRef.current) {
+        clearDraft(draftKey).catch(() => null);
+      }
+    },
+    [draftKey],
+  );
 
   const reset = useCallback(async (nextValue?: T) => {
     const resolvedValue = nextValue ?? initialValueRef.current;

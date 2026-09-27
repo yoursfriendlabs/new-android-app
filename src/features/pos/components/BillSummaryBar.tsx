@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { haptics } from '@/src/shared/lib/haptics';
 
@@ -50,30 +50,30 @@ export function BillSummaryBar({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={secondaryLabel}
-          accessibilityState={{ disabled: !hasItems || secondaryBusy }}
+          accessibilityState={{ disabled: !hasItems || secondaryBusy, busy: secondaryBusy }}
           style={[styles.secondaryButton, { borderColor: colors.onPrimary }]}
           onPress={() => {
             haptics.tapLight();
             onSecondaryPress();
           }}
           disabled={!hasItems || secondaryBusy}>
-          <Text
+          {secondaryBusy ? <ActivityIndicator color={colors.onPrimary} /> : (<Text
             numberOfLines={1}
             style={[styles.buttonLabel, { color: colors.onPrimary, opacity: hasItems && !secondaryBusy ? 1 : 0.55 }]}>
-            {secondaryBusy ? '…' : secondaryLabel}
-          </Text>
+            {secondaryLabel}
+          </Text>)}
         </Pressable>
       ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('pos.payNow')}, ${formatCurrency(total)}`}
-        accessibilityState={{ disabled: !hasItems }}
+        accessibilityState={{ disabled: !hasItems || secondaryBusy }}
         style={[styles.button, { backgroundColor: colors.surface }]}
         onPress={() => {
           haptics.tapMedium();
           onPress();
         }}
-        disabled={!hasItems}>
+        disabled={!hasItems || secondaryBusy}>
         <Text style={[styles.buttonLabel, { color: hasItems ? colors.text : colors.textSoft }]}>
           {hasItems ? t('pos.payNow') : t('pos.cartEmpty')}
         </Text>
