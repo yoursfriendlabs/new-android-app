@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { quickExpensesApi } from '@/src/api';
 import { clearDraft } from '@/src/data/database';
 import { addQuickExpenseLocally } from '@/src/data/cache';
@@ -72,6 +73,7 @@ function isQuickEntryTab(value?: string): value is QuickEntryTab {
 }
 
 export default function QuickEntryScreen() {
+  const submission = useSubmissionLock();
   const colors = usePalette();
   const toast = useToast();
   const styles = useThemedStyles(createStyles);
@@ -230,6 +232,7 @@ export default function QuickEntryScreen() {
       ],
     };
 
+    if (!submission.tryStart()) return;
     try {
       const result = await submitWithOfflineQueue<CreatedRecord, typeof payload>({
         entityType: 'expense',
@@ -242,6 +245,7 @@ export default function QuickEntryScreen() {
       const savedCategory = expenseDraft.value.category;
       await invalidateMoneyQueries(queryClient);
       await expenseDraft.reset(createQuickExpenseDraft());
+      setDetailSheetMode(null);
       setSuccessState({
         visible: true,
         queued: result.queued,
@@ -256,6 +260,8 @@ export default function QuickEntryScreen() {
       }
 
       toast.error(error instanceof Error ? error.message : 'Could not record the expense.');
+    } finally {
+      submission.finish();
     }
   }
 
@@ -308,6 +314,7 @@ export default function QuickEntryScreen() {
       ],
     };
 
+    if (!submission.tryStart()) return;
     try {
       const result = await submitWithOfflineQueue<CreatedRecord, typeof payload>({
         entityType: 'purchase',
@@ -319,6 +326,7 @@ export default function QuickEntryScreen() {
       const savedAmount = purchaseDraft.value.amount;
       const savedSupplier = purchaseDraft.value.supplier.name;
       await purchaseDraft.reset(createQuickPurchaseDraft());
+      setDetailSheetMode(null);
       setSuccessState({
         visible: true,
         queued: result.queued,
@@ -333,6 +341,8 @@ export default function QuickEntryScreen() {
       }
 
       toast.error(error instanceof Error ? error.message : 'Could not record the purchase.');
+    } finally {
+      submission.finish();
     }
   }
 
@@ -539,6 +549,7 @@ export default function QuickEntryScreen() {
         footer={
           <Pressable
             style={styles.sheetPrimaryButton}
+            disabled={submission.busy}
             onPress={() => {
               setCategorySheetVisible(false);
               router.push('/(app)/expense-categories' as any);
@@ -602,16 +613,16 @@ export default function QuickEntryScreen() {
         visible={detailSheetMode === 'expense'}
         title="Expense details"
         subtitle="Payment method, note, and date for the expense."
-        onClose={() => setDetailSheetMode(null)}
+        onClose={() => { if (!submission.isBusy()) setDetailSheetMode(null); }}
         fullHeight
         footer={
           <Pressable
             style={styles.sheetPrimaryButton}
+            disabled={submission.busy}
             onPress={() => {
-              setDetailSheetMode(null);
               void saveExpense();
             }}>
-            <Text style={styles.sheetPrimaryLabel}>Save expense</Text>
+            {submission.busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.sheetPrimaryLabel}>Save expense</Text>}
           </Pressable>
         }>
         <PaymentMethodSelector
@@ -653,16 +664,16 @@ export default function QuickEntryScreen() {
         visible={detailSheetMode === 'purchase'}
         title="Purchase details"
         subtitle="Invoice, payment method, note, and date for the purchase."
-        onClose={() => setDetailSheetMode(null)}
+        onClose={() => { if (!submission.isBusy()) setDetailSheetMode(null); }}
         fullHeight
         footer={
           <Pressable
             style={styles.sheetPrimaryButton}
+            disabled={submission.busy}
             onPress={() => {
-              setDetailSheetMode(null);
               void savePurchase();
             }}>
-            <Text style={styles.sheetPrimaryLabel}>Save purchase</Text>
+            {submission.busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.sheetPrimaryLabel}>Save purchase</Text>}
           </Pressable>
         }>
         <FormField

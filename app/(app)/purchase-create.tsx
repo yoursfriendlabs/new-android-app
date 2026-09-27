@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { cacheRecentPurchases } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
@@ -67,6 +68,7 @@ function createPurchaseLine(): DraftPurchaseLine {
 }
 
 export default function PurchaseCreateScreen() {
+  const submission = useSubmissionLock();
   const colors = usePalette();
   const toast = useToast();
   const styles = useThemedStyles(createStyles);
@@ -135,6 +137,7 @@ export default function PurchaseCreateScreen() {
       return;
     }
 
+    if (!submission.tryStart()) return;
     try {
       const payload = {
         entryType: 'purchase' as const,
@@ -217,6 +220,8 @@ export default function PurchaseCreateScreen() {
       setSuccessState({ visible: true, queued: result.queued });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      submission.finish();
     }
   }
 
@@ -226,7 +231,7 @@ export default function PurchaseCreateScreen() {
       footer={
         <StickyActionBar
           secondary={{ label: 'Close', onPress: () => router.back() }}
-          primary={{ label: 'Save purchase', onPress: () => void savePurchase() }}
+          primary={{ loading: submission.busy, label: 'Save purchase', onPress: () => void savePurchase() }}
         />
       }>
       <ScrollView

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { purchasesApi } from '@/src/api';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { SkeletonList } from '@/src/shared/ui/Skeleton';
@@ -124,6 +125,7 @@ export default function PurchasesScreen() {
   const [statusDraft, setStatusDraft] = useState('received');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash');
   const [bankId, setBankId] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -250,6 +252,7 @@ export default function PurchasesScreen() {
 
   async function savePurchaseUpdate() {
     if (!selectedPurchaseId) return;
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await purchasesApi.update(selectedPurchaseId, {
@@ -267,6 +270,7 @@ export default function PurchasesScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }

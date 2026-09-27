@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { productsApi, reportsApi } from '@/src/api';
 import { extractListItems, normalizeStockLedgerEntry } from '@/src/api/normalize';
 import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
@@ -63,6 +64,7 @@ export default function ItemDetailScreen() {
   const [editLot, setEditLot] = useState<InventoryBatch | null>(null);
   const [editExpiry, setEditExpiry] = useState('');
   const [editBatchNumber, setEditBatchNumber] = useState('');
+  const submission = useSubmissionLock();
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [exchangeLot, setExchangeLot] = useState<InventoryBatch | null>(null);
@@ -120,6 +122,7 @@ export default function ItemDetailScreen() {
 
   async function saveLotEdit() {
     if (!id || !editLot?.id) return;
+    if (!submission.tryStart()) return;
     setSavingEdit(true);
     try {
       await productsApi.updateBatch(id, editLot.id, {
@@ -131,6 +134,7 @@ export default function ItemDetailScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSavingEdit(false);
     }
   }
@@ -148,6 +152,7 @@ export default function ItemDetailScreen() {
       toast.error('Replacement expiry must be today or in the future.');
       return;
     }
+    if (!submission.tryStart()) return;
     setSavingExchange(true);
     try {
       await productsApi.exchangeBatch(id, exchangeLot.id, {
@@ -161,6 +166,7 @@ export default function ItemDetailScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSavingExchange(false);
     }
   }

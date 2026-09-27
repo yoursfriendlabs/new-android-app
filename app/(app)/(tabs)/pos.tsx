@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { normalizeSale, unwrapEntity, extractListItems } from '@/src/api/normalize';
 import { cacheRecentSales } from '@/src/data/cache';
 import { submitWithOfflineQueue } from '@/src/data/sync';
@@ -128,7 +129,8 @@ export default function PosScreen() {
   const [tableModalVisible, setTableModalVisible] = useState(false);
   // A cafe order starts by saying where it is going, so the sheet opens itself.
   const [sessionChosen, setSessionChosen] = useState(false);
-  const [savingOrder, setSavingOrder] = useState(false);
+  const submission = useSubmissionLock();
+  const [savingMode, setSavingMode] = useState<'save' | 'print' | null>(null);
   const [removedLineIds, setRemovedLineIds] = useState<string[]>([]);
 
   const activeTable = tables.find((table) => table.id === activeTableId) ?? null;
@@ -304,18 +306,26 @@ export default function PosScreen() {
   }
 
   /** Saves the order without charging for it. Dine-in also claims its table. */
-  async function persistOpenOrder({ silent = true } = {}) {
-    if (!cafeMode || !value.items.length) return null;
+  async function persistOpenOrder({ silent = true, keepLocked = false } = {}) {
+    if (!cafeMode || !value.items.length || !submission.tryStart()) return null;
 
     try {
-      let orderId = editingId;
-      if (orderId) {
-        await salesApi.update(orderId, buildOpenOrderPayload());
-      } else {
-        const created = await salesApi.create(buildOpenOrderPayload());
-        orderId = created?.id ?? null;
-        if (orderId) setEditingId(orderId);
-      }
+      const saved = normalizeSale(editingId
+        ? await salesApi.update(editingId, buildOpenOrderPayload())
+        : await salesApi.create(buildOpenOrderPayload()));
+      const orderId = saved.id || editingId;
+      if (orderId) setEditingId(orderId);
+      // Reuse server line IDs so checkout updates autosaved lines instead of adding them again.
+      setValue((current) => {
+        let changed = false;
+        const items = current.items.map((line) => {
+          const savedLine = saved.items.find((item) => item.productId === line.productId);
+          if (!savedLine?.id || savedLine.id === line.saleItemId) return line;
+          changed = true;
+          return { ...line, saleItemId: savedLine.id };
+        });
+        return changed ? { ...current, items } : current;
+      });
 
       if (orderType === 'dine_in' && activeTableId && activeTable?.status !== 'occupied') {
         await tablesApi.update(activeTableId, { status: 'occupied' });
@@ -334,40 +344,46 @@ export default function PosScreen() {
         console.error('Failed to save the open order', error);
       }
       return null;
+    } finally {
+      if (!keepLocked) submission.finish();
     }
   }
 
   /** The waiter has taken the order: save it, tell them, and start a fresh one. */
   async function handleSaveOrder() {
+    if (submission.isBusy()) return;
     if (!value.items.length) {
       toast.error('Add at least one item before saving the order.');
       return;
     }
-    setSavingOrder(true);
-    const orderId = await persistOpenOrder({ silent: false });
-    setSavingOrder(false);
-    if (!orderId) return;
+    try {
+      const orderId = await persistOpenOrder({ silent: false, keepLocked: true });
+      if (!orderId) return;
 
-    haptics.success();
-    toast.success(
-      orderType === 'dine_in'
-        ? `Order saved for ${activeTableName || 'the table'}. Add more any time.`
-        : `${getCafeOrderTypeLabel(orderType)} order saved. It is on the kitchen board.`,
-    );
-    setActiveTableId(null);
-    setOrderType('takeaway');
-    setEditingId(null);
-    setSessionChosen(false);
-    setRemovedLineIds([]);
-    await reset(createEmptyPosDraft());
+      haptics.success();
+      toast.success(
+        orderType === 'dine_in'
+          ? `Order saved for ${activeTableName || 'the table'}. Add more any time.`
+          : `${getCafeOrderTypeLabel(orderType)} order saved. It is on the kitchen board.`,
+      );
+      setActiveTableId(null);
+      setOrderType('takeaway');
+      setEditingId(null);
+      setSessionChosen(false);
+      setRemovedLineIds([]);
+      await reset(createEmptyPosDraft());
+    } finally {
+      submission.finish();
+    }
   }
 
   /** A safety net: an order in progress survives a phone going to sleep. */
   useEffect(() => {
-    if (!isReady || !cafeMode || !sessionChosen) return;
+    if (!isReady || !cafeMode || !sessionChosen || checkoutVisible) return;
     if (orderType === 'dine_in' && !activeTableId) return;
 
     const timer = setTimeout(() => {
+      if (submission.isBusy()) return;
       if (value.items.length === 0) {
         // The last item came off an order that was already saved: drop it and
         // free the table rather than leaving an empty bill behind.
@@ -396,6 +412,7 @@ export default function PosScreen() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    checkoutVisible,
     value.items,
     value.discount,
     value.party,
@@ -537,6 +554,8 @@ export default function PosScreen() {
       return;
     }
 
+    if (!submission.tryStart()) return;
+    setSavingMode(mode);
     try {
       const uploadedAttachments = await uploadAttachments(value.attachments);
 
@@ -659,6 +678,9 @@ export default function PosScreen() {
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save the sale. Please try again.');
+    } finally {
+      setSavingMode(null);
+      submission.finish();
     }
   }
 
@@ -738,6 +760,7 @@ export default function PosScreen() {
       onAdd={(productId) => updateCart(productId, 'add')}
       onSubtract={(productId) => updateCart(productId, 'subtract')}
       onToggleUnit={toggleItemUnit}
+      busy={submission.busy}
       onCheckout={openCheckout}
       secondaryLabel={cafeMode ? 'Save order' : undefined}
       onSecondaryPress={cafeMode ? () => void handleSaveOrder() : undefined}
@@ -746,7 +769,7 @@ export default function PosScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.container}>
+      <View style={styles.container} pointerEvents={submission.busy ? 'none' : 'auto'}>
         <TopAppBar
           currentSegment="pos"
           leadingMode="brand"
@@ -836,7 +859,7 @@ export default function PosScreen() {
               onPress={openCheckout}
               secondaryLabel={cafeMode ? 'Save order' : undefined}
               onSecondaryPress={cafeMode ? () => void handleSaveOrder() : undefined}
-              secondaryBusy={savingOrder}
+              secondaryBusy={submission.busy}
             />
           </>
         )}
@@ -844,6 +867,8 @@ export default function PosScreen() {
 
       <PosCheckoutSheet
         visible={checkoutVisible}
+        busy={submission.busy}
+        savingMode={savingMode}
         cafeMode={cafeMode}
         value={value}
         setValue={setValue}
@@ -852,7 +877,7 @@ export default function PosScreen() {
         grandTotal={grandTotal}
         banks={activeBanks}
         orderAttributes={orderAttributes ?? []}
-        onClose={() => setCheckoutVisible(false)}
+        onClose={() => { if (!submission.isBusy()) setCheckoutVisible(false); }}
         onSelectParty={() => setPartyPickerVisible(true)}
         onEditItems={() => setCheckoutVisible(false)}
         onSave={(mode) => void saveSale(mode)}

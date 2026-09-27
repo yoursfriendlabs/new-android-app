@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
@@ -22,6 +22,8 @@ import type { BankAccount, OrderAttribute } from '@/src/types/models';
 
 interface PosCheckoutSheetProps {
   visible: boolean;
+  busy?: boolean;
+  savingMode?: 'save' | 'print' | null;
   cafeMode?: boolean;
   value: PosDraft;
   setValue: (updater: (current: PosDraft) => PosDraft) => void;
@@ -40,6 +42,8 @@ interface PosCheckoutSheetProps {
 
 export function PosCheckoutSheet({
   banks,
+  busy = false,
+  savingMode,
   cafeMode = false,
   grandTotal,
   onAddImage,
@@ -97,16 +101,16 @@ export function PosCheckoutSheet({
       fullHeight
       footer={
         <View style={styles.footer}>
-          <Pressable style={styles.secondaryButton} onPress={() => onSave('print')}>
-            <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'print', disabled: busy }} style={styles.secondaryButton} onPress={() => onSave('print')}>
+            {busy && savingMode === 'print' ? <ActivityIndicator color={colors.primary} /> : <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />}
             <Text style={styles.secondaryLabel}>Save & print</Text>
           </Pressable>
-          <Pressable style={styles.primaryButton} onPress={() => onSave('save')}>
-            <Text style={styles.primaryLabel}>{primaryLabel}</Text>
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'save', disabled: busy }} style={styles.primaryButton} onPress={() => onSave('save')}>
+            {busy && savingMode === 'save' ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryLabel}>{primaryLabel}</Text>}
           </Pressable>
         </View>
       }>
-      <View style={styles.stack}>
+      <View style={styles.stack} pointerEvents={busy ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <View>
             <Text style={styles.heroKicker}>To collect</Text>

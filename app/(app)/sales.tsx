@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { salesApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -121,6 +122,7 @@ export default function DetailedSalesScreen() {
   const [amountReceivedDraft, setAmountReceivedDraft] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash');
   const [bankId, setBankId] = useState('');
+  const submission = useSubmissionLock();
   const [loadingItems, setLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -228,6 +230,7 @@ export default function DetailedSalesScreen() {
 
   async function saveSalePayment() {
     if (!selectedSale) return;
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await salesApi.update(selectedSale.id, {
@@ -241,6 +244,7 @@ export default function DetailedSalesScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }

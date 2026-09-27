@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { partyTransactionsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
@@ -54,6 +55,7 @@ export function PartyTransactionSheet({
   const { data: banks } = useBanks();
   const [form, setForm] = useState(createTransactionForm(party, transaction));
   const [error, setError] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const isEditing = Boolean(transaction?.id);
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
@@ -79,6 +81,7 @@ export function PartyTransactionSheet({
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     setError('');
     const payload = {
@@ -105,6 +108,7 @@ export function PartyTransactionSheet({
       if (isInvalidSessionError(nextError)) return;
       setError(workspaceAccessMessage(nextError, 'Unable to save the payment.'));
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -120,16 +124,16 @@ export function PartyTransactionSheet({
             ? 'Money received from them, or money you paid them.'
             : 'Payment in or payment out against this party.'
       }
-      onClose={onClose}
+      onClose={() => { if (!submission.isBusy()) onClose(); }}
       fullHeight
       footer={
         <Pressable
           style={[styles.saveButton, { backgroundColor: colors.primary }]}
           onPress={() => void handleSave()}
           disabled={saving}>
-          <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
-            {saving ? 'Saving…' : isEditing ? 'Save payment' : 'Record payment'}
-          </Text>
+          {saving ? <ActivityIndicator color={colors.onPrimary} /> : (<Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
+            {isEditing ? 'Save payment' : 'Record payment'}
+          </Text>)}
         </Pressable>
       }>
       {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}

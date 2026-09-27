@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
 import { Avatar } from '@/src/shared/ui/Avatar';
@@ -91,6 +92,7 @@ export function MoneyEntrySheet({
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm(kind));
   const [customCategory, setCustomCategory] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const [win, setWin] = useState<HabitWin | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(!compact);
@@ -176,6 +178,7 @@ export function MoneyEntrySheet({
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       let moneySourceId = '';
@@ -263,6 +266,7 @@ export function MoneyEntrySheet({
       if (isInvalidSessionError(error)) return;
       toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -273,7 +277,7 @@ export function MoneyEntrySheet({
         visible={visible && !win}
         title={compact ? 'New Transaction' : isIncome ? 'New Income' : 'New Expense'}
         subtitle="Quick, clean money logging"
-        onClose={onClose}
+        onClose={() => { if (!submission.isBusy()) onClose(); }}
         fullHeight
         footer={
           <View style={styles.dualFooter}>
