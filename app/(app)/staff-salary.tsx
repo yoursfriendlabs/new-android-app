@@ -17,6 +17,8 @@ import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber, requiredIsoDate, requiredIsoMonth } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -95,6 +97,12 @@ export default function StaffSalaryBookScreen() {
     },
   });
 
+  const fields = useFieldErrors(() => ({
+    amount: positiveNumber(amount, 'Enter an amount greater than zero.'),
+    date: requiredIsoDate(date),
+    monthYear: requiredIsoMonth(monthYear),
+  }), formSheetVisible);
+
   const resetForm = () => {
     setAmount('');
     setType('salary');
@@ -104,19 +112,11 @@ export default function StaffSalaryBookScreen() {
   };
 
   const handleSave = async () => {
+    if (!fields.check()) {
+      toast.error(fields.first);
+      return;
+    }
     const amtNum = Number(amount);
-    if (isNaN(amtNum) || amtNum <= 0) {
-      toast.error('Please enter a positive numeric amount');
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      toast.error('Date must be in YYYY-MM-DD format');
-      return;
-    }
-    if (!/^\d{4}-\d{2}$/.test(monthYear)) {
-      toast.error('Month must be in YYYY-MM format');
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -304,6 +304,7 @@ export default function StaffSalaryBookScreen() {
             onChangeText={setAmount}
             keyboardType="numeric"
             placeholder="e.g. 5000"
+            error={fields.errors.amount}
           />
 
           <Text style={styles.fieldLabel}>Transaction Type</Text>
@@ -325,6 +326,7 @@ export default function StaffSalaryBookScreen() {
             value={date}
             onChangeText={setDate}
             placeholder="e.g. 2026-06-27"
+            error={fields.errors.date}
           />
 
           <FormField
@@ -333,6 +335,7 @@ export default function StaffSalaryBookScreen() {
             onChangeText={setMonthYear}
             placeholder="e.g. 2026-06"
             helperText="Maps this payment to a specific accounting salary month"
+            error={fields.errors.monthYear}
           />
 
           <FormField

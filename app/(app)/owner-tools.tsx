@@ -4,6 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { orderAttributesApi, staffApi, subscriptionApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
+import { requiredText, optionalEmail, optionalPhone, nonNegativeNumber } from '@/src/shared/lib/validation';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
@@ -92,6 +96,23 @@ export default function OwnerToolsScreen() {
   });
   const [message, setMessage] = useState('');
 
+  const toast = useToast();
+  const submission = useSubmissionLock();
+  const staffFields = useFieldErrors(() => ({
+    name: requiredText(staffForm.name, 'Enter the staff member’s name.'),
+    email: optionalEmail(staffForm.email),
+    phone: optionalPhone(staffForm.phone),
+  }), staffSheetVisible);
+  const attributeFields = useFieldErrors(() => ({
+    key: requiredText(attributeForm.key, 'Enter a field key.'),
+    label: requiredText(attributeForm.label, 'Enter a field label.'),
+    sortOrder: nonNegativeNumber(attributeForm.sortOrder),
+  }), attributeSheetVisible);
+  const subscriptionFields = useFieldErrors(() => ({
+    seatLimit: nonNegativeNumber(subscriptionForm.seatLimit) ||
+      (Number.isInteger(Number(subscriptionForm.seatLimit)) ? '' : 'Enter a whole number of seats.'),
+  }), subscriptionSheetVisible);
+
   const groupedAttributes = useMemo(
     () => ({
       sale: saleAttributes ?? [],
@@ -131,25 +152,33 @@ export default function OwnerToolsScreen() {
   }
 
   async function saveStaff() {
-    setMessage('');
-    const permissions = parsePermissionTokens(staffForm.permissionsText);
-    const payload = {
-      name: staffForm.name,
-      email: staffForm.email || undefined,
-      phone: staffForm.phone || undefined,
-      role: staffForm.role || undefined,
-      pin: staffForm.pin || undefined,
-      isActive: staffForm.isActive,
-      permissions: permissions.length ? permissions : undefined,
-    };
-    if (editingStaff?.id) {
-      await staffApi.update(editingStaff.id, payload);
-    } else {
-      await staffApi.create(payload);
+    if (!staffFields.check()) return;
+    if (!submission.tryStart()) return;
+    try {
+      setMessage('');
+      const permissions = parsePermissionTokens(staffForm.permissionsText);
+      const payload = {
+        name: staffForm.name,
+        email: staffForm.email || undefined,
+        phone: staffForm.phone || undefined,
+        role: staffForm.role || undefined,
+        pin: staffForm.pin || undefined,
+        isActive: staffForm.isActive,
+        permissions: permissions.length ? permissions : undefined,
+      };
+      if (editingStaff?.id) {
+        await staffApi.update(editingStaff.id, payload);
+      } else {
+        await staffApi.create(payload);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['staff'] });
+      setStaffSheetVisible(false);
+      setMessage(editingStaff ? 'Staff member updated.' : 'Staff member created.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this change. Please try again.');
+    } finally {
+      submission.finish();
     }
-    await queryClient.invalidateQueries({ queryKey: ['staff'] });
-    setStaffSheetVisible(false);
-    setMessage(editingStaff ? 'Staff member updated.' : 'Staff member created.');
   }
 
   const selectedStaffPermissions = parsePermissionTokens(staffForm.permissionsText);
@@ -169,55 +198,85 @@ export default function OwnerToolsScreen() {
   }
 
   async function removeStaff(member: StaffMember) {
-    setMessage('');
-    await staffApi.remove(member.id);
-    await queryClient.invalidateQueries({ queryKey: ['staff'] });
-    setMessage('Staff member removed.');
+    if (!submission.tryStart()) return;
+    try {
+      setMessage('');
+      await staffApi.remove(member.id);
+      await queryClient.invalidateQueries({ queryKey: ['staff'] });
+      setMessage('Staff member removed.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this change. Please try again.');
+    } finally {
+      submission.finish();
+    }
   }
 
   async function saveAttribute() {
-    setMessage('');
-    const payload = {
-      entityType: attributeForm.entityType,
-      key: attributeForm.key,
-      label: attributeForm.label,
-      fieldType: attributeForm.fieldType,
-      placeholder: attributeForm.placeholder || undefined,
-      options: attributeForm.options
-        ? attributeForm.options.split(',').map((entry) => entry.trim()).filter(Boolean)
-        : undefined,
-      required: attributeForm.required,
-      defaultValue: attributeForm.defaultValue || undefined,
-      sortOrder: Number(attributeForm.sortOrder || 0),
-    };
-    if (editingAttribute?.id) {
-      await orderAttributesApi.update(editingAttribute.id, payload);
-    } else {
-      await orderAttributesApi.create(payload);
+    if (!attributeFields.check()) return;
+    if (!submission.tryStart()) return;
+    try {
+      setMessage('');
+      const payload = {
+        entityType: attributeForm.entityType,
+        key: attributeForm.key,
+        label: attributeForm.label,
+        fieldType: attributeForm.fieldType,
+        placeholder: attributeForm.placeholder || undefined,
+        options: attributeForm.options
+          ? attributeForm.options.split(',').map((entry) => entry.trim()).filter(Boolean)
+          : undefined,
+        required: attributeForm.required,
+        defaultValue: attributeForm.defaultValue || undefined,
+        sortOrder: Number(attributeForm.sortOrder || 0),
+      };
+      if (editingAttribute?.id) {
+        await orderAttributesApi.update(editingAttribute.id, payload);
+      } else {
+        await orderAttributesApi.create(payload);
+      }
+      await queryClient.invalidateQueries({ queryKey: ['order-attributes', attributeForm.entityType] });
+      setAttributeSheetVisible(false);
+      setMessage(editingAttribute ? 'Custom field updated.' : 'Custom field created.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this change. Please try again.');
+    } finally {
+      submission.finish();
     }
-    await queryClient.invalidateQueries({ queryKey: ['order-attributes', attributeForm.entityType] });
-    setAttributeSheetVisible(false);
-    setMessage(editingAttribute ? 'Custom field updated.' : 'Custom field created.');
   }
 
   async function removeAttribute(attribute: OrderAttribute) {
-    setMessage('');
-    await orderAttributesApi.remove(attribute.id);
-    await queryClient.invalidateQueries({ queryKey: ['order-attributes', attribute.entityType] });
-    setMessage('Custom field removed.');
+    if (!submission.tryStart()) return;
+    try {
+      setMessage('');
+      await orderAttributesApi.remove(attribute.id);
+      await queryClient.invalidateQueries({ queryKey: ['order-attributes', attribute.entityType] });
+      setMessage('Custom field removed.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this change. Please try again.');
+    } finally {
+      submission.finish();
+    }
   }
 
   async function saveSubscription() {
-    setMessage('');
-    await subscriptionApi.update({
-      status: subscriptionForm.status || undefined,
-      planName: subscriptionForm.planName || undefined,
-      billingCycle: subscriptionForm.billingCycle || undefined,
-      seatLimit: Number(subscriptionForm.seatLimit || 0),
-    });
-    await queryClient.invalidateQueries({ queryKey: ['subscription'] });
-    setSubscriptionSheetVisible(false);
-    setMessage('Subscription updated.');
+    if (!subscriptionFields.check()) return;
+    if (!submission.tryStart()) return;
+    try {
+      setMessage('');
+      await subscriptionApi.update({
+        status: subscriptionForm.status || undefined,
+        planName: subscriptionForm.planName || undefined,
+        billingCycle: subscriptionForm.billingCycle || undefined,
+        seatLimit: Number(subscriptionForm.seatLimit || 0),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      setSubscriptionSheetVisible(false);
+      setMessage('Subscription updated.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this change. Please try again.');
+    } finally {
+      submission.finish();
+    }
   }
 
   if (!canManageOwnerTools) {
@@ -411,13 +470,13 @@ export default function OwnerToolsScreen() {
         onClose={() => setStaffSheetVisible(false)}
         fullHeight
         footer={
-          <Pressable style={styles.primaryButton} onPress={() => void saveStaff()}>
+          <Pressable style={styles.primaryButton} disabled={submission.busy} onPress={() => void saveStaff()}>
             <Text style={styles.primaryButtonLabel}>{editingStaff ? 'Save staff' : 'Create staff'}</Text>
           </Pressable>
         }>
-        <FormField label="Name" value={staffForm.name} onChangeText={(name) => setStaffForm((current) => ({ ...current, name }))} />
-        <FormField label="Email" value={staffForm.email} onChangeText={(email) => setStaffForm((current) => ({ ...current, email }))} keyboardType="email-address" autoCapitalize="none" />
-        <FormField label="Phone" value={staffForm.phone} onChangeText={(phone) => setStaffForm((current) => ({ ...current, phone }))} keyboardType="numeric" />
+        <FormField label="Name" value={staffForm.name} error={staffFields.errors.name} onChangeText={(name) => setStaffForm((current) => ({ ...current, name }))} />
+        <FormField label="Email" value={staffForm.email} error={staffFields.errors.email} onChangeText={(email) => setStaffForm((current) => ({ ...current, email }))} keyboardType="email-address" autoCapitalize="none" />
+        <FormField label="Phone" value={staffForm.phone} error={staffFields.errors.phone} onChangeText={(phone) => setStaffForm((current) => ({ ...current, phone }))} keyboardType="numeric" />
         <FormField label="Role" value={staffForm.role} onChangeText={(role) => setStaffForm((current) => ({ ...current, role }))} />
         <FormField label="PIN" value={staffForm.pin} onChangeText={(pin) => setStaffForm((current) => ({ ...current, pin }))} keyboardType="numeric" />
         <View style={styles.permissionEditor}>
@@ -457,7 +516,7 @@ export default function OwnerToolsScreen() {
         onClose={() => setAttributeSheetVisible(false)}
         fullHeight
         footer={
-          <Pressable style={styles.primaryButton} onPress={() => void saveAttribute()}>
+          <Pressable style={styles.primaryButton} disabled={submission.busy} onPress={() => void saveAttribute()}>
             <Text style={styles.primaryButtonLabel}>{editingAttribute ? 'Save field' : 'Create field'}</Text>
           </Pressable>
         }>
@@ -469,13 +528,13 @@ export default function OwnerToolsScreen() {
             { label: 'Service', value: 'service' },
           ]}
         />
-        <FormField label="Key" value={attributeForm.key} onChangeText={(key) => setAttributeForm((current) => ({ ...current, key }))} />
-        <FormField label="Label" value={attributeForm.label} onChangeText={(label) => setAttributeForm((current) => ({ ...current, label }))} />
+        <FormField label="Key" value={attributeForm.key} error={attributeFields.errors.key} onChangeText={(key) => setAttributeForm((current) => ({ ...current, key }))} />
+        <FormField label="Label" value={attributeForm.label} error={attributeFields.errors.label} onChangeText={(label) => setAttributeForm((current) => ({ ...current, label }))} />
         <FormField label="Field type" value={attributeForm.fieldType} onChangeText={(fieldType) => setAttributeForm((current) => ({ ...current, fieldType }))} />
         <FormField label="Placeholder" value={attributeForm.placeholder} onChangeText={(placeholder) => setAttributeForm((current) => ({ ...current, placeholder }))} />
         <FormField label="Default value" value={attributeForm.defaultValue} onChangeText={(defaultValue) => setAttributeForm((current) => ({ ...current, defaultValue }))} />
         <FormField label="Options (comma separated)" value={attributeForm.options} onChangeText={(options) => setAttributeForm((current) => ({ ...current, options }))} />
-        <FormField label="Sort order" value={attributeForm.sortOrder} onChangeText={(sortOrder) => setAttributeForm((current) => ({ ...current, sortOrder }))} keyboardType="numeric" />
+        <FormField label="Sort order" value={attributeForm.sortOrder} error={attributeFields.errors.sortOrder} onChangeText={(sortOrder) => setAttributeForm((current) => ({ ...current, sortOrder }))} keyboardType="numeric" />
       </BottomSheet>
 
       <BottomSheet
@@ -485,14 +544,14 @@ export default function OwnerToolsScreen() {
         onClose={() => setSubscriptionSheetVisible(false)}
         fullHeight
         footer={
-          <Pressable style={styles.primaryButton} onPress={() => void saveSubscription()}>
+          <Pressable style={styles.primaryButton} disabled={submission.busy} onPress={() => void saveSubscription()}>
             <Text style={styles.primaryButtonLabel}>Save subscription</Text>
           </Pressable>
         }>
         <FormField label="Status" value={subscriptionForm.status} onChangeText={(status) => setSubscriptionForm((current) => ({ ...current, status }))} />
         <FormField label="Plan name" value={subscriptionForm.planName} onChangeText={(planName) => setSubscriptionForm((current) => ({ ...current, planName }))} />
         <FormField label="Billing cycle" value={subscriptionForm.billingCycle} onChangeText={(billingCycle) => setSubscriptionForm((current) => ({ ...current, billingCycle }))} />
-        <FormField label="Seat limit" value={subscriptionForm.seatLimit} onChangeText={(seatLimit) => setSubscriptionForm((current) => ({ ...current, seatLimit }))} keyboardType="numeric" />
+        <FormField label="Seat limit" value={subscriptionForm.seatLimit} error={subscriptionFields.errors.seatLimit} onChangeText={(seatLimit) => setSubscriptionForm((current) => ({ ...current, seatLimit }))} keyboardType="numeric" />
       </BottomSheet>
     </Screen>
   );

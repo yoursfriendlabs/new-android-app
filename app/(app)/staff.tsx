@@ -19,6 +19,13 @@ import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import {
+  nonNegativeNumber,
+  optionalPhone,
+  requiredEmail,
+  requiredText,
+} from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -146,6 +153,23 @@ export default function StaffDirectoryScreen() {
     },
   });
 
+  /** HH:MM, as the shift boxes ask for. */
+  const shiftError = (value: string) =>
+    !value.trim() || /^([01]?\d|2[0-3]):[0-5]\d$/.test(value.trim()) ? '' : 'Use a time like 09:00.';
+
+  const fields = useFieldErrors(() => ({
+    name: requiredText(name, 'Enter the staff member\u2019s name.'),
+    phone: optionalPhone(phone),
+    salary: nonNegativeNumber(salary, 'A salary cannot be negative.'),
+    shiftStarted: shiftError(shiftStarted),
+    shiftEnded: shiftError(shiftEnded),
+    email: hasLogin ? requiredEmail(email) : '',
+    password:
+      hasLogin && !isEditing
+        ? requiredText(password, 'Set a password for their app login.')
+        : '',
+  }), formSheetVisible);
+
   const resetForm = () => {
     setName('');
     setEmail('');
@@ -234,16 +258,8 @@ export default function StaffDirectoryScreen() {
   };
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      toast.error('Staff Name is required');
-      return;
-    }
-    if (hasLogin && !email.trim()) {
-      toast.error('Email is required when App Login is enabled');
-      return;
-    }
-    if (hasLogin && !isEditing && !password.trim()) {
-      toast.error('Password is required when App Login is enabled');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -497,15 +513,15 @@ export default function StaffDirectoryScreen() {
         }>
         
         <View style={styles.formScroll}>
-          <FormField label="Staff Name *" value={name} onChangeText={setName} />
+          <FormField label="Staff Name *" value={name} onChangeText={setName} error={fields.errors.name} />
           
           <View style={styles.formRow}>
             <View style={{ flex: 1 }}>
-              <FormField label="Phone" value={phone} onChangeText={setPhone} keyboardType="numeric" />
+              <FormField label="Phone" value={phone} onChangeText={setPhone} keyboardType="numeric" error={fields.errors.phone} />
             </View>
             <View style={{ width: spacing.md }} />
             <View style={{ flex: 1 }}>
-              <FormField label="Monthly Salary (रू)" value={salary} onChangeText={setSalary} keyboardType="numeric" />
+              <FormField label="Monthly Salary (रू)" value={salary} onChangeText={setSalary} keyboardType="numeric" error={fields.errors.salary} />
             </View>
           </View>
 
@@ -513,11 +529,11 @@ export default function StaffDirectoryScreen() {
 
           <View style={styles.formRow}>
             <View style={{ flex: 1 }}>
-              <FormField label="Shift Starts (HH:MM)" value={shiftStarted} onChangeText={setShiftStarted} placeholder="e.g. 09:00" />
+              <FormField label="Shift Starts (HH:MM)" value={shiftStarted} onChangeText={setShiftStarted} placeholder="e.g. 09:00" error={fields.errors.shiftStarted} />
             </View>
             <View style={{ width: spacing.md }} />
             <View style={{ flex: 1 }}>
-              <FormField label="Shift Ends (HH:MM)" value={shiftEnded} onChangeText={setShiftEnded} placeholder="e.g. 17:00" />
+              <FormField label="Shift Ends (HH:MM)" value={shiftEnded} onChangeText={setShiftEnded} placeholder="e.g. 17:00" error={fields.errors.shiftEnded} />
             </View>
           </View>
 
@@ -561,6 +577,7 @@ export default function StaffDirectoryScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                error={fields.errors.email}
               />
               <FormField
                 label={isEditing ? 'Change Password (optional)' : 'Password *'}
@@ -568,6 +585,7 @@ export default function StaffDirectoryScreen() {
                 onChangeText={setPassword}
                 secureTextEntry
                 placeholder={isEditing ? 'Leave blank to keep current' : 'Enter login password'}
+                error={fields.errors.password}
               />
             </View>
           ) : null}
