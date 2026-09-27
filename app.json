@@ -2,7 +2,7 @@
   "expo": {
     "name": "PM",
     "slug": "pasalmanager",
-    "version": "1.5.2",
+    "version": "1.5.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pasalmanager",
@@ -23,7 +23,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.yoursfriend.pasalmanager",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "READ_CONTACTS",
         "POST_NOTIFICATIONS",
