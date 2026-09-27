@@ -13,7 +13,7 @@ import { useReducedMotion } from '@/src/shared/hooks/useReducedMotion';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
-import { motion, radius, shadows, spacing } from '@/src/theme';
+import { iconSize, motion, radius, shadows, spacing } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -123,9 +123,11 @@ function TabIcon({
         ]}
       />
       <MaterialCommunityIcons
+        accessible={false}
+        importantForAccessibility="no"
         color={focused ? colors.primaryText : inactiveColor}
         name={focused ? activeIcon : inactiveIcon}
-        size={22}
+        size={iconSize.navigation}
       />
       {badge > 0 ? (
         <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.surface }]}>
@@ -137,7 +139,7 @@ function TabIcon({
 }
 
 /** The raised centre button. Presses scale it down instead of just flashing. */
-function CenterFab({ colors, onPress }: { colors: AppPalette; onPress: () => void }) {
+function CenterFab({ colors, label, onPress }: { colors: AppPalette; label: string; onPress: () => void }) {
   const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -153,7 +155,7 @@ function CenterFab({ colors, onPress }: { colors: AppPalette; onPress: () => voi
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Add entry"
+      accessibilityLabel={label}
       style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
       onPressIn={() => { if (!reducedMotion) animateTo(motion.pressScale - 0.05); }}
       onPressOut={() => { if (!reducedMotion) animateTo(1); }}
@@ -163,7 +165,7 @@ function CenterFab({ colors, onPress }: { colors: AppPalette; onPress: () => voi
           styles.centerFab,
           { backgroundColor: colors.primary, borderColor: colors.surface, transform: [{ scale: reducedMotion ? 1 : scale }] },
         ]}>
-        <MaterialCommunityIcons name="plus" size={28} color={colors.onPrimary} />
+        <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="plus" size={iconSize.fab} color={colors.onPrimary} />
       </Animated.View>
     </Pressable>
   );
@@ -269,6 +271,7 @@ export default function TabsLayout() {
                   tabBarIcon: () => (
                     <CenterFab
                       colors={colors}
+                      label={t('quickEntry.title')}
                       onPress={() => {
                         haptics.tapMedium();
                         setLogMoneyVisible(true);
