@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import {
@@ -29,6 +31,8 @@ interface IntervalHabitSheetProps {
 
 export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible }: IntervalHabitSheetProps) {
   const colors = usePalette();
+  const toast = useToast();
+  const submission = useSubmissionLock();
   const [kind, setKind] = useState<IntervalKind>('water');
   const [title, setTitle] = useState('Drink water');
   const [message, setMessage] = useState('A glass now. Your body will thank you.');
@@ -76,6 +80,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
   };
 
   const handleSave = async () => {
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       const payload = habit
@@ -96,7 +101,10 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
       await useHabitStore.getState().upsertIntervalHabit(payload);
       onSaved?.();
       onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save this reminder. Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   };

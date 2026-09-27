@@ -15,7 +15,11 @@ import {
 } from 'react-native';
 
 import { WinMoment } from '@/src/features/habits/components/WinMoment';
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { FieldError } from '@/src/shared/forms/FieldError';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { IntervalHabitSheet } from '@/src/features/notes/components/IntervalHabitSheet';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -44,6 +48,7 @@ type ComposerKind = NoteKind | 'interval';
 export function PersonalComposer() {
   const colors = usePalette();
   const toast = useToast();
+  const submission = useSubmissionLock();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ id?: string; kind?: string }>();
   const isEdit = Boolean(params.id);
@@ -89,21 +94,23 @@ export function PersonalComposer() {
     }
   }, [isEdit, loadedTaskId, note]);
 
+  const fields = useFieldErrors(() => ({
+    title: requiredText(title, kind === 'note' ? 'What is this note about?' : 'What should we remind you?'),
+    dueAt: kind === 'reminder' && (!Number.isFinite(dueAt.getTime()) || dueAt.getTime() <= Date.now() + 4000)
+      ? 'Choose a date and time ahead of now so we can notify you.' : '',
+  }), `${kind}:${params.id}`);
+
   const handleSave = async () => {
     if (kind === 'interval') {
       setIntervalOpen(true);
       return;
     }
-    if (!title.trim()) {
-      toast.error(kind === 'note' ? 'What is this note about?' : 'What should we remind you?');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
-    if (kind === 'reminder' && dueAt.getTime() <= Date.now() + 4000) {
-      toast.error('Choose a date and time ahead of now so we can notify you.');
-      return;
-    }
-
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       const dueIso = dueAt.toISOString();
@@ -174,6 +181,7 @@ export function PersonalComposer() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   };
@@ -200,6 +208,8 @@ export function PersonalComposer() {
           primary={{
             label: saving ? 'Saving…' : kind === 'interval' ? 'Choose interval' : isEdit ? 'Save' : kind === 'note' ? 'Capture note' : 'Set reminder',
             onPress: () => void handleSave(),
+            disabled: saving,
+            loading: saving,
           }}
         />
       }>
@@ -234,13 +244,18 @@ export function PersonalComposer() {
         {kind !== 'interval' ? (
           <>
             <TextInput
+              accessibilityLabel="Title"
+              accessibilityHint={fields.errors.title}
+              aria-invalid={Boolean(fields.errors.title)}
               value={title}
               onChangeText={setTitle}
               placeholder={kind === 'note' ? 'Title this thought' : 'Remind me to…'}
               placeholderTextColor={colors.textSoft}
               style={[styles.titleInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
             />
+            <FieldError message={fields.errors.title} />
             <TextInput
+              accessibilityLabel="Details"
               value={body}
               onChangeText={setBody}
               placeholder={kind === 'note' ? 'The note itself. Unhurried.' : 'Optional detail'}
@@ -309,6 +324,7 @@ export function PersonalComposer() {
                 </Text>
               </View>
             </Pressable>
+            <FieldError message={fields.errors.dueAt} />
             {bsDateModalOpen ? (
               <BsDatePickerModal
                 visible={bsDateModalOpen}
