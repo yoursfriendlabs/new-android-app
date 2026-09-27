@@ -144,7 +144,7 @@ export default function PosScreen() {
       const openOrder = findOpenTableOrder(extractListItems<Sale>(res), tableId, tableName);
 
       if (openOrder) {
-        const fullSale = await salesApi.get(openOrder.id);
+        const fullSale = normalizeSale(await salesApi.get(openOrder.id));
         setEditingId(fullSale.id);
         setValue({
           invoiceNo: fullSale.invoiceNo,
@@ -165,7 +165,7 @@ export default function PosScreen() {
             productId: item.productId,
             name: item.name || item.productName || 'Product',
             quantity: item.quantity,
-            unit: item.unitType || 'primary',
+            unit: item.unit || '',
             unitType: (item.unitType as any) || 'primary',
             unitPrice: item.unitPrice,
             taxRate: item.taxRate || 0,

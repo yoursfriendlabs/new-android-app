@@ -1,6 +1,6 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -121,6 +121,8 @@ export default function DetailedSalesScreen() {
   const [amountReceivedDraft, setAmountReceivedDraft] = useState('0');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank'>('cash');
   const [bankId, setBankId] = useState('');
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [itemsError, setItemsError] = useState('');
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -202,6 +204,21 @@ export default function DetailedSalesScreen() {
     });
   }, [debouncedSearch, filter, partyMap, sales]);
 
+  useEffect(() => {
+    if (!selectedSale) return;
+    let cancelled = false;
+    setItemsError('');
+    setLoadingItems(true);
+    salesApi.get(selectedSale.id).then((response) => {
+      if (!cancelled) setSelectedSale(normalizeSale(response));
+    }).catch(() => {
+      if (!cancelled) setItemsError('Could not load sold items. Close this invoice and try again.');
+    }).finally(() => {
+      if (!cancelled) setLoadingItems(false);
+    });
+    return () => { cancelled = true; };
+  }, [selectedSale?.id]);
+
   function openSale(sale: Sale) {
     setSelectedSale(sale);
     setAmountReceivedDraft(String(sale.amountReceived ?? 0));
@@ -231,46 +248,46 @@ export default function DetailedSalesScreen() {
   /** List rows come without line items; receipts need the full bill. */
   async function loadFullSale(sale: Sale) {
     if (sale.items?.length) return sale;
-    try {
-      return normalizeSale(await salesApi.get(sale.id));
-    } catch {
-      return sale;
-    }
+    return normalizeSale(await salesApi.get(sale.id));
   }
 
   async function handlePrintReceipt(listSale: Sale) {
-    const sale = await loadFullSale(listSale);
-    const customer = resolveSaleCustomer(sale, partyMap);
-    const receiptData = {
-      heading: 'Tax Invoice / Bill',
-      reference: sale.invoiceNo,
-      date: sale.saleDate,
-      subtitle: customer.name,
-      partyName: customer.name,
-      partyPhone: customer.phone ? String(customer.phone) : undefined,
-      paymentMethod: sale.paymentMethod,
-      lines: (sale.items ?? []).map((item) => ({
-        name: (item as any).product?.name || item.productId || 'Item',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal,
-      })),
-      subTotal: sale.subTotal,
-      taxTotal: sale.taxTotal,
-      discountTotal: sale.discountTotal ?? sale.discount ?? 0,
-      grandTotal: sale.grandTotal,
-      amountReceived: billPaid(sale),
-      dueAmount: billDue(sale),
-    };
-    const html = buildReceiptHtml(receiptData);
+    try {
+      const sale = await loadFullSale(listSale);
+      const customer = resolveSaleCustomer(sale, partyMap);
+      const receiptData = {
+        heading: 'Tax Invoice / Bill',
+        reference: sale.invoiceNo,
+        date: sale.saleDate,
+        subtitle: customer.name,
+        partyName: customer.name,
+        partyPhone: customer.phone ? String(customer.phone) : undefined,
+        paymentMethod: sale.paymentMethod,
+        lines: (sale.items ?? []).map((item) => ({
+          name: String(item.productName || (item as any).product?.name || 'Item'),
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        })),
+        subTotal: sale.subTotal,
+        taxTotal: sale.taxTotal,
+        discountTotal: sale.discountTotal ?? sale.discount ?? 0,
+        grandTotal: sale.grandTotal,
+        amountReceived: billPaid(sale),
+        dueAmount: billDue(sale),
+      };
+      const html = buildReceiptHtml(receiptData);
 
-    setReceipt({
-      title: sale.invoiceNo,
-      subtitle: customer.name,
-      html,
-      data: receiptData,
-    });
-    router.push('/(app)/print-preview');
+      setReceipt({
+        title: sale.invoiceNo,
+        subtitle: customer.name,
+        html,
+        data: receiptData,
+      });
+      router.push('/(app)/print-preview');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load this invoice.');
+    }
   }
 
   async function handleShareReceiptPdf(listSale: Sale) {
@@ -287,7 +304,7 @@ export default function DetailedSalesScreen() {
         partyPhone: customer.phone ? String(customer.phone) : undefined,
         paymentMethod: sale.paymentMethod,
         lines: (sale.items ?? []).map((item) => ({
-          name: (item as any).product?.name || item.productId || 'Item',
+          name: String(item.productName || (item as any).product?.name || 'Item'),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           lineTotal: item.lineTotal,
@@ -638,10 +655,10 @@ export default function DetailedSalesScreen() {
                   <View key={`${selectedSale.id}-${index}`} style={[styles.itemRow, { backgroundColor: colors.backgroundAlt }]}>
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={[styles.itemTitle, { color: colors.text }]}>
-                        {(item as any).product?.name || item.productId || 'Item'}
+                        {String(item.productName || (item as any).product?.name || 'Item')}
                       </Text>
                       <Text style={[styles.itemMeta, { color: colors.textMuted }]}>
-                        Qty: {item.quantity} {item.unitType || ''} @ {formatCurrency(item.unitPrice, currency)}
+                        Qty: {item.quantity} {String(item.unit || '')} @ {formatCurrency(item.unitPrice, currency)}
                       </Text>
                     </View>
                     <Text style={[styles.itemAmount, { color: colors.primary }]}>
@@ -649,7 +666,9 @@ export default function DetailedSalesScreen() {
                     </Text>
                   </View>
                 ))}
-                {!selectedSale.items?.length ? (
+                {loadingItems ? <ActivityIndicator color={colors.primary} /> : null}
+                {itemsError ? <Text style={styles.helperText}>{itemsError}</Text> : null}
+                {!loadingItems && !itemsError && !selectedSale.items?.length ? (
                   <Text style={styles.helperText}>No line items recorded on this sale.</Text>
                 ) : null}
               </View>
