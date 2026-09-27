@@ -49,7 +49,7 @@ export function UnitsScreen() {
 
   const fields = useFieldErrors(() => ({
     name: requiredText(form.name, 'Enter a unit name.'),
-  }));
+  }), sheetVisible);
 
   const visibleUnits = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();

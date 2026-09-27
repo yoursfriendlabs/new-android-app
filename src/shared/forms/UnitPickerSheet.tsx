@@ -60,7 +60,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
 
   const newUnitFields = useFieldErrors(() => ({
     name: requiredText(newUnit.name, 'Enter a unit name.'),
-  }));
+  }), creatingFor);
   const applyFields = useFieldErrors(() => ({
     primaryUnit: draft.primaryUnitId ? '' : 'Pick the primary unit.',
     conversionRate: hasSecondary
@@ -71,7 +71,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
           }.`,
         )
       : '',
-  }));
+  }), visible);
 
   function openCreate(slot: Exclude<CreatingFor, null>) {
     if (submission.isBusy()) return;

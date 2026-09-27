@@ -60,10 +60,10 @@ export default function ExpenseCategoriesScreen() {
 
   const createFields = useFieldErrors(() => ({
     name: requiredText(createName, 'Enter a category name.'),
-  }));
+  }), createVisible);
   const editFields = useFieldErrors(() => ({
     name: requiredText(editName, 'A category needs a name.'),
-  }));
+  }), editingCategory?.id);
 
   async function handleAddCategory() {
     if (!createFields.check()) return;

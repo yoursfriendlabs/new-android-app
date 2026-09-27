@@ -43,7 +43,7 @@ export function CategoryPickerSheet({ onClose, onSelect, selectedId, visible }: 
 
   const fields = useFieldErrors(() => ({
     name: requiredText(newName, 'Enter a category name.'),
-  }));
+  }), visible);
 
   async function handleAdd() {
     if (!fields.check()) return;

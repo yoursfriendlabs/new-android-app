@@ -60,7 +60,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
     quantity:
       positiveNumber(quantity, 'Enter how much stock to add or remove.') ||
       (action === 'remove' ? atMost(quantity, currentStock, `Only ${currentStock} ${unit} on hand.`) : ''),
-  }));
+  }), visible);
 
   async function handleSave() {
     if (!product?.id) return;

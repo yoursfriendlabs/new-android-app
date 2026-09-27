@@ -101,7 +101,7 @@ export function PosCheckoutSheet({
     attributes: missingAttributes.length
       ? `Fill in ${missingAttributes.map((attribute) => attribute.label).join(', ')}.`
       : '',
-  }));
+  }), visible);
 
   function attributeError(attribute: OrderAttribute) {
     if (!fields.errors.attributes) return undefined;

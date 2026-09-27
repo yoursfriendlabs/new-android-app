@@ -103,7 +103,7 @@ export function BanksScreen() {
   const fields = useFieldErrors(() => ({
     name: requiredText(form.name, 'Give this account a short name, like Cash or Nabil.'),
     openingBalance: optionalNumber(form.openingBalance, 'An opening balance has to be a number.'),
-  }));
+  }), sheetVisible);
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
   const [txSearch, setTxSearch] = useState('');
 

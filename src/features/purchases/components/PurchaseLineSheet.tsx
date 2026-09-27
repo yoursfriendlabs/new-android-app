@@ -68,7 +68,7 @@ export function PurchaseLineSheet({
       line?.unitType === 'secondary' && !(Number(product?.secondaryConversionRate ?? 0) > 0)
         ? 'This product has no conversion rate for its second unit.'
         : '',
-  }));
+  }), visible);
 
   function handleSave() {
     if (!fields.check()) return;

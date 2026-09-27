@@ -86,7 +86,7 @@ export function AttributesScreen() {
         .filter(Boolean).length
         ? 'Add at least one choice, separated by commas.'
         : '',
-  }));
+  }), sheetVisible);
 
   function openSheet(attribute?: OrderAttribute) {
     setEditing(attribute ?? null);

@@ -112,7 +112,7 @@ export default function TableManagementScreen() {
   const fields = useFieldErrors(() => ({
     name: requiredText(name, 'Give this table a name.'),
     capacity: capacity.trim() ? positiveNumber(capacity, 'Seats has to be more than zero.') : '',
-  }));
+  }), formSheetVisible);
 
   const handleSave = async () => {
     if (!fields.check()) {
