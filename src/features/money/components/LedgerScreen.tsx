@@ -251,27 +251,32 @@ export function LedgerScreen() {
         }
         contentContainerStyle={styles.scroll}>
         
-        {/* Period tabs */}
-        <SegmentedTabs
-          value={period}
-          onChange={setPeriod}
-          options={[
-            { label: 'This month', value: 'this_month' },
-            { label: 'This year', value: 'this_year' },
-            { label: 'All time', value: 'all' },
-          ]}
-        />
-
-        {personal ? (
+        <View style={styles.filterGroup}>
+          <Text style={[styles.filterGroupLabel, { color: colors.textSoft }]}>Period</Text>
           <SegmentedTabs
-            value={book}
-            onChange={setBook}
+            value={period}
+            onChange={setPeriod}
             options={[
-              { label: 'Income', value: 'income' },
-              { label: 'Expense', value: 'expense' },
-              { label: 'Contacts', value: 'party' },
+              { label: 'This month', value: 'this_month' },
+              { label: 'This year', value: 'this_year' },
+              { label: 'All time', value: 'all' },
             ]}
           />
+        </View>
+
+        {personal ? (
+          <View style={styles.filterGroup}>
+            <Text style={[styles.filterGroupLabel, { color: colors.textSoft }]}>Show</Text>
+            <SegmentedTabs
+              value={book}
+              onChange={setBook}
+              options={[
+                { label: 'Income', value: 'income' },
+                { label: 'Expense', value: 'expense' },
+                { label: 'Contacts', value: 'party' },
+              ]}
+            />
+          </View>
         ) : null}
 
         {/* Contact / Party selector card */}
@@ -570,6 +575,15 @@ const createStyles = (colors: AppPalette) =>
       paddingTop: spacing.md,
       paddingBottom: spacing.xxl,
       gap: spacing.md,
+    },
+    filterGroup: {
+      gap: spacing.xxs,
+    },
+    filterGroupLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.6,
+      textTransform: 'uppercase',
     },
     headerRightActions: {
       flexDirection: 'row',
