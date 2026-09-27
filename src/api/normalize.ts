@@ -603,8 +603,32 @@ export function normalizeSubscription(raw: unknown): Subscription {
   };
 }
 
-export function normalizeSale(raw: unknown): Sale {
+export function normalizeSaleItem(raw: unknown): Sale['items'][number] {
   const record = asRecord(raw) ?? {};
+  const product = asRecord(firstDefined(record.product, record.Product));
+  const quantity = asNumber(record.quantity);
+  const unitPrice = asNumber(record.unitPrice);
+  const unitType = asString(record.unitType, 'primary');
+  return {
+    ...record,
+    id: asString(firstDefined(record.id, record._id), '') || undefined,
+    productId: asString(firstDefined(record.productId, product?.id)),
+    productName: asString(firstDefined(record.productName, record.name, product?.name), 'Item'),
+    product,
+    unitType,
+    unit: asString(firstDefined(record.unit, unitType === 'secondary' ? product?.secondaryUnit : product?.primaryUnit)),
+    conversionRate: asNumber(record.conversionRate),
+    quantity,
+    unitPrice,
+    taxRate: asNumber(record.taxRate),
+    lineTotal: asNumber(record.lineTotal ?? Number((quantity * unitPrice).toFixed(2))),
+  };
+}
+
+export function normalizeSale(raw: unknown): Sale {
+  const record = asRecord(unwrapEntity(raw)) ?? {};
+  const items = firstDefined(record.items, record.SaleItems);
+  const party = asRecord(firstDefined(record.party, record.Party));
 
   return {
     ...(record as Sale),
@@ -612,11 +636,13 @@ export function normalizeSale(raw: unknown): Sale {
     invoiceNo: asString(firstDefined(record.invoiceNo, record.billNo), ''),
     saleDate: asString(firstDefined(record.saleDate, record.createdAt), ''),
     partyId: asString(firstDefined(record.partyId, record.customerId), ''),
+    party,
+    partyName: asString(firstDefined(record.partyName, party?.name)),
     subTotal: asNumber(record.subTotal),
     taxTotal: asNumber(record.taxTotal),
     grandTotal: asNumber(firstDefined(record.grandTotal, record.total)),
     amountReceived: asNumber(firstDefined(record.amountReceived, record.receivedAmount)),
-    items: Array.isArray(record.items) ? (record.items as Sale['items']) : [],
+    items: Array.isArray(items) ? items.map(normalizeSaleItem) : [],
     paymentMethod: asString(firstDefined(record.paymentMethod, 'cash')) as Sale['paymentMethod'],
     status: asString(firstDefined(record.status, 'unpaid')),
     paymentNote: asString(record.paymentNote, ''),

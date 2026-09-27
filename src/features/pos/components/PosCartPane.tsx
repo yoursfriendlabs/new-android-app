@@ -1,6 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { changeCartUnit, hasSecondaryUnit } from '@/src/features/pos/lib/cart-line';
 import { haptics } from '@/src/shared/lib/haptics';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -11,13 +12,12 @@ import { a11y, radius, spacing } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { PosDraft } from '@/src/types/forms';
-import type { Product } from '@/src/types/models';
 
 type CartItem = PosDraft['items'][number];
 
 interface PosCartPaneProps {
+  busy?: boolean;
   items: CartItem[];
-  products: Product[];
   subTotal: number;
   taxTotal: number;
   discountTotal: number;
@@ -32,15 +32,9 @@ interface PosCartPaneProps {
   onSecondaryPress?: () => void;
 }
 
-function secondaryPrice(product: Product | undefined, item: CartItem) {
-  if (product?.salePrice && item.secondaryConversionRate) {
-    return Number((product.salePrice / item.secondaryConversionRate).toFixed(2));
-  }
-  return item.unitPrice;
-}
-
 /** The running bill — shown as a side pane on tablets. */
 export function PosCartPane({
+  busy = false,
   amountReceived,
   discountTotal,
   grandTotal,
@@ -50,7 +44,6 @@ export function PosCartPane({
   onSecondaryPress,
   onSubtract,
   onToggleUnit,
-  products,
   secondaryLabel,
   subTotal,
   taxTotal,
@@ -61,9 +54,8 @@ export function PosCartPane({
 
   return (
     <SurfaceCard>
-      <View style={styles.items}>
+      <View style={styles.items} pointerEvents={busy ? 'none' : 'auto'}>
         {items.map((item) => {
-          const product = products.find((entry) => entry.id === item.productId);
           const usesSecondary = item.unitType === 'secondary';
 
           return (
@@ -114,20 +106,20 @@ export function PosCartPane({
                 </View>
               </View>
 
-              {item.secondaryUnit ? (
+              {hasSecondaryUnit(item) ? (
                 <View style={styles.unitRow}>
                   {(
                     [
                       {
                         type: 'primary' as const,
                         label: item.primaryUnit || 'Primary',
-                        price: product?.salePrice ?? item.unitPrice,
+                        price: changeCartUnit(item, 'primary').unitPrice,
                         active: !usesSecondary,
                       },
                       {
                         type: 'secondary' as const,
                         label: item.secondaryUnit,
-                        price: secondaryPrice(product, item),
+                        price: changeCartUnit(item, 'secondary').unitPrice,
                         active: usesSecondary,
                       },
                     ]
@@ -176,13 +168,13 @@ export function PosCartPane({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ disabled: !hasItems }}
+        accessibilityState={{ disabled: !hasItems || busy, busy }}
         style={({ pressed }) => [
           styles.checkout,
           { backgroundColor: hasItems ? colors.primary : colors.backgroundAlt },
           pressed && styles.pressed,
         ]}
-        disabled={!hasItems}
+        disabled={!hasItems || busy}
         onPress={() => {
           haptics.tapMedium();
           onCheckout();
@@ -195,21 +187,21 @@ export function PosCartPane({
       {secondaryLabel && onSecondaryPress ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ disabled: !hasItems }}
+          accessibilityState={{ disabled: !hasItems || busy, busy }}
           style={({ pressed }) => [
             styles.checkout,
             styles.secondaryAction,
             { borderColor: hasItems ? colors.primary : colors.border },
             pressed && styles.pressed,
           ]}
-          disabled={!hasItems}
+          disabled={!hasItems || busy}
           onPress={() => {
             haptics.tapLight();
             onSecondaryPress();
           }}>
-          <Text variant="bodyStrong" tone={hasItems ? 'primary' : 'soft'}>
+          {busy ? <ActivityIndicator color={colors.primary} /> : (<Text variant="bodyStrong" tone={hasItems ? 'primary' : 'soft'}>
             {secondaryLabel}
-          </Text>
+          </Text>)}
         </Pressable>
       ) : null}
     </SurfaceCard>

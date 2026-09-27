@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
 import { addQuickExpenseLocally } from '@/src/data/cache';
@@ -53,6 +54,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   const [customCategory, setCustomCategory] = useState('');
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState({ visible: false, queued: false, message: '' });
   const { data: categories } = useQuickExpenses();
@@ -126,6 +128,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     const payload = {
       entryType: 'expense' as const,
@@ -177,6 +180,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
       if (isInvalidSessionError(error)) return;
       toast.error(workspaceAccessMessage(error, 'Please try again.'));
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -192,7 +196,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
         visible={visible && !success.visible}
         title="New expense"
         subtitle="Category, amount, and how it was paid."
-        onClose={closeAll}
+        onClose={() => { if (!submission.isBusy()) closeAll(); }}
         fullHeight
         footer={
           <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving}>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { haptics } from '@/src/shared/lib/haptics';
@@ -9,6 +9,8 @@ import { radius, shadows, spacing, typography } from '@/src/theme';
 interface ActionProps {
   label: string;
   onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
   tone?: 'primary' | 'secondary' | 'ghost' | 'success' | 'danger';
 }
 
@@ -19,7 +21,7 @@ interface StickyActionBarProps {
   containerStyle?: StyleProp<ViewStyle>;
 }
 
-function ActionButton({ label, onPress, tone = 'secondary' }: ActionProps) {
+function ActionButton({ label, onPress, loading = false, disabled = false, tone = 'secondary' }: ActionProps) {
   const colors = usePalette();
   let bg = colors.backgroundAlt;
   let fg = colors.text;
@@ -39,16 +41,19 @@ function ActionButton({ label, onPress, tone = 'secondary' }: ActionProps) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ busy: loading, disabled: disabled || loading }}
+      disabled={disabled || loading}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: bg },
+        (disabled || loading) && { opacity: 0.6 },
         pressed && { opacity: 0.88 },
       ]}
       onPress={() => {
         haptics.tapMedium();
         onPress();
       }}>
-      <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>
+      {loading ? <ActivityIndicator color={fg} /> : <Text style={[styles.buttonLabel, { color: fg }]}>{label}</Text>}
     </Pressable>
   );
 }
@@ -66,8 +71,8 @@ export function StickyActionBar({ containerStyle, leading, primary, secondary }:
         ]}>
         {leading ? <View style={styles.leading}>{leading}</View> : null}
         <View style={styles.actions}>
-          {secondary ? <ActionButton {...secondary} /> : null}
-          <ActionButton {...primary} tone={primary.tone || 'primary'} />
+          {secondary ? <ActionButton {...secondary} disabled={secondary.disabled || primary.loading} /> : null}
+          <ActionButton {...primary} disabled={primary.disabled || secondary?.loading} tone={primary.tone || 'primary'} />
         </View>
       </View>
     </SafeAreaView>

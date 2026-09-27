@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { productsApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
@@ -74,6 +75,7 @@ export default function ItemFormScreen() {
   const [tab, setTab] = useState<FormTab>('stock');
   const [categoryVisible, setCategoryVisible] = useState(false);
   const [unitVisible, setUnitVisible] = useState(false);
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const purityOptions = useMemo(() => getPurityOptions(form.metalType), [form.metalType]);
 
@@ -85,9 +87,11 @@ export default function ItemFormScreen() {
   const unitLabelText = form.secondaryUnit.trim()
     ? `${form.primaryUnit || 'unit'} & ${form.secondaryUnit}`
     : form.primaryUnit || 'Select unit';
+  // The rate counts secondary units inside one primary unit — the same way the
+  // server divides a secondary quantity back into stock.
   const conversionHint =
     form.secondaryUnit.trim() && form.conversionRate.trim() && Number(form.conversionRate) > 0
-      ? `1 ${form.secondaryUnit.trim()} = ${Number(form.conversionRate)} ${form.primaryUnit.trim() || 'units'}`
+      ? `1 ${form.primaryUnit.trim() || 'unit'} = ${Number(form.conversionRate)} ${form.secondaryUnit.trim()}`
       : '';
 
   function applyUnit(selection: UnitSelection) {
@@ -121,6 +125,7 @@ export default function ItemFormScreen() {
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     const payload = {
       name: form.name.trim(),
@@ -169,6 +174,7 @@ export default function ItemFormScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -180,7 +186,8 @@ export default function ItemFormScreen() {
       footer={
         <StickyActionBar
           primary={{
-            label: saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Save',
+            label: isEditing ? 'Save Changes' : 'Save',
+            loading: saving,
             onPress: () => void handleSave(),
           }}
         />

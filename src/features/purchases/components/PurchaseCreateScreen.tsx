@@ -34,6 +34,7 @@ import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { useIsTablet } from '@/src/shared/hooks/useIsTablet';
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { invalidateAfterBill, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
 import { Screen } from '@/src/shared/layout/Screen';
 import { formatCurrency } from '@/src/shared/lib/format';
@@ -55,6 +56,7 @@ import type { Purchase } from '@/src/types/models';
 const CONTENT_MAX_WIDTH = 720;
 
 export function PurchaseCreateScreen() {
+  const submission = useSubmissionLock();
   const colors = usePalette();
   const toast = useToast();
   const confirm = useConfirm();
@@ -72,7 +74,6 @@ export function PurchaseCreateScreen() {
   const [isNewLine, setIsNewLine] = useState(false);
   const [lineSheetVisible, setLineSheetVisible] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [successState, setSuccessState] = useState({ visible: false, queued: false });
 
   const debouncedPartySearch = useDebouncedValue(partySearch);
@@ -171,7 +172,7 @@ export function PurchaseCreateScreen() {
       return;
     }
 
-    setSaving(true);
+    if (!submission.tryStart()) return;
     try {
       const payload = buildPurchasePayload(draft.value, totals);
       const result = await submitWithOfflineQueue<Purchase, typeof payload>({
@@ -222,7 +223,7 @@ export function PurchaseCreateScreen() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setSaving(false);
+      submission.finish();
     }
   }
 
@@ -258,7 +259,7 @@ export function PurchaseCreateScreen() {
             </View>
           }
           secondary={{ label: 'Cancel', onPress: () => void closeForm() }}
-          primary={{ label: saving ? 'Saving…' : 'Save purchase', onPress: () => void savePurchase() }}
+          primary={{ label: 'Save purchase', loading: submission.busy, onPress: () => void savePurchase() }}
         />
       }>
       <View style={[styles.wrap, isTablet && styles.wrapWide]}>

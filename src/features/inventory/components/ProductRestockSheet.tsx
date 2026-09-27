@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
@@ -35,6 +36,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
   const [expiryDate, setExpiryDate] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
   const [note, setNote] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await productsApi.restock(product.id, {
@@ -78,6 +81,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -87,7 +91,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
       visible={visible}
       title={action === 'remove' ? 'Reduce stock' : 'Restock'}
       subtitle={product?.name || 'Add or remove quantity without creating a purchase bill.'}
-      onClose={onClose}
+      onClose={() => { if (!submission.isBusy()) onClose(); }}
       footer={
         <Pressable style={styles.saveButton} onPress={() => void handleSave()} disabled={saving || !product}>
           {saving ? (

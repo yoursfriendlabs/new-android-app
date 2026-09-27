@@ -1,8 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
+import { hasSecondaryUnit } from '@/src/features/pos/lib/cart-line';
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { FormField } from '@/src/shared/forms/FormField';
@@ -22,6 +24,9 @@ import type { BankAccount, OrderAttribute } from '@/src/types/models';
 
 interface PosCheckoutSheetProps {
   visible: boolean;
+  busy?: boolean;
+  savingMode?: 'save' | 'print' | null;
+  onToggleUnit: (productId: string, unitType: 'primary' | 'secondary') => void;
   cafeMode?: boolean;
   value: PosDraft;
   setValue: (updater: (current: PosDraft) => PosDraft) => void;
@@ -40,6 +45,9 @@ interface PosCheckoutSheetProps {
 
 export function PosCheckoutSheet({
   banks,
+  busy = false,
+  savingMode,
+  onToggleUnit,
   cafeMode = false,
   grandTotal,
   onAddImage,
@@ -97,16 +105,16 @@ export function PosCheckoutSheet({
       fullHeight
       footer={
         <View style={styles.footer}>
-          <Pressable style={styles.secondaryButton} onPress={() => onSave('print')}>
-            <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'print', disabled: busy }} style={styles.secondaryButton} onPress={() => onSave('print')}>
+            {busy && savingMode === 'print' ? <ActivityIndicator color={colors.primary} /> : <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />}
             <Text style={styles.secondaryLabel}>Save & print</Text>
           </Pressable>
-          <Pressable style={styles.primaryButton} onPress={() => onSave('save')}>
-            <Text style={styles.primaryLabel}>{primaryLabel}</Text>
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'save', disabled: busy }} style={styles.primaryButton} onPress={() => onSave('save')}>
+            {busy && savingMode === 'save' ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryLabel}>{primaryLabel}</Text>}
           </Pressable>
         </View>
       }>
-      <View style={styles.stack}>
+      <View style={styles.stack} pointerEvents={busy ? 'none' : 'auto'}>
         <View style={styles.hero}>
           <View>
             <Text style={styles.heroKicker}>To collect</Text>
@@ -225,12 +233,26 @@ export function PosCheckoutSheet({
             </Pressable>
           </View>
           {value.items.map((item) => (
-            <View key={item.productId} style={styles.billRow}>
-              <Text numberOfLines={1} style={styles.billName}>
-                {item.name}
-                <Text style={styles.billQty}> × {item.quantity}</Text>
-              </Text>
-              <Text style={styles.billAmount}>{formatCurrency(computeLineTotal(item))}</Text>
+            <View key={item.productId} style={{ gap: spacing.xs }}>
+              <View style={styles.billRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.billName}>{item.name}</Text>
+                  <Text style={styles.billQty}>
+                    {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
+                  </Text>
+                </View>
+                <Text style={styles.billAmount}>{formatCurrency(computeLineTotal(item))}</Text>
+              </View>
+              {hasSecondaryUnit(item) ? (
+                <SegmentedTabs
+                  value={item.unitType || 'primary'}
+                  onChange={(unitType) => onToggleUnit(item.productId, unitType)}
+                  options={[
+                    { label: item.primaryUnit || 'Primary', value: 'primary' },
+                    { label: item.secondaryUnit || 'Secondary', value: 'secondary' },
+                  ]}
+                />
+              ) : null}
             </View>
           ))}
           {!value.items.length ? <Text style={styles.emptyBill}>Go back and add items first.</Text> : null}

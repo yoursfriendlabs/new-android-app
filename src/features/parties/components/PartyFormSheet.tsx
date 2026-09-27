@@ -1,8 +1,9 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { partiesApi } from '@/src/api';
@@ -55,6 +56,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
   const queryClient = useQueryClient();
   const [form, setForm] = useState(createPartyForm(party, seed, personal));
   const [error, setError] = useState('');
+  const submission = useSubmissionLock();
   const [saving, setSaving] = useState(false);
   const [phoneSheetVisible, setPhoneSheetVisible] = useState(false);
   const isEditing = Boolean(party?.id);
@@ -72,6 +74,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
       return;
     }
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     setError('');
     const payload = {
@@ -108,6 +111,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
       if (isInvalidSessionError(nextError)) return;
       setError(workspaceAccessMessage(nextError, personal ? 'Unable to save the contact.' : 'Unable to save the party.'));
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -122,6 +126,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
     });
     if (!confirmed) return;
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     setError('');
     try {
@@ -133,6 +138,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
       if (isInvalidSessionError(nextError)) return;
       setError(nextError instanceof Error ? nextError.message : 'Unable to remove this contact.');
     } finally {
+      submission.finish();
       setSaving(false);
     }
   }
@@ -170,7 +176,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
             ? 'Update contact details and opening balance.'
             : 'Add a customer or supplier to track dues.'
       }
-      onClose={onClose}
+      onClose={() => { if (!submission.isBusy()) onClose(); }}
       fullHeight
       footer={
         <View style={styles.footer}>
@@ -186,9 +192,9 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
             style={[styles.button, { backgroundColor: colors.primary, flex: 1.4 }]}
             onPress={() => void handleSave()}
             disabled={saving}>
-            <Text style={[styles.buttonLabel, { color: colors.onPrimary }]}>
-              {saving ? 'Saving…' : isEditing ? (personal ? 'Save contact' : 'Save party') : personal ? 'Save contact' : 'Create party'}
-            </Text>
+            {saving ? <ActivityIndicator color={colors.onPrimary} /> : (<Text style={[styles.buttonLabel, { color: colors.onPrimary }]}>
+              {isEditing ? (personal ? 'Save contact' : 'Save party') : personal ? 'Save contact' : 'Create party'}
+            </Text>)}
           </Pressable>
         </View>
       }>

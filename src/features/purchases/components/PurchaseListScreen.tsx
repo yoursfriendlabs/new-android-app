@@ -12,6 +12,7 @@ import { PurchaseSummaryTiles } from '@/src/features/purchases/components/Purcha
 import { filterByPayment, purchaseCounts, resolvePurchaseSupplier } from '@/src/features/purchases/lib/purchase-view';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { invalidateAfterBill, usePagedPurchases, useParties, usePurchaseById, usePurchaseStats } from '@/src/shared/hooks/useAppQueries';
 import { Screen } from '@/src/shared/layout/Screen';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -28,6 +29,7 @@ type PaymentFilter = 'all' | 'due' | 'paid';
 
 /** The purchase register: find a bill, see what is owed, and settle it in place. */
 export function PurchaseListScreen() {
+  const submission = useSubmissionLock();
   const colors = usePalette();
   const confirm = useConfirm();
   const toast = useToast();
@@ -72,6 +74,7 @@ export function PurchaseListScreen() {
 
   async function saveUpdate(update: PurchasePaymentUpdate) {
     if (!selectedId) return;
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await purchasesApi.update(selectedId, {
@@ -89,6 +92,7 @@ export function PurchaseListScreen() {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
+      submission.finish();
     }
   }
 
@@ -102,6 +106,7 @@ export function PurchaseListScreen() {
     });
     if (!approved) return;
 
+    if (!submission.tryStart()) return;
     setSaving(true);
     try {
       await purchasesApi.remove(selectedId);
@@ -111,6 +116,7 @@ export function PurchaseListScreen() {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setSaving(false);
+      submission.finish();
     }
   }
 
