@@ -117,8 +117,27 @@ if (keystoreFile && keystorePassword && keyAlias && keyPassword) {
   gradleProperties += `android.injected.signing.store.password=${keystorePassword}\n`;
   gradleProperties += `android.injected.signing.key.alias=${keyAlias}\n`;
   gradleProperties += `android.injected.signing.key.password=${keyPassword}\n`;
-  
+
   console.log('Signing properties configured successfully.');
+
+  // Google only issues an ID token to a build whose signing certificate is
+  // registered in Google Cloud, so print the fingerprint while we have the
+  // password to hand. A Play-distributed build is re-signed by Play App
+  // Signing and needs that fingerprint registered as well.
+  try {
+    const keytoolOutput = execSync(
+      `keytool -list -v -keystore "${absoluteKeystorePath}" -alias "${keyAlias}" -storepass "${keystorePassword}"`,
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const sha1 = /SHA1:\s*([0-9A-F:]+)/i.exec(keytoolOutput);
+    if (sha1) {
+      console.log(`Upload key SHA-1: ${sha1[1]}`);
+      console.log('  Register this (with the package name) as an Android OAuth client for Google sign-in.');
+      console.log('  Run `npm run signing:sha1` any time to see it again.');
+    }
+  } catch (e) {
+    console.log('Note: could not read the signing fingerprint. Run `npm run signing:sha1` to check Google sign-in setup.');
+  }
 } else if (!process.argv.includes('apk')) {
   // Play Console rejects bundles signed with the debug key, so an unsigned AAB is never useful.
   console.error('Error: RELEASE_KEYSTORE_FILE, RELEASE_KEYSTORE_PASSWORD, RELEASE_KEY_ALIAS and RELEASE_KEY_PASSWORD must be set to build a Play Store AAB.');

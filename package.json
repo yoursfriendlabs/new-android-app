@@ -12,7 +12,8 @@
     "verify": "npm run typecheck && npm run test",
     "prebuild": "expo prebuild",
     "build:android-aab": "NODE_ENV=production node scripts/build-android.js aab",
-    "build:android-apk": "NODE_ENV=production node scripts/build-android.js apk"
+    "build:android-apk": "NODE_ENV=production node scripts/build-android.js apk",
+    "signing:sha1": "node scripts/signing-fingerprints.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
