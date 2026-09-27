@@ -1,11 +1,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
-import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { ThemeModeSelector } from '@/src/shared/ui/ThemeModeSelector';
 import { CompactThemeRow } from '@/src/shared/ui/ThemeSelector';
@@ -279,10 +278,6 @@ export default function MoreScreen() {
   const businesses = useAuthStore((state) => state.businesses);
   const canCreateBusiness = useAuthStore((state) => state.canCreateBusiness);
 
-  const [profileForm, setProfileForm] = useState({
-    name: user?.name ?? '',
-    phone: user?.phone ?? '',
-  });
   const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string; tone: 'success' | 'danger' }>({
     visible: false,
     message: '',
@@ -291,13 +286,6 @@ export default function MoreScreen() {
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-
-  useEffect(() => {
-    setProfileForm({
-      name: user?.name ?? '',
-      phone: user?.phone ?? '',
-    });
-  }, [user?.name, user?.phone]);
 
   const groups = useMemo(() => {
     const context = {
@@ -393,21 +381,33 @@ export default function MoreScreen() {
       ? 'Switch between your workspaces'
       : 'This account’s workspace';
 
-  async function handleProfileSave() {
-    try {
-      setSaving(true);
-      setMessage('');
-      await updateProfile(profileForm);
-      setSnackbar({ visible: true, message: 'Profile updated successfully', tone: 'success' });
-    } catch (error) {
-      if (isInvalidSessionError(error)) return;
-      const errMsg = error instanceof Error ? error.message : t('common.error');
-      setMessage(errMsg);
-      setSnackbar({ visible: true, message: errMsg, tone: 'danger' });
-    } finally {
-      setSaving(false);
-    }
-  }
+  const showBusinessIdentity = !isPersonalWorkspace({
+    role: session?.role ?? user?.role ?? undefined,
+    permissions: accessControl?.permissions ?? user?.permissions,
+    accessControl,
+    businessType: String(businessProfile?.businessType ?? businessProfile?.type ?? ''),
+  });
+
+  const identityLinks = [
+    ...(showBusinessIdentity
+      ? [
+          {
+            id: 'business-profile',
+            icon: 'domain' as const,
+            label: 'Business information',
+            subtitle: 'Name, PAN, contact details and logo',
+            route: '/(app)/business-profile',
+          },
+        ]
+      : []),
+    {
+      id: 'owner-profile',
+      icon: 'account-outline' as const,
+      label: 'Your details',
+      subtitle: 'Your name, phone and photo',
+      route: '/(app)/owner-profile',
+    },
+  ];
 
   async function handleAvatarChange(newUrl: string | null) {
     try {
@@ -558,35 +558,28 @@ export default function MoreScreen() {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textSoft }]}>{t('settings.profile')}</Text>
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, padding: spacing.md, gap: spacing.md }]}>
-          <AvatarPicker
-            value={user?.avatarUrl}
-            name={user?.name}
-            size={80}
-            label={user?.avatarUrl ? 'Change photo' : 'Add photo'}
-            onChange={handleAvatarChange}
-          />
-          <FormField
-            label={t('common.name')}
-            value={profileForm.name}
-            onChangeText={(name) => setProfileForm((current) => ({ ...current, name }))}
-          />
-          <FormField
-            label={t('common.phone')}
-            value={profileForm.phone}
-            onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))}
-            keyboardType="phone-pad"
-          />
-          <Pressable
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
-            onPress={() => void handleProfileSave()}
-            disabled={saving}>
-            {saving ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
-              <Text style={[styles.primaryLabel, { color: colors.onPrimary }]}>{t('settings.saveProfile')}</Text>
-            )}
-          </Pressable>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {identityLinks.map((link, index) => (
+            <Pressable
+              key={link.id}
+              onPress={() => router.push(link.route as never)}
+              style={({ pressed }) => [
+                styles.row,
+                index < identityLinks.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                pressed && { opacity: 0.72 },
+              ]}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
+                <MaterialCommunityIcons color={colors.primary} name={link.icon} size={20} />
+              </View>
+              <View style={styles.rowCopy}>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>{link.label}</Text>
+                <Text numberOfLines={1} style={[styles.rowSubtitle, { color: colors.textMuted }]}>
+                  {link.subtitle}
+                </Text>
+              </View>
+              <MaterialCommunityIcons color={colors.textSoft} name="chevron-right" size={20} />
+            </Pressable>
+          ))}
         </View>
       </View>
 
@@ -708,16 +701,6 @@ const createStyles = (colors: AppPalette) => StyleSheet.create({
   hint: {
     fontSize: typography.caption,
     lineHeight: 18,
-  },
-  primaryButton: {
-    minHeight: 50,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryLabel: {
-    fontSize: typography.body,
-    fontWeight: '800',
   },
   secondaryButton: {
     minHeight: 48,

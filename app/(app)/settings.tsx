@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { metaApi } from '@/src/api';
-import { AvatarPicker } from '@/src/shared/forms/AvatarPicker';
 import { FormField } from '@/src/shared/forms/FormField';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
@@ -38,17 +37,11 @@ export default function SettingsScreen() {
   const businessProfile = useAuthStore((state) => state.businessProfile);
   const businessSettings = useAuthStore((state) => state.businessSettings);
   const updateSettings = useAuthStore((state) => state.updateSettings);
-  const updateProfile = useAuthStore((state) => state.updateProfile);
-  const [profileForm, setProfileForm] = useState({
-    name: user?.name ?? '',
-    phone: user?.phone ?? '',
-  });
   const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string; tone: 'success' | 'danger' }>({
     visible: false,
     message: '',
     tone: 'success',
   });
-  const [message, setMessage] = useState('');
   const [signingOut, setSigningOut] = useState(false);
   const [geofencingForm, setGeofencingForm] = useState(() => ({
     officeLatitude: businessSettings?.officeLatitude !== null && businessSettings?.officeLatitude !== undefined ? String(businessSettings.officeLatitude) : '',
@@ -56,42 +49,6 @@ export default function SettingsScreen() {
     officeRadiusMeters: businessSettings?.officeRadiusMeters !== null && businessSettings?.officeRadiusMeters !== undefined ? String(businessSettings.officeRadiusMeters) : '100',
   }));
   const [geofenceMessage, setGeofenceMessage] = useState('');
-  // What gets printed at the top of every bill. Stored on business settings,
-  // the same record the web app's invoice header reads.
-  const [billHeaderForm, setBillHeaderForm] = useState(() => ({
-    companyName: String(businessSettings?.companyName ?? businessProfile?.businessName ?? ''),
-    address: String(businessSettings?.address ?? ''),
-    phone: String(businessSettings?.phone ?? ''),
-    email: String(businessSettings?.email ?? ''),
-    panVat: String(businessSettings?.panVat ?? ''),
-  }));
-  const [savingBillHeader, setSavingBillHeader] = useState(false);
-
-  async function handleBillHeaderSave() {
-    setSavingBillHeader(true);
-    try {
-      const nextSettings = {
-        ...(businessSettings ?? {}),
-        companyName: billHeaderForm.companyName.trim(),
-        address: billHeaderForm.address.trim(),
-        phone: billHeaderForm.phone.trim(),
-        email: billHeaderForm.email.trim(),
-        panVat: billHeaderForm.panVat.trim(),
-      };
-      await metaApi.updateBusinessSettings(nextSettings);
-      await updateSettings(nextSettings);
-      setSnackbar({ visible: true, message: 'Bill header saved', tone: 'success' });
-    } catch (error) {
-      setSnackbar({
-        visible: true,
-        message: error instanceof Error ? error.message : t('common.error'),
-        tone: 'danger',
-      });
-    } finally {
-      setSavingBillHeader(false);
-    }
-  }
-
   async function handleGeofencingSave() {
     setGeofenceMessage('');
     try {
@@ -160,26 +117,6 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleProfileSave() {
-    try {
-      setMessage('');
-      await updateProfile(profileForm);
-      setSnackbar({ visible: true, message: 'Profile updated successfully', tone: 'success' });
-    } catch (error) {
-      setSnackbar({ visible: true, message: error instanceof Error ? error.message : t('common.error'), tone: 'danger' });
-    }
-  }
-
-  async function handleAvatarChange(newUrl: string | null) {
-    try {
-      setMessage('');
-      await updateProfile({ avatarUrl: newUrl });
-      setSnackbar({ visible: true, message: 'Profile photo updated', tone: 'success' });
-    } catch (error) {
-      setSnackbar({ visible: true, message: error instanceof Error ? error.message : t('common.error'), tone: 'danger' });
-    }
-  }
-
   async function handleSignOut() {
     try {
       setSigningOut(true);
@@ -200,12 +137,6 @@ export default function SettingsScreen() {
             : 'Language, theme, quick mobile settings, and account access.'
         }
       />
-
-      {message ? (
-        <SurfaceCard>
-          <Text style={styles.message}>{message}</Text>
-        </SurfaceCard>
-      ) : null}
 
       <SurfaceCard
         title={t('settings.language')}
@@ -230,84 +161,31 @@ export default function SettingsScreen() {
         title={isPersonal ? 'This space' : t('settings.businessProfile')}
         subtitle={isPersonal ? 'Personal finance' : `${businessProfile?.businessType ?? 'Retail'} mobile mode`}>
         <Text style={styles.profileName}>
-          {businessProfile?.businessName ?? (isPersonal ? 'Personal books' : 'Business name')}
+          {businessSettings?.companyName
+            ? String(businessSettings.companyName)
+            : businessProfile?.businessName ?? (isPersonal ? 'Personal books' : 'Business name')}
         </Text>
         <Text style={styles.profileHint}>
           {isPersonal
             ? 'This account tracks income, expenses, and party balances. Shop tools stay on a business workspace.'
-            : 'Use the web app for longer edits. Mobile keeps the essentials at the counter.'}
+            : 'Name, PAN, contact details and logo all live in Business information, and print on every bill.'}
         </Text>
-      </SurfaceCard>
-
-      {isPersonal ? null : (
-        <SurfaceCard
-          title="Bill header"
-          subtitle="Printed at the top of every invoice and receipt.">
-          <FormField
-            label="Business name"
-            value={billHeaderForm.companyName}
-            onChangeText={(companyName) => setBillHeaderForm((current) => ({ ...current, companyName }))}
-            placeholder="Name as it should appear on the bill"
-          />
-          <FormField
-            label="Address"
-            value={billHeaderForm.address}
-            onChangeText={(address) => setBillHeaderForm((current) => ({ ...current, address }))}
-            placeholder="Street, city"
-          />
-          <FormField
-            label="Phone"
-            value={billHeaderForm.phone}
-            onChangeText={(phone) => setBillHeaderForm((current) => ({ ...current, phone }))}
-            keyboardType="phone-pad"
-          />
-          <FormField
-            label="Email"
-            value={billHeaderForm.email}
-            onChangeText={(email) => setBillHeaderForm((current) => ({ ...current, email }))}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-          <FormField
-            label="PAN / VAT number"
-            value={billHeaderForm.panVat}
-            onChangeText={(panVat) => setBillHeaderForm((current) => ({ ...current, panVat }))}
-            placeholder="Leave empty if you do not have one"
-          />
-          <Pressable
-            disabled={savingBillHeader}
-            style={[styles.primaryButton, { backgroundColor: colors.primary, opacity: savingBillHeader ? 0.6 : 1 }]}
-            onPress={() => void handleBillHeaderSave()}>
-            <Text style={styles.primaryButtonLabel}>
-              {savingBillHeader ? t('common.saving') : 'Save bill header'}
-            </Text>
+        {isPersonal ? null : (
+          <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/business-profile')}>
+            <Text style={styles.secondaryButtonLabel}>Edit business information</Text>
           </Pressable>
-        </SurfaceCard>
-      )}
+        )}
+      </SurfaceCard>
 
       <SurfaceCard
         title={t('settings.profile')}
         subtitle={user?.email || t('settings.profileSubtitle')}>
-        <AvatarPicker
-          value={user?.avatarUrl}
-          name={user?.name}
-          size={80}
-          label={user?.avatarUrl ? 'Change photo' : 'Add photo'}
-          onChange={handleAvatarChange}
-        />
-        <FormField
-          label={t('common.name')}
-          value={profileForm.name}
-          onChangeText={(name) => setProfileForm((current) => ({ ...current, name }))}
-        />
-        <FormField
-          label={t('common.phone')}
-          value={profileForm.phone}
-          onChangeText={(phone) => setProfileForm((current) => ({ ...current, phone }))}
-          keyboardType="numeric"
-        />
-        <Pressable style={[styles.primaryButton, { backgroundColor: colors.primary }]} onPress={() => void handleProfileSave()}>
-          <Text style={styles.primaryButtonLabel}>{t('settings.saveProfile')}</Text>
+        <Text style={styles.profileName}>{user?.name || 'Your name'}</Text>
+        <Text style={styles.profileHint}>
+          Your own name, number and photo, kept separate from the business.
+        </Text>
+        <Pressable style={styles.secondaryButton} onPress={() => router.push('/(app)/owner-profile')}>
+          <Text style={styles.secondaryButtonLabel}>Edit your details</Text>
         </Pressable>
       </SurfaceCard>
 

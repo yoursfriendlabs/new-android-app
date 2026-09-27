@@ -286,6 +286,7 @@ const PERSONAL_BLOCKED_SEGMENTS = new Set([
   'attendance',
   'attendance-tab',
   'salary-tab',
+  'business-profile',
 ]);
 
 export function isOwnerUser(user: PermissionCarrier) {
@@ -380,6 +381,7 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
       segment === 'salary-tab' ||
       segment === 'staff-salary' ||
       segment === 'change-password' ||
+      segment === 'owner-profile' ||
       segment === 'delete-account' ||
       segment === 'more' ||
       segment === 'settings'
@@ -425,6 +427,7 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
     case 'owner-tools':
     case 'staff':
     case 'attributes':
+    case 'business-profile':
       return hasAppCapability(user, 'owner-tools');
     case 'tasks':
     case 'notes':

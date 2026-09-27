@@ -74,6 +74,13 @@ export interface BusinessProfile {
 
 export interface BusinessSettings {
   businessName?: string;
+  /** The shop's identity, printed on every bill. See BusinessProfileScreen. */
+  companyName?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  panVat?: string;
+  logoUrl?: string | null;
   quickEntryDefaults?: Record<string, unknown>;
   counterMode?: boolean;
   taxEnabled?: boolean;

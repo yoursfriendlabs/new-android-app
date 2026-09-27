@@ -76,6 +76,8 @@ export default function AppLayout() {
         <Stack.Screen name="ledger" />
         <Stack.Screen name="inventory" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="business-profile" />
+        <Stack.Screen name="owner-profile" />
         <Stack.Screen name="workspaces" />
         <Stack.Screen name="owner-tools" />
         <Stack.Screen name="staff" />
