@@ -113,16 +113,23 @@ export function BusinessProfileScreen() {
 
   /** The logo is saved on its own so the picture does not wait for the form. */
   async function handleLogoChange(nextUrl: string | null) {
+    if (!submission.tryStart()) {
+      toast.error('Business details are still saving. Please try the logo again.');
+      return;
+    }
+    setSaving(true);
     setLogoUrl(nextUrl);
-    const nextSettings = { ...(businessSettings ?? {}), logoUrl: nextUrl };
     try {
-      await metaApi.updateBusinessSettings(nextSettings);
-      await updateSettings(nextSettings);
+      const saved = await metaApi.updateBusinessSettings({ logoUrl: nextUrl });
+      await updateSettings({ ...(businessSettings ?? {}), ...(saved ?? {}), logoUrl: nextUrl });
       await queryClient.invalidateQueries({ queryKey: ['business-settings'] });
       toast.success(nextUrl ? 'Logo updated' : 'Logo removed');
     } catch (error) {
       setLogoUrl(businessSettings?.logoUrl ? String(businessSettings.logoUrl) : null);
       toast.error(error instanceof Error ? error.message : 'Could not save the logo.');
+    } finally {
+      setSaving(false);
+      submission.finish();
     }
   }
 
@@ -153,6 +160,7 @@ export function BusinessProfileScreen() {
             shape="rounded"
             label={logoUrl ? 'Change logo' : 'Add logo'}
             onChange={handleLogoChange}
+            disabled={saving}
           />
           <Text style={styles.logoHint}>
             A square picture works best. It prints small, so a clear mark reads better than a

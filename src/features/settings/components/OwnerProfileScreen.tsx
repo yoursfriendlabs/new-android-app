@@ -78,12 +78,20 @@ export function OwnerProfileScreen() {
   }
 
   async function handleAvatarChange(nextUrl: string | null) {
+    if (!submission.tryStart()) {
+      toast.error('Your details are still saving. Please try the photo again.');
+      return;
+    }
+    setSaving(true);
     try {
       await updateProfile({ avatarUrl: nextUrl });
       toast.success(nextUrl ? 'Photo updated' : 'Photo removed');
     } catch (error) {
       if (isInvalidSessionError(error)) return;
       toast.error(error instanceof Error ? error.message : 'Could not save the photo.');
+    } finally {
+      setSaving(false);
+      submission.finish();
     }
   }
 
@@ -128,6 +136,7 @@ export function OwnerProfileScreen() {
           size={88}
           label={user?.avatarUrl ? 'Change photo' : 'Add photo'}
           onChange={handleAvatarChange}
+          disabled={saving}
         />
       </SurfaceCard>
 

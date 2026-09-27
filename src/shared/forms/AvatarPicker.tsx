@@ -150,6 +150,9 @@ export function AvatarPicker({
   return (
     <View style={[styles.root, style]}>
       <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label || 'Change photo'}
+        accessibilityState={{ disabled: disabled || uploading, busy: uploading }}
         disabled={disabled || uploading}
         onPress={handlePress}
         style={({ pressed }) => [
