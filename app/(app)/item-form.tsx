@@ -4,12 +4,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { productsApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { CategoryPickerSheet } from '@/src/shared/forms/CategoryPickerSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { UnitPickerSheet, type UnitSelection } from '@/src/shared/forms/UnitPickerSheet';
 import { ProductImagePicker } from '@/src/shared/forms/ProductImagePicker';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -22,6 +24,7 @@ import {
   createItemCode,
 } from '@/src/features/inventory/lib/inventory';
 import { useProductById } from '@/src/shared/hooks/useAppQueries';
+import { nonNegativeNumber, positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
@@ -79,6 +82,18 @@ export default function ItemFormScreen() {
   const [saving, setSaving] = useState(false);
   const purityOptions = useMemo(() => getPurityOptions(form.metalType), [form.metalType]);
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(form.name, 'Enter an item name.'),
+    salePrice: positiveNumber(form.salePrice, 'Enter a sales price greater than zero.'),
+    purchasePrice: nonNegativeNumber(form.purchasePrice, 'A purchase price cannot be negative.'),
+    secondarySalePrice: nonNegativeNumber(form.secondarySalePrice, 'A price cannot be negative.'),
+    openingStock: nonNegativeNumber(form.openingStock, 'Opening stock cannot be negative.'),
+    minStockLevel: form.lowStockAlert
+      ? positiveNumber(form.minStockLevel, 'Say at what quantity to warn you.')
+      : '',
+    unit: form.unitId ? '' : 'Pick a unit for this item.',
+  }));
+
   // Hydrate the form once the product loads in edit mode.
   useEffect(() => {
     if (product) setForm(formFromProduct(product));
@@ -110,18 +125,10 @@ export default function ItemFormScreen() {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) {
-      toast.error('Enter an item name.');
-      return;
-    }
-    if (!form.salePrice.trim()) {
+    if (!fields.check()) {
+      // Every checked field lives on the stock tab, so show it before the toast.
       setTab('stock');
-      toast.error('Enter a sales price.');
-      return;
-    }
-    if (!form.unitId) {
-      setTab('stock');
-      toast.error('Select a unit from your business settings.');
+      toast.error(fields.first);
       return;
     }
 
@@ -197,6 +204,7 @@ export default function ItemFormScreen() {
         value={form.name}
         onChangeText={(name) => setForm((current) => ({ ...current, name }))}
         placeholder="e.g. Amul Milk 1L"
+        error={fields.errors.name}
       />
 
       <Pressable style={styles.selectRow} onPress={() => setCategoryVisible(true)}>
@@ -230,6 +238,7 @@ export default function ItemFormScreen() {
                     onChangeText={(openingStock) => setForm((current) => ({ ...current, openingStock }))}
                     keyboardType="numeric"
                     placeholder="0"
+                    error={fields.errors.openingStock}
                   />
                 </View>
                 <View style={{ width: spacing.sm }} />
@@ -238,12 +247,15 @@ export default function ItemFormScreen() {
             <View style={{ flex: 1 }}>
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Unit</Text>
-                <Pressable style={styles.unitBox} onPress={() => setUnitVisible(true)}>
+                <Pressable
+                  style={[styles.unitBox, fields.errors.unit ? { borderColor: colors.danger } : null]}
+                  onPress={() => setUnitVisible(true)}>
                   <Text style={[styles.selectValue, { color: form.primaryUnit ? colors.text : colors.textMuted }]} numberOfLines={1}>
                     {unitLabelText}
                   </Text>
                   <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
                 </Pressable>
+                <FieldError message={fields.errors.unit} />
               </View>
             </View>
           </View>
@@ -262,6 +274,7 @@ export default function ItemFormScreen() {
                 onChangeText={(salePrice) => setForm((current) => ({ ...current, salePrice }))}
                 keyboardType="numeric"
                 placeholder="0"
+                error={fields.errors.salePrice}
               />
             </View>
             <View style={{ width: spacing.sm }} />
@@ -272,6 +285,7 @@ export default function ItemFormScreen() {
                 onChangeText={(purchasePrice) => setForm((current) => ({ ...current, purchasePrice }))}
                 keyboardType="numeric"
                 placeholder="0"
+                error={fields.errors.purchasePrice}
               />
             </View>
           </View>
@@ -282,6 +296,7 @@ export default function ItemFormScreen() {
               onChangeText={(secondarySalePrice) => setForm((current) => ({ ...current, secondarySalePrice }))}
               keyboardType="numeric"
               placeholder="Optional"
+              error={fields.errors.secondarySalePrice}
             />
           ) : null}
 
@@ -328,6 +343,7 @@ export default function ItemFormScreen() {
               onChangeText={(minStockLevel) => setForm((current) => ({ ...current, minStockLevel }))}
               keyboardType="numeric"
               placeholder="e.g. 5"
+              error={fields.errors.minStockLevel}
             />
           ) : null}
         </View>

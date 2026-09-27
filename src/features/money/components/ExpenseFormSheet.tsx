@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { quickExpensesApi } from '@/src/api';
@@ -13,11 +14,13 @@ import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { invalidateMoneyQueries, useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
+import { atMost, nonNegativeNumber, positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { expenseCategoryIcon } from '@/src/features/money/lib/expense';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
@@ -69,19 +72,37 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
     return names;
   }, [categories]);
 
-  useEffect(() => {
-    if (visible) {
-      setForm(emptyForm());
-      setCustomCategory('');
-      setAddingCategory(false);
-      setNewCategoryName('');
-      setSaving(false);
-      return;
-    }
-  }, [visible]);
-
   const amount = Number(form.amount || 0);
   const amountPaid = form.paidMode === 'full' ? amount : Number(form.amountPaid || 0);
+
+  /** 'Other' means the person types the name, so the typed one is what counts. */
+  const chosenCategory =
+    form.category === 'Other' && customCategory.trim()
+      ? customCategory.trim()
+      : form.category.trim();
+
+  const fields = useFieldErrors(() => ({
+    amount: positiveNumber(form.amount, 'Enter an amount greater than zero.'),
+    category: requiredText(chosenCategory, 'Pick or add a category.'),
+    bankId: form.paymentMethod === 'bank' && !form.bankId ? 'Choose which bank account paid this.' : '',
+    amountPaid:
+      form.paidMode === 'due'
+        ? nonNegativeNumber(form.amountPaid, 'An amount paid cannot be negative.') ||
+          atMost(form.amountPaid || 0, amount, 'Paid now cannot be more than the total.')
+        : '',
+    date: requiredText(form.date, 'Enter the date.'),
+  }));
+
+  const resetFieldErrors = fields.reset;
+  useEffect(() => {
+    if (!visible) return;
+    setForm(emptyForm());
+    setCustomCategory('');
+    setAddingCategory(false);
+    setNewCategoryName('');
+    setSaving(false);
+    resetFieldErrors();
+  }, [resetFieldErrors, visible]);
 
   async function handleAddCategory() {
     const name = newCategoryName.trim();
@@ -106,27 +127,11 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
   }
 
   async function handleSave() {
-    const effectiveCategory =
-      form.category === 'Other' && customCategory.trim()
-        ? customCategory.trim()
-        : form.category.trim() || 'Other';
-
-    if (!effectiveCategory) {
-      toast.error('Pick or add a category first.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
-    if (amount <= 0) {
-      toast.error('Enter an amount greater than zero.');
-      return;
-    }
-    if (form.paymentMethod === 'bank' && !form.bankId) {
-      toast.error('Choose a bank account for this payment.');
-      return;
-    }
-    if (amountPaid < 0 || amountPaid > amount) {
-      toast.error('Amount paid cannot be more than the expense total.');
-      return;
-    }
+    const effectiveCategory = chosenCategory;
 
     if (!submission.tryStart()) return;
     setSaving(true);
@@ -220,9 +225,11 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
               style={styles.amountInput}
             />
           </View>
+          <FieldError message={fields.errors.amount} />
         </View>
 
         <Text style={styles.sectionLabel}>Category</Text>
+        <FieldError message={fields.errors.category} />
         <View style={styles.chipWrap}>
           {categoryNames.map((name) => {
             const active = form.category === name;
@@ -287,6 +294,7 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
             onChangeText={(amountPaidValue) => setForm((current) => ({ ...current, amountPaid: amountPaidValue }))}
             keyboardType="decimal-pad"
             placeholder="0"
+            error={fields.errors.amountPaid}
           />
         ) : null}
 
@@ -296,11 +304,13 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
           bankId={form.bankId}
           onBankChange={(bankId) => setForm((current) => ({ ...current, bankId }))}
         />
+        <FieldError message={fields.errors.bankId} />
 
         <FormField
           label="Date"
           value={form.date}
           onChangeText={(date) => setForm((current) => ({ ...current, date }))}
+          error={fields.errors.date}
         />
         <FormField
           label="Note"

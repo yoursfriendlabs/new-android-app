@@ -7,6 +7,7 @@ import { hasSecondaryUnit } from '@/src/features/pos/lib/cart-line';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
@@ -15,6 +16,8 @@ import { getAttachmentLabel, isImageAttachment } from '@/src/shared/lib/uploads'
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { buildTenderOptions } from '@/src/features/pos/lib/tender';
 import { computeLineTotal } from '@/src/shared/lib/totals';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -81,6 +84,41 @@ export function PosCheckoutSheet({
     value.attachments.length > 0 ||
     orderAttributes.length > 0;
 
+  /**
+   * A shop can mark a custom attribute required — "Vehicle number", say. The
+   * label carried a star but nothing stopped the bill saving without it, so the
+   * field is checked here, alongside the bank a bank payment has to name.
+   */
+  const missingAttributes = orderAttributes.filter(
+    (attribute) => attribute.required && !String(value.attributes[attribute.key] ?? '').trim(),
+  );
+
+  const fields = useFieldErrors(() => ({
+    bankId:
+      value.paymentMethod === 'bank' && tendered > 0 && !value.bankId
+        ? 'Choose which bank account received this.'
+        : '',
+    attributes: missingAttributes.length
+      ? `Fill in ${missingAttributes.map((attribute) => attribute.label).join(', ')}.`
+      : '',
+  }));
+
+  function attributeError(attribute: OrderAttribute) {
+    if (!fields.errors.attributes) return undefined;
+    return attribute.required && !String(value.attributes[attribute.key] ?? '').trim()
+      ? requiredText('', `${attribute.label} is needed on this bill.`)
+      : undefined;
+  }
+
+  /** Opens the details section when the problem is hidden inside it. */
+  function handleSave(mode: 'save' | 'print') {
+    if (!fields.check()) {
+      if (missingAttributes.length) setMoreOpen(true);
+      return;
+    }
+    onSave(mode);
+  }
+
   const applyTender = (amount: number, fullyPaid?: boolean) => {
     const next = Math.max(Number(amount || 0), 0);
     setValue((current) => ({
@@ -105,11 +143,11 @@ export function PosCheckoutSheet({
       fullHeight
       footer={
         <View style={styles.footer}>
-          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'print', disabled: busy }} style={styles.secondaryButton} onPress={() => onSave('print')}>
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'print', disabled: busy }} style={styles.secondaryButton} onPress={() => handleSave('print')}>
             {busy && savingMode === 'print' ? <ActivityIndicator color={colors.primary} /> : <MaterialCommunityIcons color={colors.primary} name="printer-outline" size={20} />}
             <Text style={styles.secondaryLabel}>Save & print</Text>
           </Pressable>
-          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'save', disabled: busy }} style={styles.primaryButton} onPress={() => onSave('save')}>
+          <Pressable disabled={busy || !value.items.length} accessibilityState={{ busy: busy && savingMode === 'save', disabled: busy }} style={styles.primaryButton} onPress={() => handleSave('save')}>
             {busy && savingMode === 'save' ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryLabel}>{primaryLabel}</Text>}
           </Pressable>
         </View>
@@ -223,6 +261,7 @@ export function PosCheckoutSheet({
               onBankChange={(bankId) => setValue((current) => ({ ...current, bankId }))}
             />
           ) : null}
+          <FieldError message={fields.errors.bankId} />
         </View>
 
         <View style={styles.card}>
@@ -400,6 +439,7 @@ export function PosCheckoutSheet({
             {orderAttributes.map((attribute) => (
               <FormField
                 key={attribute.id || attribute.key}
+                error={attributeError(attribute)}
                 label={attribute.required ? `${attribute.label} *` : attribute.label}
                 value={String(value.attributes[attribute.key] ?? '')}
                 onChangeText={(nextValue) =>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
@@ -17,6 +18,7 @@ import { pickNativeDeviceContact, type DeviceContactDraft } from '@/src/features
 import { generateId } from '@/src/shared/lib/id';
 import { invalidatePartyQueries } from '@/src/shared/hooks/useAppQueries';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
+import { nonNegativeNumber, optionalEmail, optionalPhone, requiredText } from '@/src/shared/lib/validation';
 import { workspaceAccessMessage } from '@/src/shared/lib/workspace';
 import { withWorkspaceRetry } from '@/src/shared/lib/workspace-retry';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -61,16 +63,27 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
   const [phoneSheetVisible, setPhoneSheetVisible] = useState(false);
   const isEditing = Boolean(party?.id);
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(form.name, personal ? 'Enter the contact name.' : 'Enter the party name.'),
+    phone: optionalPhone(form.phone),
+    email: optionalEmail(form.email),
+    openingBalance: isEditing
+      ? nonNegativeNumber(form.openingBalance, 'An opening amount cannot be negative.')
+      : '',
+  }));
+
+  const resetFieldErrors = fields.reset;
   useEffect(() => {
     if (visible) {
       setForm(createPartyForm(party, seed, personal));
       setError('');
+      resetFieldErrors();
     }
-  }, [party, personal, seed, visible]);
+  }, [party, personal, resetFieldErrors, seed, visible]);
 
   async function handleSave() {
-    if (!form.name.trim()) {
-      setError(personal ? 'Contact name is required.' : 'Party name is required.');
+    if (!fields.check()) {
+      setError('');
       return;
     }
 
@@ -221,12 +234,14 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
         value={form.name}
         onChangeText={(name) => setForm((current) => ({ ...current, name }))}
         autoCapitalize="words"
+        error={fields.errors.name}
       />
       <FormField
         label="Phone"
         value={form.phone}
         onChangeText={(phone) => setForm((current) => ({ ...current, phone }))}
         keyboardType="phone-pad"
+        error={fields.errors.phone}
       />
       <FormField
         label="Email"
@@ -234,6 +249,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
         onChangeText={(email) => setForm((current) => ({ ...current, email }))}
         keyboardType="email-address"
         autoCapitalize="none"
+        error={fields.errors.email}
       />
       <FormField
         label="Address"
@@ -258,6 +274,7 @@ export function PartyFormSheet({ onClose, onDeleted, onSaved, party, seed, visib
             value={form.openingBalance}
             onChangeText={(openingBalance) => setForm((current) => ({ ...current, openingBalance }))}
             keyboardType="numeric"
+            error={fields.errors.openingBalance}
           />
           <SegmentedTabs
             value={form.balanceType as 'receive' | 'give'}
