@@ -14,6 +14,8 @@ import { PersonalComposer } from '@/src/features/notes/components/PersonalCompos
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import {
   useTaskDetail,
@@ -78,6 +80,10 @@ function BusinessTaskFormScreen() {
     }
   }, [isEdit, task, loadedTaskId]);
 
+  const fields = useFieldErrors(() => ({
+    title: requiredText(title, 'Enter a task title.'),
+  }));
+
   const toggleAssignee = (userId: string) => {
     setAssignedUserIds((current) =>
       current.includes(userId)
@@ -87,8 +93,8 @@ function BusinessTaskFormScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      toast.error('Please enter a task title.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -141,6 +147,7 @@ function BusinessTaskFormScreen() {
           value={title}
           placeholder="Enter task title"
           onChangeText={setTitle}
+          error={fields.errors.title}
         />
 
         <FormField

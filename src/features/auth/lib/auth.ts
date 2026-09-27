@@ -42,13 +42,6 @@ export function getPasswordHint(password: string) {
   return '';
 }
 
-export function getLoginError(email: string, password: string) {
-  if (!normalizeEmail(email)) return 'Enter your email address.';
-  if (!isValidEmail(email)) return 'Enter a valid email address.';
-  if (!password) return 'Enter your password.';
-  return '';
-}
-
 export function getSignupEmailError(email: string) {
   if (!normalizeEmail(email)) return 'Enter your email address.';
   if (!isValidEmail(email)) return 'Enter a valid email address.';
@@ -79,12 +72,6 @@ export function getWorkspaceError(form: {
   if (form.accountKind === 'personal') return '';
   if (!form.businessName.trim()) return 'Enter your business name.';
   if (!form.businessType) return 'Choose a business type.';
-  return '';
-}
-
-export function getCreateBusinessError(form: { name: string; type: string }) {
-  if (!form.name.trim()) return 'Enter a business name.';
-  if (form.type !== 'retail' && form.type !== 'cafe') return 'Choose Standard or Cafe.';
   return '';
 }
 

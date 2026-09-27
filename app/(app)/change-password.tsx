@@ -4,9 +4,12 @@ import { router } from 'expo-router';
 
 import { isInvalidSessionError } from '@/src/api/client';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
 import { radius, spacing, typography } from '@/src/theme';
+import { getPasswordHint, isStrongPassword } from '@/src/features/auth/lib/auth';
+import { requiredText } from '@/src/shared/lib/validation';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
@@ -24,14 +27,18 @@ export default function ChangePasswordScreen() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSave() {
-    if ((hasPassword && !currentPassword) || !newPassword) {
-      setMessage(hasPassword ? 'Enter both the current and new password.' : 'Enter a new password.');
-      return;
-    }
+  const fields = useFieldErrors(() => ({
+    currentPassword: hasPassword ? requiredText(currentPassword, 'Enter your current password.') : '',
+    // Same rule the sign-up form enforces, so a password set here still works.
+    newPassword:
+      requiredText(newPassword, 'Enter a new password.') ||
+      (isStrongPassword(newPassword) ? '' : getPasswordHint(newPassword) || 'Choose a stronger password.'),
+    confirmPassword: newPassword === confirmPassword ? '' : 'This does not match the new password.',
+  }));
 
-    if (newPassword !== confirmPassword) {
-      setMessage('The new password confirmation does not match.');
+  async function handleSave() {
+    if (!fields.check()) {
+      setMessage('');
       return;
     }
 
@@ -70,6 +77,7 @@ export default function ChangePasswordScreen() {
             onChangeText={setCurrentPassword}
             secureTextEntry
             autoCapitalize="none"
+            error={fields.errors.currentPassword}
           />
         ) : null}
         <FormField
@@ -78,6 +86,7 @@ export default function ChangePasswordScreen() {
           onChangeText={setNewPassword}
           secureTextEntry
           autoCapitalize="none"
+          error={fields.errors.newPassword}
         />
         <FormField
           label="Confirm new password"
@@ -85,6 +94,7 @@ export default function ChangePasswordScreen() {
           onChangeText={setConfirmPassword}
           secureTextEntry
           autoCapitalize="none"
+          error={fields.errors.confirmPassword}
         />
         {message ? (
           <Text style={[styles.message, message.includes('successfully') ? styles.successMessage : styles.errorMessage]}>

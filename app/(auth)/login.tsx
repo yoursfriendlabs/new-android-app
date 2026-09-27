@@ -13,7 +13,9 @@ import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
 import { GoogleSignInButton } from '@/src/features/auth/components/GoogleSignInButton';
 import { isGoogleSignInAvailable } from '@/src/features/auth/lib/google';
 import { FormField } from '@/src/shared/forms/FormField';
-import { getLoginError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
+import { resolveAuthMessage } from '@/src/features/auth/lib/auth';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredEmail, requiredText } from '@/src/shared/lib/validation';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { useTranslation } from '@/src/i18n';
 
@@ -27,10 +29,14 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const fields = useFieldErrors(() => ({
+    email: requiredEmail(email),
+    password: requiredText(password, 'Enter your password.'),
+  }));
+
   async function handleLogin() {
-    const nextError = getLoginError(email, password);
-    if (nextError) {
-      setError(nextError);
+    if (!fields.check()) {
+      setError('');
       return;
     }
 
@@ -81,6 +87,7 @@ export default function LoginScreen() {
         autoComplete="email"
         textContentType="emailAddress"
         returnKeyType="next"
+        error={fields.errors.email}
       />
 
       <View>
@@ -99,6 +106,7 @@ export default function LoginScreen() {
           textContentType="password"
           returnKeyType="go"
           onSubmitEditing={() => void handleLogin()}
+          error={fields.errors.password}
         />
         <View style={styles.forgotRow}>
           <AuthInlineLink onPress={() => router.push('/(auth)/reset-password')}>{t('auth.forgotPassword')}</AuthInlineLink>
