@@ -14,6 +14,10 @@ import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { firstFieldError, nonNegativeNumber } from '@/src/shared/lib/validation';
+import { serviceDraftLineErrors } from '@/src/features/services/lib/service-draft-validation';
 import { FormField } from '@/src/shared/forms/FormField';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
@@ -205,8 +209,25 @@ export default function ServiceCreateScreen() {
     setLineModalVisible(true);
   }
 
+  const lineFields = useFieldErrors<keyof ReturnType<typeof serviceDraftLineErrors>>(() => editingLine ? serviceDraftLineErrors(editingLine) : {}, lineModalVisible);
+  const fields = useFieldErrors<string>(() => ({
+    customer: draft.value.customer?.id ? '' : 'Select a customer before saving the service order.',
+    bankId: draft.value.paymentMethod === 'bank' && payment.receivedTotal > 0 && !draft.value.bankId
+      ? 'Choose a bank account for bank payments.' : '',
+    receivedTotal: nonNegativeNumber(draft.value.receivedTotal),
+    lines: draft.value.items.map((line, index) => {
+      const error = firstFieldError(serviceDraftLineErrors(line));
+      return error ? `Item ${index + 1}: ${error}` : '';
+    }).find(Boolean) || '',
+    ...Object.fromEntries((orderAttributes ?? []).map((attribute) => [
+      `attribute:${attribute.key}`,
+      attribute.required && !String(draft.value.attributes[attribute.key] ?? '').trim()
+        ? `${attribute.label} is needed on this order.` : '',
+    ])),
+  }));
+
   function saveEditingLine() {
-    if (!editingLine) return;
+    if (!editingLine || !lineFields.check()) return;
     draft.setValue((current) => {
       const existingIndex = current.items.findIndex((i) => i.id === editingLine.id);
       if (existingIndex >= 0) {
@@ -221,27 +242,35 @@ export default function ServiceCreateScreen() {
   }
 
   async function addPhotoAttachment() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      quality: 0.8,
-      allowsMultipleSelection: true,
-      selectionLimit: 5,
-    });
-    if (!result.canceled && result.assets?.length) {
-      draft.setValue((current) => ({
-        ...current,
-        attachments: [...current.attachments, ...result.assets.map((asset) => asset.uri)],
-      }));
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+      });
+      if (!result.canceled && result.assets?.length) {
+        draft.setValue((current) => ({
+          ...current,
+          attachments: [...current.attachments, ...result.assets.map((asset) => asset.uri)],
+        }));
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not open the file picker. Please try again.');
     }
   }
 
   async function addDocumentAttachment() {
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-    if (!result.canceled && result.assets?.[0]?.uri) {
-      draft.setValue((current) => ({
-        ...current,
-        attachments: [...current.attachments, result.assets[0].uri],
-      }));
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        draft.setValue((current) => ({
+          ...current,
+          attachments: [...current.attachments, result.assets[0].uri],
+        }));
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not open the file picker. Please try again.');
     }
   }
 
@@ -256,30 +285,15 @@ export default function ServiceCreateScreen() {
     setFormError('');
     setOrderNumberError('');
 
-    if (!draft.value.customer?.id) {
-      setFormError('Select a customer before saving the service order.');
-      setStepIndex(0);
+    if (!fields.check()) {
+      setFormError(fields.first);
+      const detailsInvalid = !draft.value.customer?.id || (orderAttributes ?? []).some(
+        (attribute) => attribute.required && !String(draft.value.attributes[attribute.key] ?? '').trim(),
+      );
+      setStepIndex(detailsInvalid ? 0 : 1);
       return;
     }
-
-    if (draft.value.paymentMethod === 'bank' && payment.receivedTotal > 0 && !draft.value.bankId) {
-      setFormError('Choose a bank account for bank payments.');
-      setStepIndex(1);
-      return;
-    }
-
-    const invalidSecondaryLine = draft.value.items.find(
-      (item) =>
-        item.itemType === 'part' &&
-        item.unitType === 'secondary' &&
-        !item.product?.secondaryConversionRate,
-    );
-
-    if (invalidSecondaryLine) {
-      setFormError('This product is missing a secondary unit conversion rate.');
-      setStepIndex(1);
-      return;
-    }
+    if (!draft.value.customer?.id) return;
 
     if (!submission.tryStart()) return;
     try {
@@ -521,6 +535,7 @@ export default function ServiceCreateScreen() {
               <Text style={styles.emptySelectorSub}>Tap to search your customer database</Text>
             </Pressable>
           )}
+          <FieldError message={fields.errors.customer} />
         </SurfaceCard>
       ) : null}
 
@@ -620,7 +635,7 @@ export default function ServiceCreateScreen() {
                   <View key={`${attribute.key}-${index}`} style={styles.attributeRow}>
                     <Text style={styles.attributeLabel}>{label}</Text>
                     <SegmentedTabs
-                      value={String(attributeValue || attribute.options[0] || '')}
+                      value={String(attributeValue || '')}
                       onChange={(nextValue) =>
                         draft.setValue((current) => ({
                           ...current,
@@ -629,6 +644,7 @@ export default function ServiceCreateScreen() {
                       }
                       options={attribute.options.map((option) => ({ label: option, value: option }))}
                     />
+                    <FieldError message={fields.errors[`attribute:${attribute.key}`]} />
                   </View>
                 );
               }
@@ -638,7 +654,7 @@ export default function ServiceCreateScreen() {
                   <View key={`${attribute.key}-${index}`} style={styles.attributeRow}>
                     <Text style={styles.attributeLabel}>{label}</Text>
                     <SegmentedTabs
-                      value={String(attributeValue || 'false')}
+                      value={String(attributeValue)}
                       onChange={(nextValue) =>
                         draft.setValue((current) => ({
                           ...current,
@@ -650,6 +666,7 @@ export default function ServiceCreateScreen() {
                         { label: 'Yes', value: 'true' },
                       ]}
                     />
+                    <FieldError message={fields.errors[`attribute:${attribute.key}`]} />
                   </View>
                 );
               }
@@ -658,6 +675,7 @@ export default function ServiceCreateScreen() {
                 <FormField
                   key={`${attribute.key}-${index}`}
                   label={label}
+                  error={fields.errors[`attribute:${attribute.key}`]}
                   value={String(attributeValue)}
                   onChangeText={(nextValue) =>
                     draft.setValue((current) => ({
@@ -878,6 +896,7 @@ export default function ServiceCreateScreen() {
               draft.setValue((current) => ({ ...current, receivedTotal: Number.isFinite(amount) ? Math.max(amount, 0) : 0 }));
             }}
             keyboardType="numeric"
+            error={fields.errors.receivedTotal}
           />
           {payment.changeDue > 0 ? (
             <View style={[styles.changeDueCard, { backgroundColor: colors.successSoft, borderColor: colors.success }]}>
@@ -895,6 +914,8 @@ export default function ServiceCreateScreen() {
             bankId={draft.value.bankId}
             onBankChange={(bankId) => draft.setValue((current) => ({ ...current, bankId }))}
           />
+          <FieldError message={fields.errors.bankId} />
+          <FieldError message={fields.errors.lines} />
           <FormField
             label="Payment note"
             value={draft.value.paymentNote}
@@ -1067,6 +1088,8 @@ export default function ServiceCreateScreen() {
                       : 'Search products in stock'}
                   </Text>
                 </Pressable>
+                <FieldError message={lineFields.errors.product} />
+                <FieldError message={lineFields.errors.unitType} />
                 {editingLine.product?.secondaryUnit ? (
                   <SegmentedTabs
                     value={editingLine.unitType as 'primary' | 'secondary'}
@@ -1085,6 +1108,7 @@ export default function ServiceCreateScreen() {
             <FormField
               label={editingLine.itemType === 'labor' ? 'Service Description' : 'Description'}
               value={editingLine.description}
+              error={lineFields.errors.description}
               onChangeText={(description) =>
                 setEditingLine((prev) => (prev ? { ...prev, description } : null))
               }
@@ -1099,7 +1123,7 @@ export default function ServiceCreateScreen() {
               <View style={styles.formCol}>
                 <FormField
                   label="Quantity"
-                  value={String(editingLine.quantity)}
+                  value={String(editingLine.quantity)} error={lineFields.errors.quantity}
                   onChangeText={(val) =>
                     setEditingLine((prev) => (prev ? { ...prev, quantity: Number(val || 0) } : null))
                   }
@@ -1109,7 +1133,7 @@ export default function ServiceCreateScreen() {
               <View style={styles.formCol}>
                 <FormField
                   label="Unit Price"
-                  value={String(editingLine.unitPrice)}
+                  value={String(editingLine.unitPrice)} error={lineFields.errors.unitPrice}
                   onChangeText={(val) =>
                     setEditingLine((prev) => (prev ? { ...prev, unitPrice: Number(val || 0) } : null))
                   }
@@ -1120,7 +1144,7 @@ export default function ServiceCreateScreen() {
 
             <FormField
               label="Tax Rate (%)"
-              value={String(editingLine.taxRate)}
+              value={String(editingLine.taxRate)} error={lineFields.errors.taxRate}
               onChangeText={(val) =>
                 setEditingLine((prev) => (prev ? { ...prev, taxRate: Number(val || 0) } : null))
               }

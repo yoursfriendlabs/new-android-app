@@ -11,6 +11,9 @@ import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { FormField } from '@/src/shared/forms/FormField';
+import { FieldError } from '@/src/shared/forms/FieldError';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { nonNegativeNumber } from '@/src/shared/lib/validation';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
@@ -240,6 +243,15 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
     }
   }
 
+  const fields = useFieldErrors(() => ({
+    manualTotal: lines.length ? '' : nonNegativeNumber(manualTotal, 'A bill amount cannot be negative.'),
+    received: nonNegativeNumber(received, 'An amount received cannot be negative.'),
+    bankId:
+      paymentMethod === 'bank' && payment.receivedTotal > 0 && !bankId
+        ? 'Choose which bank account received this.'
+        : '',
+  }));
+
   async function handleSave() {
     if (!service || saving) return;
 
@@ -251,8 +263,8 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
       }
     }
 
-    if (paymentMethod === 'bank' && payment.receivedTotal > 0 && !bankId) {
-      toast.error('Choose a bank account for bank payments.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -426,6 +438,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
             onChangeText={setManualTotal}
             keyboardType="numeric"
             helperText="This job has no lines yet. Add a service or product to price it line by line."
+            error={fields.errors.manualTotal}
           />
         ) : null}
 
@@ -459,6 +472,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
           value={received}
           onChangeText={setReceived}
           keyboardType="numeric"
+          error={fields.errors.received}
         />
 
         {payment.changeDue > 0 ? (
@@ -494,6 +508,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
           bankId={bankId}
           onBankChange={setBankId}
         />
+        <FieldError message={fields.errors.bankId} />
       </SurfaceCard>
 
       {/* WHEN AND WHAT */}
