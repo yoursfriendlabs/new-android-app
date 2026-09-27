@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -125,9 +125,9 @@ if (keystoreFile && keystorePassword && keyAlias && keyPassword) {
   // password to hand. A Play-distributed build is re-signed by Play App
   // Signing and needs that fingerprint registered as well.
   try {
-    const keytoolOutput = execSync(
-      `keytool -list -v -keystore "${absoluteKeystorePath}" -alias "${keyAlias}" -storepass "${keystorePassword}"`,
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    const keytoolOutput = execFileSync(
+      'keytool', ['-list', '-v', '-keystore', absoluteKeystorePath, '-alias', keyAlias, '-storepass:env', 'PM_KEYSTORE_PASSWORD'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, PM_KEYSTORE_PASSWORD: keystorePassword } },
     );
     const sha1 = /SHA1:\s*([0-9A-F:]+)/i.exec(keytoolOutput);
     if (sha1) {

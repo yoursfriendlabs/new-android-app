@@ -40,9 +40,12 @@ function loadEnv() {
 }
 
 function readFingerprint({ keystore, storepass, alias }) {
-  const args = ['-list', '-v', '-keystore', keystore, '-storepass', storepass];
+  const args = ['-list', '-v', '-keystore', keystore, '-storepass:env', 'PM_KEYSTORE_PASSWORD'];
   if (alias) args.push('-alias', alias);
-  const output = execFileSync('keytool', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const output = execFileSync('keytool', args, {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PM_KEYSTORE_PASSWORD: storepass },
+  });
   const sha1 = /SHA1:\s*([0-9A-F:]+)/i.exec(output);
   const sha256 = /SHA256:\s*([0-9A-F:]+)/i.exec(output);
   return { sha1: sha1 && sha1[1], sha256: sha256 && sha256[1] };
@@ -59,8 +62,8 @@ function report(label, hint, config) {
     console.log(`\n${label}  (${config.keystore})`);
     console.log(`  SHA-1  : ${sha1 || 'not found in keytool output'}`);
     if (sha256) console.log(`  SHA-256: ${sha256}`);
-  } catch (error) {
-    console.log(`\n${label}: could not read it — ${String(error.message).split('\n')[0]}`);
+  } catch {
+    console.log(`\n${label}: could not read it. Check Java, the keystore path, alias and password.`);
     if (hint) console.log(`  ${hint}`);
   }
 }
@@ -73,15 +76,19 @@ console.log('as an Android OAuth client, in the same project as the web client I
 console.log(`\nPackage name   : ${appJson.expo.android.package}`);
 console.log(`Web client ID  : ${env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '(not set)'}`);
 
+const projectDebugKey = path.resolve(__dirname, '..', 'android', 'app', 'debug.keystore');
+
 report('Debug key   (expo run:android)', 'Build the app once with `expo run:android` to create it.', {
-  keystore: path.join(os.homedir(), '.android', 'debug.keystore'),
+  keystore: fs.existsSync(projectDebugKey) ? projectDebugKey : path.join(os.homedir(), '.android', 'debug.keystore'),
   storepass: 'android',
   alias: 'androiddebugkey',
 });
 
 report('Upload key  (local release build)', 'Set RELEASE_KEYSTORE_FILE, RELEASE_KEYSTORE_PASSWORD and RELEASE_KEY_ALIAS.', {
   keystore: env.RELEASE_KEYSTORE_FILE
-    ? path.resolve(__dirname, '..', env.RELEASE_KEYSTORE_FILE)
+    ? (env.RELEASE_KEYSTORE_FILE.startsWith('~/')
+      ? path.join(os.homedir(), env.RELEASE_KEYSTORE_FILE.slice(2))
+      : path.resolve(__dirname, '..', env.RELEASE_KEYSTORE_FILE))
     : '',
   storepass: env.RELEASE_KEYSTORE_PASSWORD || '',
   alias: env.RELEASE_KEY_ALIAS || '',
