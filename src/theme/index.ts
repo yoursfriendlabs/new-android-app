@@ -120,6 +120,16 @@ export const motion = {
   pressScale: 0.97,
 } as const;
 
+/** Consistent icon hierarchy across controls, navigation, and feature surfaces. */
+export const iconSize = {
+  micro: 14,
+  inline: 16,
+  control: 20,
+  navigation: 22,
+  feature: 26,
+  fab: 28,
+} as const;
+
 export const a11y = {
   // Meets both Android's 48dp and iOS's 44pt minimum.
   minTouchTarget: 48,
