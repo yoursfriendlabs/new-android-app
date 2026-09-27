@@ -20,6 +20,7 @@ import { isHiddenMoneyParty, moneyCategoryFromPurchase, moneyPersonLabel, moneyR
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { IconButton } from '@/src/shared/ui/IconButton';
 import { Screen } from '@/src/shared/layout/Screen';
 import { canAccessSegment } from '@/src/shared/lib/business';
 import { formatCurrency, getRangeForPeriod, prettyDate } from '@/src/shared/lib/format';
@@ -28,7 +29,7 @@ import { useAuthStore } from '@/src/stores/auth-store';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { useTranslation } from '@/src/i18n';
-import { radius, shadows, spacing, typography } from '@/src/theme';
+import { iconSize, radius, shadows, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
 import type { Party } from '@/src/types/models';
@@ -37,6 +38,7 @@ type Shortcut = {
   key: string;
   label: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  tone: 'income' | 'expense' | 'primary' | 'warning';
   segment: string;
   onPress: () => void;
 };
@@ -182,6 +184,7 @@ export function PersonalHomeScreen() {
         key: 'income',
         label: t('home.income'),
         icon: 'arrow-down-bold-circle-outline',
+        tone: 'income' as const,
         segment: 'expenses',
         onPress: () => {
           setLogKind('income');
@@ -192,6 +195,7 @@ export function PersonalHomeScreen() {
         key: 'expense',
         label: t('home.expense'),
         icon: 'wallet-outline',
+        tone: 'expense' as const,
         segment: 'expenses',
         onPress: () => {
           setLogKind('expense');
@@ -202,6 +206,7 @@ export function PersonalHomeScreen() {
         key: 'contact',
         label: t('home.contact'),
         icon: 'account-plus-outline',
+        tone: 'primary' as const,
         segment: 'parties',
         onPress: () => router.push('/(app)/(tabs)/parties'),
       },
@@ -209,6 +214,7 @@ export function PersonalHomeScreen() {
         key: 'note',
         label: t('home.notes'),
         icon: 'notebook-outline',
+        tone: 'warning' as const,
         segment: 'tasks',
         onPress: () => router.push('/(app)/tasks/inbox'),
       },
@@ -264,21 +270,17 @@ export function PersonalHomeScreen() {
           </Pressable>
           <View style={styles.headerActions}>
             <CoinChip coins={coins} compact />
-            <Pressable
-              style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-              onPress={() => setBalanceVisible((current) => !current)}>
-              <MaterialCommunityIcons
-                name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
-                size={20}
-                color={colors.text}
-              />
-            </Pressable>
+            <IconButton
+              icon={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
+              label={balanceVisible ? 'Hide amounts' : 'Show amounts'}
+              onPress={() => setBalanceVisible((current) => !current)}
+            />
             {canAccessSegment(accessContext, 'tasks') ? (
-              <Pressable
-                style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => router.push('/(app)/tasks/notifications')}>
-                <MaterialCommunityIcons name="bell-outline" size={20} color={colors.text} />
-              </Pressable>
+              <IconButton
+                icon="bell-outline"
+                label="Notifications"
+                onPress={() => router.push('/(app)/tasks/notifications')}
+              />
             ) : null}
           </View>
         </View>
@@ -293,14 +295,18 @@ export function PersonalHomeScreen() {
           onPressPay={() => router.push('/(app)/(tabs)/parties')}
         />
 
-        <Pressable style={styles.logButton} onPress={() => openLog('expense')}>
-          <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
+        <Pressable style={({ pressed }) => [styles.logButton, pressed && { opacity: 0.88 }]} onPress={() => openLog('expense')}>
+          <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name="plus" size={iconSize.control} color={colors.onPrimary} />
           <Text style={styles.logLabel}>{t('home.logMoney')}</Text>
         </Pressable>
         <Text style={[styles.logHint, { color: colors.textMuted }]}>{t('home.logMoneyHint')}</Text>
 
         <Pressable
-          style={[styles.reminderRow, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          style={({ pressed }) => [
+            styles.reminderRow,
+            { borderColor: colors.border, backgroundColor: colors.surface },
+            pressed && { opacity: 0.78 },
+          ]}
           onPress={() => setReminderVisible(true)}>
           <View style={[styles.reminderIcon, { backgroundColor: colors.accentSoft }]}>
             <MaterialCommunityIcons name="bell-outline" size={18} color={colors.primary} />
@@ -333,16 +339,31 @@ export function PersonalHomeScreen() {
               </Pressable>
             </View>
             <View style={styles.shortcutRow}>
-              {shortcuts.map((item) => (
-                <Pressable key={item.key} style={styles.shortcut} onPress={item.onPress}>
-                  <View style={[styles.shortcutIcon, { backgroundColor: colors.primary }]}>
-                    <MaterialCommunityIcons name={item.icon} size={20} color={colors.onPrimary} />
-                  </View>
-                  <Text numberOfLines={2} style={[styles.shortcutLabel, { color: colors.textMuted }]}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              ))}
+              {shortcuts.map((item) => {
+                const tone =
+                  item.tone === 'income'
+                    ? { background: colors.successSoft, color: colors.success }
+                    : item.tone === 'expense'
+                      ? { background: colors.dangerSoft, color: colors.danger }
+                      : item.tone === 'warning'
+                        ? { background: colors.warningSoft, color: colors.warning }
+                        : { background: colors.accentSoft, color: colors.primary };
+                return (
+                  <Pressable
+                    key={item.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.78 }]}
+                    onPress={item.onPress}>
+                    <View style={[styles.shortcutIcon, { backgroundColor: tone.background }]}>
+                      <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={item.icon} size={iconSize.control} color={tone.color} />
+                    </View>
+                    <Text numberOfLines={2} style={[styles.shortcutLabel, { color: colors.textMuted }]}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ) : null}
@@ -359,7 +380,7 @@ export function PersonalHomeScreen() {
               recentTransactions.map((item, index) => (
                 <View key={item.id}>
                   {index > 0 ? <View style={[styles.divider, { backgroundColor: colors.border }]} /> : null}
-                  <Pressable style={styles.row} onPress={() => router.push(item.route as never)}>
+                  <Pressable style={({ pressed }) => [styles.row, pressed && { opacity: 0.78 }]} onPress={() => router.push(item.route as never)}>
                     <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}>
                       <MaterialCommunityIcons name={item.icon} size={18} color={colors.primary} />
                     </View>
@@ -481,14 +502,6 @@ const createStyles = (colors: AppPalette) =>
     headerActions: {
       flexDirection: 'row',
       gap: spacing.xs,
-    },
-    iconButton: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
     },
     logButton: {
       minHeight: 52,

@@ -6,6 +6,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
+import { IconButton } from '@/src/shared/ui/IconButton';
 import { SkeletonMetricGrid } from '@/src/shared/ui/Skeleton';
 import { Money, Text as AppText } from '@/src/shared/ui/Text';
 import { haptics } from '@/src/shared/lib/haptics';
@@ -21,7 +22,7 @@ import {
   useRecentPurchases,
   useRecentServices,
 } from '@/src/shared/hooks/useAppQueries';
-import { radius, shadows, spacing, typography } from '@/src/theme';
+import { iconSize, radius, shadows, spacing, typography } from '@/src/theme';
 
 function initials(name?: string | null) {
   const parts = String(name || '')
@@ -45,20 +46,30 @@ type Shortcut = {
   labelKey: string;
   fallbackLabel: string;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  tone: 'income' | 'expense' | 'primary' | 'warning';
   route: string;
   segment: string;
 };
 
 const SHORTCUTS: Shortcut[] = [
-  { key: 'pos', labelKey: 'nav.pos', fallbackLabel: 'Sale', icon: 'cash-register', route: '/(app)/(tabs)/pos', segment: 'pos' },
-  { key: 'party', labelKey: 'parties.addParty', fallbackLabel: 'Add party', icon: 'account-plus-outline', route: '/(app)/(tabs)/parties', segment: 'parties' },
+  { key: 'pos', labelKey: 'nav.pos', fallbackLabel: 'Sale', icon: 'cash-register', tone: 'income', route: '/(app)/(tabs)/pos', segment: 'pos' },
+  { key: 'party', labelKey: 'parties.addParty', fallbackLabel: 'Add party', icon: 'account-plus-outline', tone: 'primary', route: '/(app)/(tabs)/parties', segment: 'parties' },
   // Payment in and out open the same ledger, so they share one button.
-  { key: 'payment', labelKey: 'home.payment', fallbackLabel: 'Payment', icon: 'swap-vertical-circle-outline', route: '/(app)/ledger', segment: 'ledger' },
-  { key: 'expense', labelKey: 'money.addExpense', fallbackLabel: 'Expense', icon: 'wallet-outline', route: '/(app)/(tabs)/expenses', segment: 'expenses' },
+  { key: 'payment', labelKey: 'home.payment', fallbackLabel: 'Payment', icon: 'swap-vertical-circle-outline', tone: 'warning', route: '/(app)/ledger', segment: 'ledger' },
+  { key: 'expense', labelKey: 'money.addExpense', fallbackLabel: 'Expense', icon: 'wallet-outline', tone: 'expense', route: '/(app)/(tabs)/expenses', segment: 'expenses' },
 ];
 
 /** Four at most, so each gets a fair share of the row on small phones. */
 const MAX_SHORTCUTS = 4;
+
+const METRIC_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  income: 'cash-plus',
+  expense: 'wallet-outline',
+  receive: 'arrow-bottom-left',
+  give: 'arrow-top-right',
+  balance: 'bank-outline',
+  net: 'chart-line',
+};
 
 export function ShopHomeScreen() {
   const colors = usePalette();
@@ -254,28 +265,20 @@ export function ShopHomeScreen() {
             </View>
           </Pressable>
           <View style={styles.headerActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={balanceVisible ? 'Hide amounts' : 'Show amounts'}
-              style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            <IconButton
+              icon={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
+              label={balanceVisible ? 'Hide amounts' : 'Show amounts'}
               onPress={() => {
                 haptics.tapLight();
                 setBalanceVisible((current) => !current);
-              }}>
-              <MaterialCommunityIcons
-                name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
-                size={20}
-                color={colors.text}
-              />
-            </Pressable>
+              }}
+            />
             {canAccessSegment(accessContext, 'tasks') ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Notifications"
-                style={[styles.iconButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                onPress={() => router.push('/(app)/tasks/notifications')}>
-                <MaterialCommunityIcons name="bell-outline" size={20} color={colors.text} />
-              </Pressable>
+              <IconButton
+                icon="bell-outline"
+                label="Notifications"
+                onPress={() => router.push('/(app)/tasks/notifications')}
+              />
             ) : null}
           </View>
         </View>
@@ -296,12 +299,13 @@ export function ShopHomeScreen() {
                   haptics.selection();
                   setSelectedPeriod(period.value);
                 }}
-                style={[
+                style={({ pressed }) => [
                   styles.periodChip,
                   {
                     backgroundColor: active ? colors.primary : colors.surface,
                     borderColor: active ? colors.primary : colors.border,
                   },
+                  pressed && { opacity: 0.82 },
                 ]}>
                 <Text style={[styles.periodLabel, { color: active ? colors.onPrimary : colors.textMuted }]}>
                   {period.label}
@@ -342,7 +346,13 @@ export function ShopHomeScreen() {
                   <AppText variant="overline" tone="muted">
                     {metric.label}
                   </AppText>
-                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textSoft} />
+                  <MaterialCommunityIcons
+                    accessible={false}
+                    importantForAccessibility="no"
+                    name={METRIC_ICONS[metric.key] ?? 'chart-line'}
+                    size={iconSize.inline}
+                    color={valueColor}
+                  />
                 </View>
                 <Money
                   value={metric.value}
@@ -369,24 +379,34 @@ export function ShopHomeScreen() {
               </Pressable>
             </View>
             <View style={styles.shortcutRow}>
-              {shortcuts.map((item) => (
-                <Pressable
-                  key={item.key}
-                  accessibilityRole="button"
-                  accessibilityLabel={t(item.labelKey) || item.fallbackLabel}
-                  style={styles.shortcut}
-                  onPress={() => {
-                    haptics.tapLight();
-                    router.push(item.route as never);
-                  }}>
-                  <View style={[styles.shortcutIcon, { backgroundColor: colors.primary }]}>
-                    <MaterialCommunityIcons name={item.icon} size={20} color={colors.onPrimary} />
-                  </View>
-                  <Text numberOfLines={2} style={[styles.shortcutLabel, { color: colors.textMuted }]}>
-                    {t(item.labelKey) || item.fallbackLabel}
-                  </Text>
-                </Pressable>
-              ))}
+              {shortcuts.map((item) => {
+                const tone =
+                  item.tone === 'income'
+                    ? { background: colors.successSoft, color: colors.success }
+                    : item.tone === 'expense'
+                      ? { background: colors.dangerSoft, color: colors.danger }
+                      : item.tone === 'warning'
+                        ? { background: colors.warningSoft, color: colors.warning }
+                        : { background: colors.accentSoft, color: colors.primary };
+                return (
+                  <Pressable
+                    key={item.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(item.labelKey) || item.fallbackLabel}
+                    style={({ pressed }) => [styles.shortcut, pressed && { opacity: 0.78 }]}
+                    onPress={() => {
+                      haptics.tapLight();
+                      router.push(item.route as never);
+                    }}>
+                    <View style={[styles.shortcutIcon, { backgroundColor: tone.background }]}>
+                      <MaterialCommunityIcons accessible={false} importantForAccessibility="no" name={item.icon} size={iconSize.control} color={tone.color} />
+                    </View>
+                    <Text numberOfLines={2} style={[styles.shortcutLabel, { color: colors.textMuted }]}>
+                      {t(item.labelKey) || item.fallbackLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ) : null}
@@ -406,7 +426,7 @@ export function ShopHomeScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${item.kind}: ${item.title}`}
-                    style={styles.row}
+                    style={({ pressed }) => [styles.row, pressed && { opacity: 0.78 }]}
                     onPress={() => {
                       haptics.tapLight();
                       router.push(item.route as never);
@@ -500,14 +520,6 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: spacing.xs,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   periodRow: {
     gap: spacing.xs,
