@@ -10,6 +10,8 @@ import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -56,12 +58,16 @@ export default function ExpenseCategoriesScreen() {
     return categories.filter((category) => category.name.toLowerCase().includes(query));
   }, [categories, debouncedSearch]);
 
+  const createFields = useFieldErrors(() => ({
+    name: requiredText(createName, 'Enter a category name.'),
+  }));
+  const editFields = useFieldErrors(() => ({
+    name: requiredText(editName, 'A category needs a name.'),
+  }));
+
   async function handleAddCategory() {
+    if (!createFields.check()) return;
     const name = createName.trim();
-    if (!name) {
-      toast.error('Enter a category name.');
-      return;
-    }
 
     try {
       setAdding(true);
@@ -83,11 +89,8 @@ export default function ExpenseCategoriesScreen() {
 
   async function handleSaveEdit() {
     if (!editingCategory) return;
+    if (!editFields.check()) return;
     const name = editName.trim();
-    if (!name) {
-      toast.error('Category name cannot be empty.');
-      return;
-    }
 
     try {
       setSavingEdit(true);
@@ -219,6 +222,7 @@ export default function ExpenseCategoriesScreen() {
           value={createName}
           placeholder={activeKind === 'income' ? 'e.g. Salary, Freelance, Gift' : 'e.g. Rent, Utilities, Tea'}
           onChangeText={setCreateName}
+          error={createFields.errors.name}
         />
       </BottomSheet>
 
@@ -241,7 +245,7 @@ export default function ExpenseCategoriesScreen() {
             </Pressable>
           </View>
         }>
-        <FormField label="Name" value={editName} onChangeText={setEditName} />
+        <FormField label="Name" value={editName} onChangeText={setEditName} error={editFields.errors.name} />
       </BottomSheet>
     </Screen>
   );

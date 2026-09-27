@@ -7,7 +7,10 @@ import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { unitsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { unitLabel } from '@/src/features/inventory/lib/inventory';
 import { useUnits } from '@/src/shared/hooks/useAppQueries';
 import { usePalette } from '@/src/stores/theme-store';
@@ -55,6 +58,21 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
 
   const hasSecondary = Boolean(draft.secondaryUnit.trim());
 
+  const newUnitFields = useFieldErrors(() => ({
+    name: requiredText(newUnit.name, 'Enter a unit name.'),
+  }));
+  const applyFields = useFieldErrors(() => ({
+    primaryUnit: draft.primaryUnitId ? '' : 'Pick the primary unit.',
+    conversionRate: hasSecondary
+      ? positiveNumber(
+          draft.conversionRate,
+          `Say how many ${draft.secondaryUnit.trim() || 'secondary units'} make one ${
+            draft.primaryUnit.trim() || 'primary unit'
+          }.`,
+        )
+      : '',
+  }));
+
   function openCreate(slot: Exclude<CreatingFor, null>) {
     if (submission.isBusy()) return;
     setCreatingFor(slot);
@@ -63,11 +81,11 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
 
   /** Adds the unit to the business, then drops it straight into the slot it was made for. */
   async function createUnit() {
-    const name = newUnit.name.trim();
-    if (!name) {
-      toast.error('Enter a unit name.');
+    if (!newUnitFields.check()) {
+      toast.error(newUnitFields.first);
       return;
     }
+    const name = newUnit.name.trim();
     const symbol = newUnit.symbol.trim() || name.toLowerCase();
 
     if (!submission.tryStart()) return;
@@ -103,6 +121,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
           autoFocus
           placeholder="e.g. Kilogram, Piece, Box"
           onChangeText={(name) => setNewUnit((current) => ({ ...current, name }))}
+          error={newUnitFields.errors.name}
         />
         <FormField
           label="Short form"
@@ -144,6 +163,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
           style={[styles.applyButton, (saving || Boolean(creatingFor)) && styles.disabled]}
           disabled={saving || Boolean(creatingFor)}
           onPress={() => {
+            if (!applyFields.check()) return;
             onApply(draft);
             onClose();
           }}>
@@ -151,6 +171,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
         </Pressable>
       }>
       <Text style={styles.sectionLabel}>Primary unit</Text>
+      <FieldError message={applyFields.errors.primaryUnit} />
       <View style={styles.chipWrap}>
         {units.map((unit) => {
           const active = draft.primaryUnitId === unit.id;
@@ -222,6 +243,7 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
             placeholder={`How many ${draft.secondaryUnit.trim() || 'secondary units'} make one ${
               draft.primaryUnit.trim() || 'primary unit'
             }`}
+            error={applyFields.errors.conversionRate}
           />
           {draft.conversionRate.trim() && Number(draft.conversionRate) > 0 ? (
             <View style={[styles.hintCard, { backgroundColor: colors.accentSoft }]}>

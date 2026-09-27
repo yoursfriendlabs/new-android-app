@@ -7,6 +7,8 @@ import { productsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { atMost, positiveNumber } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency } from '@/src/shared/lib/format';
@@ -54,14 +56,16 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
   const nextStock = action === 'remove' ? currentStock - qty : currentStock + qty;
   const unit = product?.primaryUnit || 'unit';
 
+  const fields = useFieldErrors(() => ({
+    quantity:
+      positiveNumber(quantity, 'Enter how much stock to add or remove.') ||
+      (action === 'remove' ? atMost(quantity, currentStock, `Only ${currentStock} ${unit} on hand.`) : ''),
+  }));
+
   async function handleSave() {
     if (!product?.id) return;
-    if (qty <= 0) {
-      toast.error('Enter how much stock to add or remove.');
-      return;
-    }
-    if (action === 'remove' && qty > currentStock) {
-      toast.error(`Only ${currentStock} ${unit} on hand.`);
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -131,6 +135,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
         onChangeText={setQuantity}
         keyboardType="numeric"
         placeholder="0"
+        error={fields.errors.quantity}
       />
       {action === 'add' ? (
         <>

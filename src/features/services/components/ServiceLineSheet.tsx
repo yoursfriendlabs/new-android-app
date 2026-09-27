@@ -2,9 +2,12 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency } from '@/src/shared/lib/format';
+import { atMost, nonNegativeNumber, positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import {
   applyUnitTypeToLine,
   lineTotalOf,
@@ -47,6 +50,27 @@ export function ServiceLineSheet({
   const styles = useThemedStyles(createStyles);
   const isPart = line?.itemType === 'part';
 
+  const fields = useFieldErrors(() => ({
+    product: isPart && line && !line.productId ? 'Pick the product from stock.' : '',
+    description:
+      !isPart && line ? requiredText(line.description, 'Say what was done on this line.') : '',
+    quantity: line ? positiveNumber(line.quantity, 'Enter a quantity greater than zero.') : '',
+    unitPrice: line ? nonNegativeNumber(line.unitPrice, 'A rate cannot be negative.') : '',
+    taxRate: line
+      ? nonNegativeNumber(line.taxRate, 'A tax rate cannot be negative.') ||
+        atMost(line.taxRate, 100, 'A tax rate cannot be over 100%.')
+      : '',
+    unitType:
+      line?.unitType === 'secondary' && !(Number(product?.secondaryConversionRate ?? 0) > 0)
+        ? 'This product has no conversion rate for its second unit.'
+        : '',
+  }));
+
+  function handleSave() {
+    if (!fields.check()) return;
+    onSave();
+  }
+
   return (
     <BottomSheet
       visible={visible}
@@ -65,7 +89,7 @@ export function ServiceLineSheet({
               <Text style={[styles.footerBtnLabel, { color: colors.text }]}>Cancel</Text>
             </Pressable>
           )}
-          <Pressable style={[styles.footerBtn, { backgroundColor: colors.primary }]} onPress={onSave}>
+          <Pressable style={[styles.footerBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
             <Text style={[styles.footerBtnLabel, { color: colors.onPrimary }]}>
               {isNew ? 'Add to bill' : 'Done'}
             </Text>
@@ -91,6 +115,7 @@ export function ServiceLineSheet({
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textMuted} />
               </Pressable>
+              <FieldError message={fields.errors.product} />
               {product?.secondaryUnit ? (
                 <SegmentedTabs
                   value={line.unitType === 'secondary' ? 'secondary' : 'primary'}
@@ -103,6 +128,7 @@ export function ServiceLineSheet({
                   ]}
                 />
               ) : null}
+              <FieldError message={fields.errors.unitType} />
             </View>
           ) : null}
 
@@ -111,6 +137,7 @@ export function ServiceLineSheet({
             value={line.description}
             onChangeText={(description) => onChange({ ...line, description })}
             placeholder={isPart ? 'e.g. Spare screen, engine oil' : 'e.g. Screen replacement, servicing'}
+            error={fields.errors.description}
           />
 
           <View style={styles.row}>
@@ -120,6 +147,7 @@ export function ServiceLineSheet({
                 value={String(line.quantity)}
                 onChangeText={(value) => onChange({ ...line, quantity: Number(value || 0) })}
                 keyboardType="numeric"
+                error={fields.errors.quantity}
               />
             </View>
             <View style={styles.col}>
@@ -128,6 +156,7 @@ export function ServiceLineSheet({
                 value={String(line.unitPrice)}
                 onChangeText={(value) => onChange({ ...line, unitPrice: Number(value || 0) })}
                 keyboardType="numeric"
+                error={fields.errors.unitPrice}
               />
             </View>
           </View>
@@ -138,6 +167,7 @@ export function ServiceLineSheet({
             onChangeText={(value) => onChange({ ...line, taxRate: Number(value || 0) })}
             keyboardType="numeric"
             helperText="Leave at 0 if you do not charge VAT on this line."
+            error={fields.errors.taxRate}
           />
 
           <View style={styles.totalBox}>

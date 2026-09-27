@@ -8,6 +8,8 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { useOrderAttributes } from '@/src/shared/hooks/useAppQueries';
 import { Screen } from '@/src/shared/layout/Screen';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -74,6 +76,18 @@ export function AttributesScreen() {
   const [form, setForm] = useState<AttributeForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
+  const fields = useFieldErrors(() => ({
+    label: requiredText(form.label, 'Enter a field name.'),
+    options:
+      form.fieldType === 'select' &&
+      !form.options
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean).length
+        ? 'Add at least one choice, separated by commas.'
+        : '',
+  }));
+
   function openSheet(attribute?: OrderAttribute) {
     setEditing(attribute ?? null);
     setForm(
@@ -91,19 +105,15 @@ export function AttributesScreen() {
   }
 
   async function handleSave() {
-    const label = form.label.trim();
-    if (!label) {
-      toast.error('Enter a field name.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
+    const label = form.label.trim();
     const options = form.options
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean);
-    if (form.fieldType === 'select' && !options.length) {
-      toast.error('Add at least one choice, separated by commas.');
-      return;
-    }
 
     const payload = {
       entityType,
@@ -236,6 +246,7 @@ export function AttributesScreen() {
           value={form.label}
           placeholder="e.g. Vehicle no., Delivery date"
           onChangeText={(label) => setForm((current) => ({ ...current, label }))}
+          error={fields.errors.label}
         />
 
         <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Answer type</Text>
@@ -264,6 +275,7 @@ export function AttributesScreen() {
             value={form.options}
             placeholder="e.g. Home, Office, Pickup"
             onChangeText={(options) => setForm((current) => ({ ...current, options }))}
+            error={fields.errors.options}
           />
         ) : null}
 

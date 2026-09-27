@@ -7,6 +7,8 @@ import { categoriesApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { useCategories } from '@/src/shared/hooks/useAppQueries';
 import { usePalette } from '@/src/stores/theme-store';
@@ -39,9 +41,13 @@ export function CategoryPickerSheet({ onClose, onSelect, selectedId, visible }: 
     return categories.filter((category) => category.name.toLowerCase().includes(q));
   }, [categories, search]);
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(newName, 'Enter a category name.'),
+  }));
+
   async function handleAdd() {
+    if (!fields.check()) return;
     const name = newName.trim();
-    if (!name) return;
     setSaving(true);
     try {
       const created = await categoriesApi.create({ name });
@@ -66,7 +72,13 @@ export function CategoryPickerSheet({ onClose, onSelect, selectedId, visible }: 
         adding ? (
           <View style={styles.addRow}>
             <View style={{ flex: 1 }}>
-              <FormField label="New category" value={newName} onChangeText={setNewName} placeholder="e.g. Dairy" />
+              <FormField
+                label="New category"
+                value={newName}
+                onChangeText={setNewName}
+                placeholder="e.g. Dairy"
+                error={fields.errors.name}
+              />
             </View>
             <Pressable style={styles.addButton} onPress={() => void handleAdd()} disabled={saving}>
               {saving ? (

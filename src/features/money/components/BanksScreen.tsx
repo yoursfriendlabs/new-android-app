@@ -18,6 +18,8 @@ import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { optionalNumber, requiredText } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { cacheBankRecord } from '@/src/data/cache';
@@ -97,6 +99,11 @@ export function BanksScreen() {
   const [editingBank, setEditingBank] = useState<BankAccount | null>(null);
   const [form, setForm] = useState(createBankForm());
   const [saving, setSaving] = useState(false);
+
+  const fields = useFieldErrors(() => ({
+    name: requiredText(form.name, 'Give this account a short name, like Cash or Nabil.'),
+    openingBalance: optionalNumber(form.openingBalance, 'An opening balance has to be a number.'),
+  }));
   const [selectedBank, setSelectedBank] = useState<BankAccount | null>(null);
   const [txSearch, setTxSearch] = useState('');
 
@@ -135,12 +142,11 @@ export function BanksScreen() {
   }
 
   async function handleSave() {
-    const name = form.name.trim();
-    if (!name) {
-      toast.error('Give this account a short name, like Cash or Nabil.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
-
+    const name = form.name.trim();
     const opening = Number(form.openingBalance || 0);
     const body = {
       name,
@@ -513,6 +519,7 @@ export function BanksScreen() {
           onChangeText={(name) => setForm((current) => ({ ...current, name }))}
           placeholder="e.g. Nabil Bank, eSewa, Cash"
           autoCapitalize="words"
+          error={fields.errors.name}
         />
         {!editingBank ? (
           <FormField
@@ -521,6 +528,7 @@ export function BanksScreen() {
             onChangeText={(openingBalance) => setForm((current) => ({ ...current, openingBalance }))}
             keyboardType="numeric"
             placeholder="0"
+            error={fields.errors.openingBalance}
           />
         ) : null}
         {form.showDetails ? (

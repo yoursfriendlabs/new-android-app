@@ -8,8 +8,11 @@ import {
   lineUnitLabel,
 } from '@/src/features/purchases/lib/purchase-draft';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { formatCurrency } from '@/src/shared/lib/format';
+import { atMost, nonNegativeNumber, positiveNumber } from '@/src/shared/lib/validation';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { Text } from '@/src/shared/ui/Text';
 import { usePalette } from '@/src/stores/theme-store';
@@ -48,6 +51,30 @@ export function PurchaseLineSheet({
   const product = line?.product ?? null;
   const hasBatchDetails = Boolean(line?.expiryDate?.trim() || line?.batchNumber?.trim());
 
+  // A line used to be addable with nothing in it; the bill only complained on
+  // save, in a toast, with no clue which of several lines was wrong.
+  const fields = useFieldErrors(() => ({
+    product:
+      line && !line.product?.id && !line.description.trim()
+        ? 'Pick a product, or type what this line is for.'
+        : '',
+    quantity: line ? positiveNumber(line.quantity, 'Enter how many came in.') : '',
+    unitPrice: line ? nonNegativeNumber(line.unitPrice, 'A unit cost cannot be negative.') : '',
+    taxRate: line
+      ? nonNegativeNumber(line.taxRate, 'A tax rate cannot be negative.') ||
+        atMost(line.taxRate, 100, 'A tax rate cannot be over 100%.')
+      : '',
+    unitType:
+      line?.unitType === 'secondary' && !(Number(product?.secondaryConversionRate ?? 0) > 0)
+        ? 'This product has no conversion rate for its second unit.'
+        : '',
+  }));
+
+  function handleSave() {
+    if (!fields.check()) return;
+    onSave();
+  }
+
   return (
     <BottomSheet
       visible={visible}
@@ -75,7 +102,7 @@ export function PurchaseLineSheet({
                 <Text variant="bodyStrong">Cancel</Text>
               </Pressable>
             )}
-            <Pressable style={[styles.footerBtn, styles.footerPrimary, { backgroundColor: colors.primary }]} onPress={onSave}>
+            <Pressable style={[styles.footerBtn, styles.footerPrimary, { backgroundColor: colors.primary }]} onPress={handleSave}>
               <Text variant="bodyStrong" tone="onPrimary">
                 {isNew ? 'Add to bill' : 'Done'}
               </Text>
@@ -101,6 +128,7 @@ export function PurchaseLineSheet({
             </View>
             <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={22} />
           </Pressable>
+          <FieldError message={fields.errors.product} />
 
           {product?.secondaryUnit ? (
             <SegmentedTabs
@@ -112,6 +140,7 @@ export function PurchaseLineSheet({
               ]}
             />
           ) : null}
+          <FieldError message={fields.errors.unitType} />
 
           <FormField
             label="Description"
@@ -127,6 +156,7 @@ export function PurchaseLineSheet({
                 value={String(line.quantity)}
                 onChangeText={(value) => onChange({ ...line, quantity: Number(value || 0) })}
                 keyboardType="decimal-pad"
+                error={fields.errors.quantity}
               />
             </View>
             <View style={styles.col}>
@@ -135,6 +165,7 @@ export function PurchaseLineSheet({
                 value={String(line.unitPrice)}
                 onChangeText={(value) => onChange({ ...line, unitPrice: Number(value || 0) })}
                 keyboardType="decimal-pad"
+                error={fields.errors.unitPrice}
               />
             </View>
           </View>
@@ -145,6 +176,7 @@ export function PurchaseLineSheet({
             onChangeText={(value) => onChange({ ...line, taxRate: Number(value || 0) })}
             keyboardType="decimal-pad"
             helperText="Leave at 0 if this item carries no VAT."
+            error={fields.errors.taxRate}
           />
 
           {batchOpen || hasBatchDetails ? (

@@ -9,6 +9,8 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { useUnits } from '@/src/shared/hooks/useAppQueries';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -45,6 +47,10 @@ export function UnitsScreen() {
   const submission = useSubmissionLock();
   const [saving, setSaving] = useState<'close' | 'new' | null>(null);
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(form.name, 'Enter a unit name.'),
+  }));
+
   const visibleUnits = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     if (!query) return units;
@@ -65,12 +71,12 @@ export function UnitsScreen() {
    */
   async function handleSave({ keepOpen = false } = {}) {
     if (saving) return;
-    const name = form.name.trim();
-    const symbol = form.symbol.trim() || name.toLowerCase();
-    if (!name) {
-      toast.error('Enter a unit name.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
+    const name = form.name.trim();
+    const symbol = form.symbol.trim() || name.toLowerCase();
 
     if (!submission.tryStart()) return;
     try {
@@ -200,6 +206,7 @@ export function UnitsScreen() {
           value={form.name}
           placeholder="e.g. Kilogram, Piece, Box"
           onChangeText={(name) => setForm((current) => ({ ...current, name }))}
+          error={fields.errors.name}
         />
         <FormField
           label="Short form"

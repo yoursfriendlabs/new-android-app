@@ -28,15 +28,18 @@ import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { PercentAmountField } from '@/src/shared/forms/PercentAmountField';
 import { ProductPickerSheet } from '@/src/shared/forms/ProductPickerSheet';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { useDraftState } from '@/src/shared/hooks/useDraftState';
 import { useIsTablet } from '@/src/shared/hooks/useIsTablet';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { invalidateAfterBill, useNextSequences, useParties, useProducts } from '@/src/shared/hooks/useAppQueries';
 import { Screen } from '@/src/shared/layout/Screen';
+import { atMost, nonNegativeNumber } from '@/src/shared/lib/validation';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { buildReceiptHtml, type ReceiptInput } from '@/src/shared/lib/receipt';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
@@ -165,10 +168,13 @@ export function PurchaseCreateScreen() {
   }
 
   async function savePurchase() {
+    // The line-level checks still run, because a bad line is inside a sheet
+    // that is closed by the time the bill is saved.
     const found = findDraftProblem(draft.value);
-    if (found) {
-      setProblem(found);
-      toast.error(found);
+    if (!fields.check() || found) {
+      const message = fields.first || found || '';
+      setProblem(message);
+      toast.error(message);
       return;
     }
 
@@ -228,6 +234,19 @@ export function PurchaseCreateScreen() {
   }
 
   const supplier = draft.value.supplier;
+
+  const fields = useFieldErrors(() => ({
+    supplier: draft.value.supplier?.id ? '' : 'Pick the supplier this bill came from.',
+    items: draft.value.items.length ? '' : 'Add at least one item to the bill.',
+    amountPaid:
+      nonNegativeNumber(draft.value.amountPaid, 'An amount paid cannot be negative.') ||
+      atMost(draft.value.amountPaid, totals.grandTotal, 'Paid cannot be more than the bill total.'),
+    bankId:
+      draft.value.paymentMethod === 'bank' && Number(draft.value.amountPaid) > 0 && !draft.value.bankId
+        ? 'Choose the bank account the money went out of.'
+        : '',
+  }));
+
   const halfNow = Math.round((totals.grandTotal / 2) * 100) / 100;
   const paidChips = [
     { label: 'Paid in full', amount: totals.grandTotal, active: totals.paid > 0 && totals.due === 0 },
@@ -297,6 +316,7 @@ export function PurchaseCreateScreen() {
             </View>
             <MaterialCommunityIcons color={colors.textMuted} name="chevron-right" size={22} />
           </Pressable>
+          <FieldError message={fields.errors.supplier} />
 
           <View style={styles.row}>
             <View style={styles.col}>
@@ -372,6 +392,7 @@ export function PurchaseCreateScreen() {
               </Text>
             </View>
           )}
+          <FieldError message={fields.errors.items} />
 
           <View style={styles.addRow}>
             <Pressable
@@ -413,6 +434,7 @@ export function PurchaseCreateScreen() {
             value={String(draft.value.amountPaid)}
             onChangeText={(amountPaid) => patchDraft({ amountPaid: Number(amountPaid || 0) })}
             keyboardType="decimal-pad"
+            error={fields.errors.amountPaid}
             helperText={
               totals.due > 0
                 ? `${formatCurrency(totals.due, currency)} stays due to ${supplier?.name ?? 'the supplier'}.`
@@ -428,6 +450,7 @@ export function PurchaseCreateScreen() {
               onBankChange={(bankId) => patchDraft({ bankId })}
             />
           ) : null}
+          <FieldError message={fields.errors.bankId} />
 
           <FormField
             label="Payment note"

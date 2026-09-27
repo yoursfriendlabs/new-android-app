@@ -17,6 +17,8 @@ import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -107,9 +109,14 @@ export default function TableManagementScreen() {
     setFormSheetVisible(true);
   };
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(name, 'Give this table a name.'),
+    capacity: capacity.trim() ? positiveNumber(capacity, 'Seats has to be more than zero.') : '',
+  }));
+
   const handleSave = async () => {
-    if (!name.trim()) {
-      toast.error('Table name is required.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -327,6 +334,7 @@ export default function TableManagementScreen() {
             value={name}
             placeholder="e.g. Table 4, VIP Cabin 1"
             onChangeText={setName}
+            error={fields.errors.name}
           />
           <FormField
             label="Seating Capacity"
@@ -334,6 +342,7 @@ export default function TableManagementScreen() {
             placeholder="e.g. 4, 6"
             keyboardType="numeric"
             onChangeText={setCapacity}
+            error={fields.errors.capacity}
           />
 
           <Text style={styles.fieldLabel}>Floor / Dining Area</Text>
