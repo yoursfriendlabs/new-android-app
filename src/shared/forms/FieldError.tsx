@@ -1,4 +1,5 @@
-import { StyleSheet, Text } from 'react-native';
+import { useEffect } from 'react';
+import { AccessibilityInfo, Platform, StyleSheet, Text } from 'react-native';
 
 import { usePalette } from '@/src/stores/theme-store';
 import { typography } from '@/src/theme';
@@ -10,6 +11,9 @@ import { typography } from '@/src/theme';
  */
 export function FieldError({ message }: { message?: string }) {
   const colors = usePalette();
+  useEffect(() => {
+    if (message && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
+  }, [message]);
   if (!message) return null;
   return (
     <Text accessibilityLiveRegion="polite" style={[styles.text, { color: colors.danger }]}>

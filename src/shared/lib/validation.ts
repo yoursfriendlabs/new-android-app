@@ -51,7 +51,7 @@ export function optionalPhone(value: string, minDigits = 7) {
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return '';
   const digits = digitsOnly(trimmed);
-  if (!digits) return 'A phone number is only digits.';
+  if (!digits || /[^\d\s()+-]/.test(trimmed)) return 'Use only digits, spaces, +, -, or parentheses.';
   return digits.length >= minDigits ? '' : `A phone number needs at least ${minDigits} digits.`;
 }
 
@@ -104,4 +104,14 @@ export function atMost(value: string | number, ceiling: number, message: string)
   const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim());
   if (!Number.isFinite(parsed)) return '';
   return parsed <= ceiling ? '' : message;
+}
+
+export function requiredIsoMonth(value: string) {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? '' : 'Enter a valid month as YYYY-MM.';
+}
+
+export function requiredIsoDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value ? '' : 'Enter a valid date as YYYY-MM-DD.';
 }

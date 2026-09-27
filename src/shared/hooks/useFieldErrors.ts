@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { firstFieldError, hasFieldError, type FieldErrors } from '@/src/shared/lib/validation';
 
@@ -18,8 +18,10 @@ import { firstFieldError, hasFieldError, type FieldErrors } from '@/src/shared/l
  *   if (!fields.check()) return toast.error(fields.first);
  *   <FormField error={fields.errors.name} … />
  */
-export function useFieldErrors<K extends string>(build: () => FieldErrors<K>) {
+export function useFieldErrors<K extends string>(build: () => FieldErrors<K>, resetKey?: unknown) {
   const [showing, setShowing] = useState(false);
+  // Pass the sheet visibility or record ID so each form starts quietly.
+  useEffect(() => setShowing(false), [resetKey]);
   const latest = useRef(build);
   latest.current = build;
 
