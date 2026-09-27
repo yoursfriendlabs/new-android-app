@@ -46,6 +46,7 @@ export function SegmentedTabs<T extends string>({
             accessibilityRole="button"
             accessibilityLabel={option.label}
             accessibilityState={{ selected: active }}
+            hitSlop={a11y.hitSlop}
             style={({ pressed }) => [
               styles.pill,
               { backgroundColor: resolvedInactiveBackground },
@@ -71,17 +72,16 @@ export function SegmentedTabs<T extends string>({
 const styles = StyleSheet.create({
   wrap: {
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    minHeight: 44,
+    paddingVertical: spacing.xxs,
+    minHeight: 40,
     alignItems: 'center',
   },
   pill: {
     flexShrink: 0,
     alignSelf: 'flex-start',
-    minWidth: a11y.minTouchTarget,
-    minHeight: a11y.minTouchTarget,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    minHeight: 36,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 0,
     borderRadius: radius.pill,
     justifyContent: 'center',
     maxWidth: 220,
