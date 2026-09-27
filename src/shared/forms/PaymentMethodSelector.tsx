@@ -79,8 +79,8 @@ export function PaymentMethodSelector({
     [banksData]
   );
 
-  // If there's an active bank and none is selected yet, default to first bank when value is 'bank'
-  const selectedBankId = bankId || (value === 'bank' && activeAccounts.length ? activeAccounts[0].id : '');
+  // Highlight only the account that will actually be submitted.
+  const selectedBankId = bankId || '';
 
   const handleSelectCash = () => {
     onChange('cash', undefined);

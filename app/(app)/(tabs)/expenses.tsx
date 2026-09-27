@@ -9,7 +9,10 @@ import { ExpenseFormSheet } from '@/src/features/money/components/ExpenseFormShe
 import { PersonalMoneyScreen } from '@/src/features/money/components/PersonalMoneyScreen';
 import { isPersonalWorkspace } from '@/src/shared/lib/business';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { nonNegativeNumber } from '@/src/shared/lib/validation';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
@@ -172,8 +175,17 @@ function ShopExpensesScreen() {
     setBankId(item.bankId ?? '');
   }
 
+  const paymentFields = useFieldErrors(() => ({
+    amountPaid: nonNegativeNumber(amountPaidDraft, 'An amount paid cannot be negative.'),
+    bankId: paymentMethod === 'bank' && !bankId ? 'Choose which bank account paid this.' : '',
+  }), selectedExpenseId);
+
   async function saveExpenseUpdate() {
     if (!selectedExpenseId) return;
+    if (!paymentFields.check()) {
+      toast.error(paymentFields.first);
+      return;
+    }
     try {
       await purchasesApi.update(selectedExpenseId, {
         amountReceived: Number(amountPaidDraft || 0),
@@ -520,13 +532,20 @@ function ShopExpensesScreen() {
               </Text>
             </View>
           </SurfaceCard>
-          <FormField label="Amount paid" value={amountPaidDraft} onChangeText={setAmountPaidDraft} keyboardType="numeric" />
+          <FormField
+            label="Amount paid"
+            value={amountPaidDraft}
+            onChangeText={setAmountPaidDraft}
+            keyboardType="numeric"
+            error={paymentFields.errors.amountPaid}
+          />
           <PaymentMethodSelector
             value={paymentMethod}
             onChange={setPaymentMethod}
             bankId={bankId}
             onBankChange={setBankId}
           />
+          <FieldError message={paymentFields.errors.bankId} />
         </ScrollView>
       </BottomSheet>
     </Screen>

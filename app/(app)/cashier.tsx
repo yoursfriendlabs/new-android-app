@@ -17,7 +17,10 @@ import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { atMost, nonNegativeNumber } from '@/src/shared/lib/validation';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
@@ -219,16 +222,29 @@ export default function CashierScreen() {
     }
   };
 
+  const fields = useFieldErrors(() => ({
+    discount:
+      nonNegativeNumber(discount, 'A discount cannot be negative.') ||
+      atMost(discount, localTotals.subTotal, 'A discount cannot be more than the bill.'),
+    taxRate:
+      nonNegativeNumber(taxRate, 'A tax rate cannot be negative.') ||
+      atMost(taxRate, 100, 'A tax rate cannot be over 100%.'),
+    amountReceived: nonNegativeNumber(amountReceived, 'Cash received cannot be negative.'),
+    bankId:
+      paymentMethod === 'bank' && Number(amountReceived || 0) > 0 && !bankId
+        ? 'Choose which bank account received this.'
+        : '',
+  }), selectedTable?.id);
+
   const handleCheckout = async () => {
     if (!saleDetails || !selectedTable) return;
+    if (!fields.check()) {
+      toast.error(fields.first);
+      return;
+    }
 
     const receivedAmt = Number(amountReceived || 0);
     const finalTotal = localTotals.grandTotal;
-
-    if (paymentMethod === 'bank' && receivedAmt > 0 && !bankId) {
-      toast.error('Please select a bank account.');
-      return;
-    }
 
     setSubmittingCheckout(true);
     try {
@@ -557,6 +573,7 @@ export default function CashierScreen() {
                     value={discount}
                     keyboardType="numeric"
                     onChangeText={setDiscount}
+                    error={fields.errors.discount}
                   />
                 </View>
                 <View style={{ width: spacing.md }} />
@@ -566,6 +583,7 @@ export default function CashierScreen() {
                     value={taxRate}
                     keyboardType="numeric"
                     onChangeText={setTaxRate}
+                    error={fields.errors.taxRate}
                   />
                 </View>
               </View>
@@ -600,6 +618,7 @@ export default function CashierScreen() {
                 value={amountReceived}
                 keyboardType="numeric"
                 onChangeText={setAmountReceived}
+                error={fields.errors.amountReceived}
               />
 
               <PaymentMethodSelector
@@ -608,6 +627,7 @@ export default function CashierScreen() {
                 bankId={bankId}
                 onBankChange={setBankId}
               />
+              <FieldError message={fields.errors.bankId} />
 
               <FormField
                 label="Payment Notes"

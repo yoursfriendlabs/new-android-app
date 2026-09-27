@@ -7,6 +7,10 @@ import { statusToneColors } from '@/src/features/purchases/components/PurchaseLi
 import { purchaseDue, purchaseStatusView, type PurchaseSupplier } from '@/src/features/purchases/lib/purchase-view';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { FormField } from '@/src/shared/forms/FormField';
+import { FieldError } from '@/src/shared/forms/FieldError';
+import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { nonNegativeNumber } from '@/src/shared/lib/validation';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -63,6 +67,26 @@ export function PurchaseDetailSheet({
   const [status, setStatus] = useState('received');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [bankId, setBankId] = useState('');
+  const toast = useToast();
+  const fields = useFieldErrors(() => ({
+    amountPaid: nonNegativeNumber(amountPaid, 'An amount paid cannot be negative.'),
+    bankId: paymentMethod === 'bank' && Number(amountPaid) > 0 && !bankId
+      ? 'Choose which bank account paid this.' : '',
+  }), `${visible}:${purchase?.id}`);
+
+  function savePayment() {
+    if (!purchase || isLoading || saving) return;
+    if (!fields.check()) {
+      toast.error(fields.first);
+      return;
+    }
+    onSave({
+      status,
+      amountReceived: Number(amountPaid || 0),
+      paymentMethod,
+      bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
+    });
+  }
 
   // Reseed the form whenever a different bill is opened.
   useEffect(() => {
@@ -71,7 +95,7 @@ export function PurchaseDetailSheet({
     setStatus(purchase.status ?? 'received');
     setPaymentMethod((purchase.paymentMethod as PaymentMethod) ?? 'cash');
     setBankId(purchase.bankId ?? '');
-  }, [purchase?.id]);
+  }, [purchase?.id, visible]);
 
   const total = Number(purchase?.grandTotal || 0);
   const due = purchase ? purchaseDue(purchase) : 0;
@@ -88,22 +112,15 @@ export function PurchaseDetailSheet({
       fullHeight
       footer={
         <View style={styles.footer}>
-          <Pressable style={[styles.footerBtn, { backgroundColor: colors.dangerSoft }]} onPress={onDelete}>
+          <Pressable disabled={saving || isLoading || !purchase} style={[styles.footerBtn, { backgroundColor: colors.dangerSoft }]} onPress={onDelete}>
             <Text variant="bodyStrong" tone="danger">
               Delete
             </Text>
           </Pressable>
           <Pressable
-            disabled={saving}
+            disabled={saving || isLoading || !purchase}
             style={[styles.footerBtn, styles.footerPrimary, { backgroundColor: colors.primary }]}
-            onPress={() =>
-              onSave({
-                status,
-                amountReceived: Number(amountPaid || 0),
-                paymentMethod,
-                bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
-              })
-            }>
+            onPress={savePayment}>
             {saving ? (
               <ActivityIndicator color={colors.onPrimary} />
             ) : (
@@ -190,6 +207,7 @@ export function PurchaseDetailSheet({
               value={amountPaid}
               onChangeText={setAmountPaid}
               keyboardType="decimal-pad"
+              error={fields.errors.amountPaid}
               helperText={`Anything under ${formatCurrency(total, currency)} stays on the supplier's account.`}
             />
             {due > 0 ? (
@@ -208,6 +226,7 @@ export function PurchaseDetailSheet({
               bankId={bankId}
               onBankChange={setBankId}
             />
+            <FieldError message={fields.errors.bankId} />
           </View>
 
           <View style={styles.section}>

@@ -6,7 +6,10 @@ import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { isInvalidSessionError } from '@/src/api/client';
 import { partyTransactionsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
@@ -60,6 +63,14 @@ export function PartyTransactionSheet({
   const isEditing = Boolean(transaction?.id);
   const activeBanks = useMemo(() => (banks ?? []).filter((bank) => bank.isActive), [banks]);
 
+  const fields = useFieldErrors(() => ({
+    amount: positiveNumber(form.amount, 'Enter an amount greater than zero.'),
+    bankId:
+      form.paymentMethod === 'bank' && !form.bankId.trim()
+        ? 'Choose the bank account used for this payment.'
+        : '',
+  }), visible);
+
   useEffect(() => {
     if (visible) {
       setForm(createTransactionForm(party, transaction));
@@ -72,12 +83,8 @@ export function PartyTransactionSheet({
       setError(personal ? 'Choose a contact first.' : 'Choose a party first.');
       return;
     }
-    if (Number(form.amount || 0) <= 0) {
-      setError('Enter an amount greater than zero.');
-      return;
-    }
-    if (form.paymentMethod === 'bank' && !form.bankId.trim()) {
-      setError('Choose the bank account used for this payment.');
+    if (!fields.check()) {
+      setError('');
       return;
     }
 
@@ -151,6 +158,7 @@ export function PartyTransactionSheet({
         onChangeText={(amount) => setForm((current) => ({ ...current, amount }))}
         keyboardType="numeric"
         placeholder="0"
+        error={fields.errors.amount}
       />
       <PaymentMethodSelector
         value={form.paymentMethod}
@@ -163,6 +171,7 @@ export function PartyTransactionSheet({
           }))
         }
       />
+      <FieldError message={fields.errors.bankId} />
       <DatePickerField
         label="Date"
         value={form.txDate}

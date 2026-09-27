@@ -13,6 +13,9 @@ import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { resolveUploadMessage, uploadSingleAttachment } from '@/src/shared/lib/uploads';
 import { FormField } from '@/src/shared/forms/FormField';
+import { FieldError } from '@/src/shared/forms/FieldError';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { atMost, nonNegativeNumber, positiveNumber } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { submitWithOfflineQueue } from '@/src/data/sync';
@@ -125,6 +128,7 @@ export function MoneyEntrySheet({
       }
       setForm(next);
       setCustomCategory(custom);
+      setReceiptImage(null);
       setSaving(false);
       setDetailsOpen(!compact);
     }
@@ -140,6 +144,14 @@ export function MoneyEntrySheet({
     : Array.from(new Set([...(expenseCategories ?? []).map((item) => item.name), ...PERSONAL_EXPENSE_CATEGORIES])).filter(Boolean);
 
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const fields = useFieldErrors(() => ({
+    amount: positiveNumber(form.amount),
+    amountPaid: !isIncome && form.paidMode === 'due'
+      ? nonNegativeNumber(form.amountPaid, 'An amount paid cannot be negative.') ||
+        atMost(form.amountPaid, amount, 'Amount paid cannot be more than the total.') : '',
+    bankId: form.paymentMethod === 'bank' && !form.bankId
+      ? 'Choose a bank account for this payment.' : '',
+  }), visible);
 
   async function handlePickReceipt() {
     try {
@@ -162,20 +174,8 @@ export function MoneyEntrySheet({
         ? customCategory.trim()
         : form.category.trim() || 'Other';
 
-    if (!effectiveCategory) {
-      toast.error('Pick what this money is for.');
-      return;
-    }
-    if (amount <= 0) {
-      toast.error('Enter an amount greater than zero.');
-      return;
-    }
-    if (form.paymentMethod === 'bank' && !form.bankId) {
-      toast.error('Choose a bank account for this payment.');
-      return;
-    }
-    if (!isIncome && (amountPaid < 0 || amountPaid > amount)) {
-      toast.error('Amount paid cannot be more than the total.');
+    if (!fields.check()) {
+      toast.error(fields.first);
       return;
     }
 
@@ -249,11 +249,13 @@ export function MoneyEntrySheet({
         // Haptics are optional on web and simulators.
       }
 
+      fields.reset();
       if (andContinue) {
         if (blockedMessage) toast.error(blockedMessage);
         setForm((current) => ({
           ...current,
           amount: '',
+          amountPaid: '',
           notes: '',
         }));
         setReceiptImage(null);
@@ -343,6 +345,9 @@ export function MoneyEntrySheet({
           <View style={styles.amountRow}>
             <Text style={[styles.amountPrefix, { color: colors.accent }]}>Rs</Text>
             <TextInput
+              accessibilityLabel="Amount"
+              accessibilityHint={fields.errors.amount}
+              aria-invalid={Boolean(fields.errors.amount)}
               value={form.amount}
               onChangeText={(amountValue) => setForm((current) => ({ ...current, amount: amountValue }))}
               keyboardType="decimal-pad"
@@ -352,6 +357,8 @@ export function MoneyEntrySheet({
               autoFocus={compact}
             />
           </View>
+          <FieldError message={fields.errors.amount} />
+          <FieldError message={fields.errors.amountPaid} />
           <BudgetImpactBanner
             kind={isIncome ? 'income' : 'expense'}
             amount={amount}
@@ -441,6 +448,7 @@ export function MoneyEntrySheet({
             }))
           }
         />
+        <FieldError message={fields.errors.bankId} />
 
         <DatePickerField label="Date" value={form.date} onChangeText={(date) => setForm((current) => ({ ...current, date }))} />
       </BottomSheet>

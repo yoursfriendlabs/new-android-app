@@ -18,7 +18,10 @@ import { salesApi } from '@/src/api';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { nonNegativeNumber } from '@/src/shared/lib/validation';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
 import { SearchField } from '@/src/shared/ui/SearchField';
@@ -228,8 +231,17 @@ export default function DetailedSalesScreen() {
     setBankId(sale.bankId ?? '');
   }
 
+  const paymentFields = useFieldErrors(() => ({
+    amountReceived: nonNegativeNumber(amountReceivedDraft, 'An amount received cannot be negative.'),
+    bankId: paymentMethod === 'bank' && !bankId ? 'Choose which bank account received this.' : '',
+  }), selectedSale?.id);
+
   async function saveSalePayment() {
     if (!selectedSale) return;
+    if (!paymentFields.check()) {
+      toast.error(paymentFields.first);
+      return;
+    }
     if (!submission.tryStart()) return;
     setSaving(true);
     try {
@@ -643,6 +655,7 @@ export default function DetailedSalesScreen() {
                 value={amountReceivedDraft}
                 onChangeText={setAmountReceivedDraft}
                 keyboardType="numeric"
+                error={paymentFields.errors.amountReceived}
               />
               <PaymentMethodSelector
                 value={paymentMethod}
@@ -650,6 +663,7 @@ export default function DetailedSalesScreen() {
                 bankId={bankId}
                 onBankChange={setBankId}
               />
+              <FieldError message={paymentFields.errors.bankId} />
             </SurfaceCard>
 
             {/* Itemized Lines */}

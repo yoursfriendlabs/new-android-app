@@ -30,7 +30,10 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { workspaceAccessMessage } from '@/src/shared/lib/workspace';
@@ -105,6 +108,19 @@ export function BudgetManagementScreen() {
   const [form, setForm] = useState(emptyBudgetForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+
+  const fields = useFieldErrors(() => ({
+    amount: positiveNumber(
+      form.amount,
+      form.scope === 'savings'
+        ? 'Enter how much you want to save.'
+        : 'Enter a budget amount greater than zero.',
+    ),
+    categoryName:
+      form.scope === 'category' && !form.categoryName.trim()
+        ? 'Choose the expense category this budget covers.'
+        : '',
+  }), sheetOpen);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
   const [seed, setSeed] = useState<Partial<ReturnType<typeof emptyBudgetForm>> | null>(null);
   const mode = useThemeMode();
@@ -155,18 +171,13 @@ export function BudgetManagementScreen() {
   ]);
 
   async function saveBudget() {
+    if (!fields.check()) {
+      haptics.warning();
+      setFormError(fields.first);
+      return;
+    }
     const amount = Number(form.amount);
     const categoryName = form.categoryName.trim();
-    if (!Number.isFinite(amount) || amount <= 0) {
-      haptics.warning();
-      setFormError(form.scope === 'savings' ? 'Enter how much you want to save.' : 'Enter a budget amount greater than zero.');
-      return;
-    }
-    if (form.scope === 'category' && !categoryName) {
-      haptics.warning();
-      setFormError('Choose the expense category this budget covers.');
-      return;
-    }
 
     const periodWord = PERIOD_OPTIONS.find((option) => option.value === form.period)?.label ?? 'Monthly';
     const name = form.name.trim()
@@ -440,9 +451,10 @@ export function BudgetManagementScreen() {
               })}
             </View>
             {!categories.length && !form.categoryName ? <Text style={[styles.categoryEmpty, { color: colors.textMuted }]}>Add an expense category first, then come back to set its limit.</Text> : null}
+            <FieldError message={fields.errors.categoryName} />
           </View> : null}
           <SegmentedTabs value={form.period} onChange={(period) => setForm((current) => ({ ...current, period }))} options={PERIOD_OPTIONS} />
-          <FormField label={form.scope === 'savings' ? 'Amount to save' : 'Budget amount'} value={form.amount} onChangeText={(amount) => setForm((current) => ({ ...current, amount }))} placeholder="0" keyboardType="decimal-pad" icon="cash" />
+          <FormField label={form.scope === 'savings' ? 'Amount to save' : 'Budget amount'} value={form.amount} onChangeText={(amount) => setForm((current) => ({ ...current, amount }))} placeholder="0" keyboardType="decimal-pad" icon="cash" error={fields.errors.amount} />
           <View style={styles.categoryChips}>
             {budgetAmountChips(form.period).map((value) => {
               const selected = Number(form.amount) === value;

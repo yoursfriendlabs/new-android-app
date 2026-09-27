@@ -14,7 +14,10 @@ import { isInvalidSessionError } from '@/src/api/client';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { AmountKeypad } from '@/src/shared/forms/AmountKeypad';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { PartyPickerFlow } from '@/src/shared/forms/PartyPickerFlow';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -184,19 +187,27 @@ export default function QuickEntryScreen() {
     }, [queryClient]),
   );
 
+  const expenseFields = useFieldErrors(() => ({
+    category: requiredText(expenseDraft.value.category, 'Choose a category for this expense.'),
+    amount: positiveNumber(expenseDraft.value.amount, 'Enter an amount greater than zero.'),
+    bankId:
+      expenseDraft.value.paymentMethod === 'bank' && !expenseDraft.value.bankId
+        ? 'Choose a bank account for a bank expense.'
+        : '',
+  }));
+
+  const purchaseFields = useFieldErrors(() => ({
+    supplier: purchaseDraft.value.supplier?.id ? '' : 'Select a supplier first.',
+    amount: positiveNumber(purchaseDraft.value.amount, 'Enter an amount greater than zero.'),
+    bankId:
+      purchaseDraft.value.paymentMethod === 'bank' && !purchaseDraft.value.bankId
+        ? 'Choose a bank account for a bank purchase.'
+        : '',
+  }));
+
   async function saveExpense() {
-    if (!expenseDraft.value.category.trim()) {
-      toast.error('Choose a category before recording the expense.');
-      return;
-    }
-
-    if (expenseDraft.value.amount <= 0) {
-      toast.error('Enter an amount greater than zero.');
-      return;
-    }
-
-    if (expenseDraft.value.paymentMethod === 'bank' && !expenseDraft.value.bankId) {
-      toast.error('Choose a bank account for a bank expense.');
+    if (!expenseFields.check()) {
+      toast.error(expenseFields.first);
       return;
     }
 
@@ -245,6 +256,7 @@ export default function QuickEntryScreen() {
       const savedCategory = expenseDraft.value.category;
       await invalidateMoneyQueries(queryClient);
       await expenseDraft.reset(createQuickExpenseDraft());
+      expenseFields.reset();
       setDetailSheetMode(null);
       setSuccessState({
         visible: true,
@@ -266,26 +278,18 @@ export default function QuickEntryScreen() {
   }
 
   async function savePurchase() {
-    if (!purchaseDraft.value.supplier?.id) {
-      toast.error('Select a supplier first.');
+    if (!purchaseFields.check()) {
+      toast.error(purchaseFields.first);
       return;
     }
-
-    if (purchaseDraft.value.amount <= 0) {
-      toast.error('Enter an amount greater than zero.');
-      return;
-    }
-
-    if (purchaseDraft.value.paymentMethod === 'bank' && !purchaseDraft.value.bankId) {
-      toast.error('Choose a bank account for a bank purchase.');
-      return;
-    }
+    const supplier = purchaseDraft.value.supplier;
+    if (!supplier?.id) return;
 
     const description =
       purchaseDraft.value.description.trim() || 'Quick purchase from mobile';
     const payload = {
       entryType: 'purchase' as const,
-      partyId: purchaseDraft.value.supplier.id,
+      partyId: supplier.id,
       partyName: null,
       invoiceNo: purchaseDraft.value.invoiceNo,
       purchaseDate: purchaseDraft.value.date,
@@ -324,8 +328,9 @@ export default function QuickEntryScreen() {
       });
 
       const savedAmount = purchaseDraft.value.amount;
-      const savedSupplier = purchaseDraft.value.supplier.name;
+      const savedSupplier = supplier.name;
       await purchaseDraft.reset(createQuickPurchaseDraft());
+      purchaseFields.reset();
       setDetailSheetMode(null);
       setSuccessState({
         visible: true,
@@ -449,12 +454,16 @@ export default function QuickEntryScreen() {
                   />
                 </Pressable>
 
+                <FieldError message={expenseFields.errors.category} />
+
                 <AmountKeypad
                   value={expenseDraft.value.amount}
                   onChange={(amount) =>
                     expenseDraft.setValue((current) => ({ ...current, amount }))
                   }
                 />
+                <FieldError message={expenseFields.errors.amount} />
+                <FieldError message={expenseFields.errors.bankId} />
 
                 <Pressable
                   style={styles.primaryAction}
@@ -502,6 +511,7 @@ export default function QuickEntryScreen() {
                     size={22}
                   />
                 </Pressable>
+                <FieldError message={purchaseFields.errors.supplier} />
 
                 <FormField
                   label="Description"
@@ -518,6 +528,8 @@ export default function QuickEntryScreen() {
                     purchaseDraft.setValue((current) => ({ ...current, amount }))
                   }
                 />
+                <FieldError message={purchaseFields.errors.amount} />
+                <FieldError message={purchaseFields.errors.bankId} />
 
                 <Pressable
                   style={styles.primaryAction}
