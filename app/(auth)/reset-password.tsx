@@ -12,12 +12,13 @@ import {
 } from '@/src/features/auth/components/AuthControls';
 import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
 import { OtpInput } from '@/src/features/auth/components/OtpInput';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredEmail, requiredText } from '@/src/shared/lib/validation';
 import { FormField } from '@/src/shared/forms/FormField';
 import { authApi } from '@/src/api';
 import {
   getPasswordHint,
   isStrongPassword,
-  isValidEmail,
   OTP_LENGTH,
   OTP_RESEND_SECONDS,
   resolveAuthMessage,
@@ -45,15 +46,21 @@ export default function ResetPasswordScreen() {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
+  const emailFields = useFieldErrors(() => ({ email: requiredEmail(email) }), step);
+  const passwordFields = useFieldErrors(() => ({
+    newPassword: requiredText(newPassword, 'Enter a new password.') ||
+      (isStrongPassword(newPassword) ? '' : getPasswordHint(newPassword)),
+    confirmPassword: newPassword === confirmPassword ? '' : 'Passwords do not match.',
+  }), step);
+
   function showError(error: unknown, fallback: string) {
     setTone('error');
     setMessage(resolveAuthMessage(error, fallback));
   }
 
   async function requestCode() {
-    if (!isValidEmail(email)) {
-      setTone('error');
-      setMessage('Enter the email linked to your account.');
+    if (!emailFields.check()) {
+      setMessage('');
       return;
     }
 
@@ -98,14 +105,8 @@ export default function ResetPasswordScreen() {
   }
 
   async function resetPassword() {
-    if (!isStrongPassword(newPassword)) {
-      setTone('error');
-      setMessage(getPasswordHint(newPassword) || 'Choose a stronger password.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setTone('error');
-      setMessage('Passwords do not match.');
+    if (!passwordFields.check()) {
+      setMessage('');
       return;
     }
 
@@ -179,6 +180,7 @@ export default function ResetPasswordScreen() {
             label="Email"
             icon="email-outline"
             value={email}
+            error={emailFields.errors.email}
             onChangeText={setEmail}
             placeholder="you@email.com"
             keyboardType="email-address"
@@ -226,6 +228,7 @@ export default function ResetPasswordScreen() {
             label="New password"
             icon="lock-outline"
             value={newPassword}
+            error={passwordFields.errors.newPassword}
             onChangeText={setNewPassword}
             placeholder="New password"
             secureTextEntry
@@ -238,6 +241,7 @@ export default function ResetPasswordScreen() {
             label="Confirm password"
             icon="lock-check-outline"
             value={confirmPassword}
+            error={passwordFields.errors.confirmPassword}
             onChangeText={setConfirmPassword}
             placeholder="Repeat new password"
             secureTextEntry

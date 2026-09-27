@@ -23,6 +23,8 @@ import {
 } from '@/src/features/auth/components/WorkspaceTypePicker';
 import {
   digitsOnly,
+  isStrongPassword,
+  getPasswordHint,
   getSignupDetailsError,
   getSignupEmailError,
   getWorkspaceError,
@@ -125,6 +127,7 @@ export function RegisterScreen() {
     const nextError = getSignupEmailError(email);
     if (nextError) {
       setError(nextError);
+      setFieldErrors({ email: nextError });
       return;
     }
 
@@ -176,7 +179,7 @@ export function RegisterScreen() {
       setFieldErrors({
         name: form.name.trim().length < 2 ? 'Enter your name' : '',
         phone: digitsOnly(form.phone).length < PHONE_MIN_DIGITS ? `At least ${PHONE_MIN_DIGITS} digits` : '',
-        password: form.password ? '' : 'Required',
+        password: isStrongPassword(form.password) ? '' : getPasswordHint(form.password) || 'Enter a password.',
         confirmPassword: form.password !== form.confirmPassword ? 'Does not match' : '',
       });
       return;
@@ -196,6 +199,7 @@ export function RegisterScreen() {
     });
     if (nextError) {
       setError(nextError);
+      setFieldErrors({ businessName: !isPersonal && !form.businessName.trim() ? nextError : '' });
       return;
     }
 
@@ -297,8 +301,10 @@ export function RegisterScreen() {
             label="Email"
             icon="email-outline"
             value={email}
+            error={fieldErrors.email}
             onChangeText={(value) => {
               setEmail(value);
+              setFieldErrors((current) => ({ ...current, email: '' }));
               setError('');
               setEmailTaken(false);
             }}
@@ -411,6 +417,7 @@ export function RegisterScreen() {
             label={isPersonal ? 'Space name' : 'Business name'}
             icon={isPersonal ? 'home-outline' : 'domain'}
             value={form.businessName}
+            error={fieldErrors.businessName}
             onChangeText={(businessName) => update('businessName', businessName)}
             placeholder={isPersonal ? personalWorkspaceName(displayName) : 'Shop name'}
             autoCapitalize="words"

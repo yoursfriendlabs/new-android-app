@@ -8,8 +8,11 @@ import {
   BusinessTypePicker,
   buildExtraBusinessTypeOptions,
 } from '@/src/features/auth/components/WorkspaceTypePicker';
-import { getCreateBusinessError, resolveAuthMessage } from '@/src/features/auth/lib/auth';
+import { resolveAuthMessage } from '@/src/features/auth/lib/auth';
+import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredText } from '@/src/shared/lib/validation';
 import { Screen } from '@/src/shared/layout/Screen';
 import { PageHeading } from '@/src/shared/ui/PageHeading';
 import { SurfaceCard } from '@/src/shared/ui/SurfaceCard';
@@ -107,10 +110,14 @@ export function WorkspaceScreen() {
     }
   }
 
+  const fields = useFieldErrors(() => ({
+    name: requiredText(name, 'Enter a business name.'),
+    type: type === 'retail' || type === 'cafe' ? '' : 'Choose Standard or Cafe.',
+  }));
+
   async function handleCreate() {
-    const nextError = getCreateBusinessError({ name, type });
-    if (nextError) {
-      setError(nextError);
+    if (!fields.check()) {
+      setError('');
       return;
     }
     setError('');
@@ -197,8 +204,10 @@ export function WorkspaceScreen() {
               }}
               placeholder="Shop name"
               editable={!busy}
+              error={fields.errors.name}
             />
             <BusinessTypePicker options={typeOptions} value={type} onChange={setType} />
+            <FieldError message={fields.errors.type} />
             <Pressable
               disabled={busy}
               onPress={() => void handleCreate()}

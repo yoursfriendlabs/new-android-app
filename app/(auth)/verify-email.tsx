@@ -5,8 +5,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { AuthButton, AuthInlineLink, AuthNotice, StepIndicator } from '@/src/features/auth/components/AuthControls';
 import { AuthScreen } from '@/src/features/auth/components/AuthScreen';
 import { OtpInput } from '@/src/features/auth/components/OtpInput';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { requiredEmail } from '@/src/shared/lib/validation';
 import { FormField } from '@/src/shared/forms/FormField';
-import { isValidEmail, OTP_LENGTH, OTP_RESEND_SECONDS, resolveAuthMessage } from '@/src/features/auth/lib/auth';
+import { OTP_LENGTH, OTP_RESEND_SECONDS, resolveAuthMessage } from '@/src/features/auth/lib/auth';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { spacing, typography } from '@/src/theme';
@@ -30,10 +32,11 @@ export default function VerifyEmailScreen() {
     return () => clearTimeout(timer);
   }, [resendIn]);
 
+  const fields = useFieldErrors(() => ({ email: requiredEmail(email) }));
+
   async function handleResend() {
-    if (!isValidEmail(email)) {
-      setTone('error');
-      setMessage('Enter the email you registered with.');
+    if (!fields.check()) {
+      setMessage('');
       return;
     }
 
@@ -55,9 +58,8 @@ export default function VerifyEmailScreen() {
 
   async function handleVerify(nextCode = code) {
     if (submitting) return;
-    if (!isValidEmail(email)) {
-      setTone('error');
-      setMessage('Enter the email you registered with.');
+    if (!fields.check()) {
+      setMessage('');
       return;
     }
     const otp = nextCode.replace(/\D/g, '');
@@ -103,6 +105,7 @@ export default function VerifyEmailScreen() {
           label="Email"
           icon="email-outline"
           value={email}
+          error={fields.errors.email}
           onChangeText={setEmail}
           placeholder="you@email.com"
           keyboardType="email-address"
