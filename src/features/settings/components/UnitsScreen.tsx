@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { unitsApi } from '@/src/api';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
@@ -40,7 +41,9 @@ export function UnitsScreen() {
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editing, setEditing] = useState<Unit | null>(null);
   const [form, setForm] = useState<UnitForm>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
+  /** Which button is working: 'close' saves and closes, 'new' saves and stays. */
+  const submission = useSubmissionLock();
+  const [saving, setSaving] = useState<'close' | 'new' | null>(null);
 
   const visibleUnits = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
@@ -56,7 +59,12 @@ export function UnitsScreen() {
     setSheetVisible(true);
   }
 
-  async function handleSave() {
+  /**
+   * Shops set units up in a run — kg, then litre, then box. `keepOpen` saves
+   * this one and leaves a blank form behind instead of closing the sheet.
+   */
+  async function handleSave({ keepOpen = false } = {}) {
+    if (saving) return;
     const name = form.name.trim();
     const symbol = form.symbol.trim() || name.toLowerCase();
     if (!name) {
@@ -64,20 +72,27 @@ export function UnitsScreen() {
       return;
     }
 
+    if (!submission.tryStart()) return;
     try {
-      setSaving(true);
+      setSaving(keepOpen ? 'new' : 'close');
       if (editing) {
         await unitsApi.update(editing.id, { name, symbol });
       } else {
         await unitsApi.create({ name, symbol });
       }
       await queryClient.invalidateQueries({ queryKey: ['units'] });
-      setSheetVisible(false);
       toast.success(editing ? 'Unit updated' : 'Unit added');
+
+      if (keepOpen && !editing) {
+        setForm(EMPTY_FORM);
+      } else {
+        setSheetVisible(false);
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Please try again.');
     } finally {
-      setSaving(false);
+      submission.finish();
+      setSaving(null);
     }
   }
 
@@ -152,24 +167,43 @@ export function UnitsScreen() {
         visible={sheetVisible}
         title={editing ? 'Edit unit' : 'New unit'}
         subtitle="The short form is what prints on bills, e.g. kg."
-        onClose={() => setSheetVisible(false)}
+        onClose={() => { if (!submission.isBusy()) setSheetVisible(false); }}
         footer={
-          <Pressable style={styles.primaryButton} onPress={() => void handleSave()} disabled={saving || !form.name.trim()}>
-            {saving ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
-              <Text style={styles.primaryLabel}>{editing ? 'Save' : 'Create unit'}</Text>
-            )}
-          </Pressable>
+          <View style={styles.sheetActions}>
+            {!editing ? (
+              <Pressable
+                style={[styles.secondaryButton, (Boolean(saving) || !form.name.trim()) && styles.buttonDisabled]}
+                onPress={() => void handleSave({ keepOpen: true })}
+                disabled={Boolean(saving) || !form.name.trim()}>
+                {saving === 'new' ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={styles.secondaryLabel}>Save &amp; new</Text>
+                )}
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={[styles.primaryButton, (Boolean(saving) || !form.name.trim()) && styles.buttonDisabled]}
+              onPress={() => void handleSave()}
+              disabled={Boolean(saving) || !form.name.trim()}>
+              {saving === 'close' ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <Text style={styles.primaryLabel}>{editing ? 'Save' : 'Create unit'}</Text>
+              )}
+            </Pressable>
+          </View>
         }>
         <FormField
           label="Name"
+          editable={!saving}
           value={form.name}
           placeholder="e.g. Kilogram, Piece, Box"
           onChangeText={(name) => setForm((current) => ({ ...current, name }))}
         />
         <FormField
           label="Short form"
+          editable={!saving}
           value={form.symbol}
           placeholder="e.g. kg, pcs, box"
           autoCapitalize="none"
@@ -228,6 +262,10 @@ const createStyles = (colors: AppPalette) =>
       borderRadius: 18,
       backgroundColor: colors.backgroundAlt,
     },
+    sheetActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
     primaryButton: {
       flex: 1,
       minHeight: 52,
@@ -240,5 +278,22 @@ const createStyles = (colors: AppPalette) =>
       color: colors.onPrimary,
       fontSize: typography.body,
       fontWeight: '800',
+    },
+    secondaryButton: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    secondaryLabel: {
+      color: colors.primary,
+      fontSize: typography.body,
+      fontWeight: '800',
+    },
+    buttonDisabled: {
+      opacity: 0.6,
     },
   });

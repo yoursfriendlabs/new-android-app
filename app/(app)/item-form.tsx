@@ -87,9 +87,11 @@ export default function ItemFormScreen() {
   const unitLabelText = form.secondaryUnit.trim()
     ? `${form.primaryUnit || 'unit'} & ${form.secondaryUnit}`
     : form.primaryUnit || 'Select unit';
+  // The rate counts secondary units inside one primary unit — the same way the
+  // server divides a secondary quantity back into stock.
   const conversionHint =
     form.secondaryUnit.trim() && form.conversionRate.trim() && Number(form.conversionRate) > 0
-      ? `1 ${form.secondaryUnit.trim()} = ${Number(form.conversionRate)} ${form.primaryUnit.trim() || 'units'}`
+      ? `1 ${form.primaryUnit.trim() || 'unit'} = ${Number(form.conversionRate)} ${form.secondaryUnit.trim()}`
       : '';
 
   function applyUnit(selection: UnitSelection) {

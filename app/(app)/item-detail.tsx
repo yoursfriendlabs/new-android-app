@@ -325,7 +325,7 @@ export default function ItemDetailScreen() {
                   label="Units"
                   value={`${product.primaryUnit} / ${product.secondaryUnit}${
                     product.secondaryConversionRate
-                      ? ` (1 ${product.secondaryUnit} = ${product.secondaryConversionRate} ${product.primaryUnit})`
+                      ? ` (1 ${product.primaryUnit} = ${product.secondaryConversionRate} ${product.secondaryUnit})`
                       : ''
                   }`}
                 />
