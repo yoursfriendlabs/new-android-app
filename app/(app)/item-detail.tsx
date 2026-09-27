@@ -11,6 +11,8 @@ import { ActionSheet } from '@/src/shared/feedback/ActionSheet';
 import { useConfirm } from '@/src/shared/feedback/ConfirmProvider';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FormField } from '@/src/shared/forms/FormField';
+import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
+import { atMost, positiveNumber, requiredText } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { Screen } from '@/src/shared/layout/Screen';
@@ -139,19 +141,33 @@ export default function ItemDetailScreen() {
     }
   }
 
+  const exchangeFields = useFieldErrors(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const expiry = exchangeExpiry.trim();
+    return {
+      batchNumber: requiredText(exchangeBatchNumber, 'Enter the new batch number.'),
+      expiry:
+        requiredText(expiry, 'Pick the new expiry date.') ||
+        (expiry < today ? 'A replacement lot cannot already be expired.' : ''),
+      quantity: exchangeQuantity.trim()
+        ? positiveNumber(exchangeQuantity, 'Enter how many to exchange.') ||
+          atMost(
+            exchangeQuantity,
+            Number(exchangeLot?.quantityOnHand ?? 0),
+            `Only ${exchangeLot?.quantityOnHand ?? 0} in this lot.`,
+          )
+        : '',
+    };
+  }, exchangeLot?.id);
+
   async function saveLotExchange() {
     if (!id || !exchangeLot?.id) return;
+    if (!exchangeFields.check()) {
+      toast.error(exchangeFields.first);
+      return;
+    }
     const batchNumber = exchangeBatchNumber.trim();
     const expiry = exchangeExpiry.trim();
-    if (!batchNumber || !expiry) {
-      toast.error('Enter a new batch number and a future expiry date.');
-      return;
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    if (expiry < today) {
-      toast.error('Replacement expiry must be today or in the future.');
-      return;
-    }
     if (!submission.tryStart()) return;
     setSavingExchange(true);
     try {
@@ -426,14 +442,15 @@ export default function ItemDetailScreen() {
                   <Text style={styles.actionBoxSubtitle}>
                     Replace {exchangeLot.batchNumber ? `batch "${exchangeLot.batchNumber}"` : 'this lot'} with a supplier-replaced batch and a valid future expiry.
                   </Text>
-                  <FormField label="New batch number *" value={exchangeBatchNumber} onChangeText={setExchangeBatchNumber} placeholder="e.g. NEW-LOT-1" />
-                  <DatePickerField label="New expiry date *" value={exchangeExpiry} onChangeText={setExchangeExpiry} />
+                  <FormField label="New batch number *" value={exchangeBatchNumber} onChangeText={setExchangeBatchNumber} placeholder="e.g. NEW-LOT-1" error={exchangeFields.errors.batchNumber} />
+                  <DatePickerField label="New expiry date *" value={exchangeExpiry} onChangeText={setExchangeExpiry} error={exchangeFields.errors.expiry} />
                   <FormField
                     label="Exchange quantity"
                     value={exchangeQuantity}
                     onChangeText={setExchangeQuantity}
                     keyboardType="numeric"
                     placeholder={String(exchangeLot.quantityOnHand)}
+                    error={exchangeFields.errors.quantity}
                   />
                   <FormField label="Note" value={exchangeNote} onChangeText={setExchangeNote} placeholder="Optional exchange remarks" />
                   <View style={styles.footerRow}>
