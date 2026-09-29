@@ -56,6 +56,7 @@ Tab entries go in `app/(app)/(tabs)/_layout.tsx`. Stack screens go in `app/(app)
 - Sheets use `BottomSheet` from `@/src/shared/feedback/BottomSheet`. Form sheets should open tall (`fullHeight` for editors).
 - Cards stay flat (no elevation). Top bar already has the title — do not repeat it on the page.
 - Colors: `const colors = usePalette()` and `useThemedStyles(createStyles)`.
+- Filters use `SegmentedTabs`; individual choices use `FilterChip`. Both use the dashboard's 34dp pill with a separate 48dp touch area. Let filter rows scroll horizontally and form choices wrap.
 
 ```tsx
 const createStyles = (colors: AppPalette) =>

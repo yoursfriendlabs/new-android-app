@@ -1,10 +1,11 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { SearchField } from '@/src/shared/ui/SearchField';
 import { usePalette } from '@/src/stores/theme-store';
-import { radius, spacing, typography } from '@/src/theme';
+import { radius, spacing } from '@/src/theme';
 
 interface ProductFiltersProps {
   search: string;
@@ -42,26 +43,11 @@ export function ProductFilters({
         </Pressable>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesScroll}>
-        {categoryOptions.map((opt) => {
-          const isSelected = category === opt;
-          return (
-            <Pressable
-              key={opt}
-              style={[
-                styles.catChip,
-                { backgroundColor: colors.backgroundAlt, borderColor: colors.border },
-                isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
-              ]}
-              onPress={() => setCategory(opt)}>
-              <Text style={[styles.catChipLabel, { color: isSelected ? colors.onPrimary : colors.text }]}>{opt}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <SegmentedTabs
+        value={category}
+        options={categoryOptions.map((option) => ({ label: option, value: option }))}
+        onChange={setCategory}
+      />
     </View>
   );
 }
@@ -90,21 +76,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  categoriesScroll: {
-    gap: spacing.xs,
-    paddingVertical: 4,
-  },
-  catChip: {
-    paddingHorizontal: spacing.md,
-    height: 36,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  catChipLabel: {
-    fontSize: typography.label,
-    fontWeight: '700',
   },
 });

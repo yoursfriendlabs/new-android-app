@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { FilterChip } from '@/src/shared/ui/FilterChip';
 import { normalizePurchase, unwrapEntity } from '@/src/api/normalize';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import { PurchaseLineSheet } from '@/src/features/purchases/components/PurchaseLineSheet';
@@ -418,14 +419,12 @@ export function PurchaseCreateScreen() {
         <SurfaceCard title="Payment" subtitle="What you handed over now. The rest stays on the supplier's account.">
           <View style={styles.chipRow}>
             {paidChips.map((chip) => (
-              <Pressable
+              <FilterChip
                 key={chip.label}
-                style={[styles.chip, { backgroundColor: chip.active ? colors.primary : colors.backgroundAlt }]}
-                onPress={() => patchDraft({ amountPaid: chip.amount })}>
-                <Text variant="label" tone={chip.active ? 'onPrimary' : 'muted'}>
-                  {chip.label}
-                </Text>
-              </Pressable>
+                label={chip.label}
+                selected={chip.active}
+                onPress={() => patchDraft({ amountPaid: chip.amount })}
+              />
             ))}
           </View>
 
@@ -676,14 +675,7 @@ const createStyles = (colors: AppPalette) =>
     chipRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.xs,
-    },
-    chip: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.xs,
-      borderRadius: radius.pill,
-      minHeight: 36,
-      justifyContent: 'center',
+      columnGap: spacing.xs,
     },
     barTotals: {
       flexDirection: 'row',

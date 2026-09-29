@@ -17,6 +17,7 @@ import { SuccessSheet } from '@/src/shared/feedback/SuccessSheet';
 import { FieldError } from '@/src/shared/forms/FieldError';
 import { FormField } from '@/src/shared/forms/FormField';
 import { PaymentMethodSelector } from '@/src/shared/forms/PaymentMethodSelector';
+import { FilterChip } from '@/src/shared/ui/FilterChip';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { invalidateMoneyQueries, useBanks, useQuickExpenses } from '@/src/shared/hooks/useAppQueries';
 import { formatCurrency, todayIso } from '@/src/shared/lib/format';
@@ -234,23 +235,20 @@ export function ExpenseFormSheet({ onClose, visible }: ExpenseFormSheetProps) {
           {categoryNames.map((name) => {
             const active = form.category === name;
             return (
-              <Pressable
+              <FilterChip
                 key={name}
-                style={[styles.chip, active && styles.chipActive]}
-                onPress={() => setForm((current) => ({ ...current, category: name }))}>
-                <MaterialCommunityIcons
-                  name={expenseCategoryIcon(name)}
-                  size={16}
-                  color={active ? colors.onPrimary : colors.primary}
-                />
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{name}</Text>
-              </Pressable>
+                label={name}
+                selected={active}
+                icon={<MaterialCommunityIcons name={expenseCategoryIcon(name)} size={16} color={active ? colors.onPrimary : colors.primaryText} />}
+                onPress={() => setForm((current) => ({ ...current, category: name }))}
+              />
             );
           })}
-          <Pressable style={styles.chipAdd} onPress={() => setAddingCategory((current) => !current)}>
-            <MaterialCommunityIcons color={colors.primary} name="plus" size={16} />
-            <Text style={styles.chipAddLabel}>New</Text>
-          </Pressable>
+          <FilterChip
+            label="New"
+            icon={<MaterialCommunityIcons color={colors.primaryText} name="plus" size={16} />}
+            onPress={() => setAddingCategory((current) => !current)}
+          />
         </View>
         {form.category === 'Other' ? (
           <FormField
@@ -396,47 +394,7 @@ const createStyles = (colors: AppPalette) =>
     chipWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
-    },
-    chip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    chipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    chipLabel: {
-      fontSize: typography.label,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    chipLabelActive: {
-      color: colors.onPrimary,
-    },
-    chipAdd: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.primary,
-      backgroundColor: colors.accentSoft,
-    },
-    chipAddLabel: {
-      fontSize: typography.label,
-      fontWeight: '800',
-      color: colors.primary,
+      columnGap: spacing.xs,
     },
     addCategoryRow: {
       flexDirection: 'row',

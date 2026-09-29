@@ -1,7 +1,7 @@
-import { type StyleProp, type ViewStyle, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { type StyleProp, type ViewStyle, ScrollView, StyleSheet } from 'react-native';
 
-import { usePalette } from '@/src/stores/theme-store';
-import { a11y, radius, spacing, typography } from '@/src/theme';
+import { FilterChip } from '@/src/shared/ui/FilterChip';
+import { spacing } from '@/src/theme';
 
 interface SegmentedTabsProps<T extends string> {
   value: T;
@@ -26,43 +26,24 @@ export function SegmentedTabs<T extends string>({
   options,
   value,
 }: SegmentedTabsProps<T>) {
-  const colors = usePalette();
-  const resolvedActiveBackground = activeBackgroundColor ?? colors.primary;
-  const resolvedActiveText = activeTextColor ?? colors.onPrimary;
-  const resolvedInactiveBackground = inactiveBackgroundColor ?? colors.backgroundAlt;
-  const resolvedInactiveText = inactiveTextColor ?? colors.textMuted;
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      style={[style, { flexGrow: 0 }]}
+      style={[style, styles.scroll]}
       contentContainerStyle={[styles.wrap, contentContainerStyle]}>
       {options.map((option) => {
         const active = option.value === value;
         return (
-          <Pressable
+          <FilterChip
             key={option.value}
-            accessibilityRole="button"
-            accessibilityLabel={option.label}
-            accessibilityState={{ selected: active }}
-            hitSlop={a11y.hitSlop}
-            style={({ pressed }) => [
-              styles.pill,
-              { backgroundColor: resolvedInactiveBackground },
-              active && [styles.pillActive, { backgroundColor: resolvedActiveBackground }],
-              pressed && { opacity: 0.8 },
-            ]}
-            onPress={() => onChange(option.value)}>
-            <Text
-              style={[
-                styles.label,
-                { color: resolvedInactiveText },
-                active && [styles.labelActive, { color: resolvedActiveText }],
-              ]}>
-              {option.label}
-            </Text>
-          </Pressable>
+            label={option.label}
+            selected={active}
+            backgroundColor={active ? activeBackgroundColor : inactiveBackgroundColor}
+            textColor={active ? activeTextColor : inactiveTextColor}
+            onPress={() => onChange(option.value)}
+          />
         );
       })}
     </ScrollView>
@@ -70,27 +51,9 @@ export function SegmentedTabs<T extends string>({
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0, flexShrink: 0 },
   wrap: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xxs,
-    minHeight: 40,
+    gap: spacing.xs,
     alignItems: 'center',
   },
-  pill: {
-    flexShrink: 0,
-    alignSelf: 'flex-start',
-    minHeight: 36,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 0,
-    borderRadius: radius.pill,
-    justifyContent: 'center',
-    maxWidth: 220,
-  },
-  pillActive: {},
-  label: {
-    fontSize: typography.label,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  labelActive: {},
 });

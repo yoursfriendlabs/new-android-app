@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { WorkspaceSwitchSheet } from '@/src/features/auth/components/WorkspaceSwitchSheet';
 import { Avatar } from '@/src/shared/ui/Avatar';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -283,37 +284,14 @@ export function ShopHomeScreen() {
           </View>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.periodRow}>
-          {PERIODS.map((period) => {
-            const active = selectedPeriod === period.value;
-            return (
-              <Pressable
-                key={period.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={period.label}
-                onPress={() => {
-                  haptics.selection();
-                  setSelectedPeriod(period.value);
-                }}
-                style={({ pressed }) => [
-                  styles.periodChip,
-                  {
-                    backgroundColor: active ? colors.primary : colors.surface,
-                    borderColor: active ? colors.primary : colors.border,
-                  },
-                  pressed && { opacity: 0.82 },
-                ]}>
-                <Text style={[styles.periodLabel, { color: active ? colors.onPrimary : colors.textMuted }]}>
-                  {period.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <SegmentedTabs
+          value={selectedPeriod}
+          options={PERIODS}
+          onChange={(period) => {
+            haptics.selection();
+            setSelectedPeriod(period);
+          }}
+        />
 
         {summaryQuery.isLoading && !summary ? (
           <SkeletonMetricGrid count={6} />
@@ -520,20 +498,6 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: spacing.xs,
-  },
-  periodRow: {
-    gap: spacing.xs,
-  },
-  periodChip: {
-    minHeight: 34,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    justifyContent: 'center',
-  },
-  periodLabel: {
-    fontSize: typography.label,
-    fontWeight: '700',
   },
   metricGrid: {
     flexDirection: 'row',

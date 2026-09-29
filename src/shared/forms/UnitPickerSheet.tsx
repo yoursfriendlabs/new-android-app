@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
 import { unitsApi } from '@/src/api';
+import { FilterChip } from '@/src/shared/ui/FilterChip';
 import { BottomSheet } from '@/src/shared/feedback/BottomSheet';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { FieldError } from '@/src/shared/forms/FieldError';
@@ -176,24 +177,25 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
         {units.map((unit) => {
           const active = draft.primaryUnitId === unit.id;
           return (
-            <Pressable
+            <FilterChip
               key={unit.id}
-              style={[styles.chip, active && styles.chipActive]}
+              label={unitLabel(unit)}
+              selected={active}
               onPress={() =>
                 setDraft((current) => ({
                   ...current,
                   primaryUnitId: unit.id,
                   primaryUnit: unit.name || unit.symbol || current.primaryUnit,
                 }))
-              }>
-              <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{unitLabel(unit)}</Text>
-            </Pressable>
+              }
+            />
           );
         })}
-        <Pressable style={[styles.chip, styles.chipAdd]} onPress={() => openCreate('primary')}>
-          <MaterialCommunityIcons color={colors.primary} name="plus" size={16} />
-          <Text style={[styles.chipLabel, { color: colors.primary }]}>New unit</Text>
-        </Pressable>
+        <FilterChip
+          label="New unit"
+          icon={<MaterialCommunityIcons color={colors.primaryText} name="plus" size={16} />}
+          onPress={() => openCreate('primary')}
+        />
       </View>
       {!units.length ? (
         <Text style={[styles.empty, { color: colors.textMuted }]}>
@@ -204,32 +206,33 @@ export function UnitPickerSheet({ onApply, onClose, value, visible }: UnitPicker
 
       <Text style={styles.sectionLabel}>Secondary unit (optional)</Text>
       <View style={styles.chipWrap}>
-        <Pressable
-          style={[styles.chip, !draft.secondaryUnitId && styles.chipActive]}
-          onPress={() => setDraft((current) => ({ ...current, secondaryUnit: '', secondaryUnitId: '', conversionRate: '' }))}>
-          <Text style={[styles.chipLabel, !draft.secondaryUnitId && styles.chipLabelActive]}>None</Text>
-        </Pressable>
+        <FilterChip
+          label="None"
+          selected={!draft.secondaryUnitId}
+          onPress={() => setDraft((current) => ({ ...current, secondaryUnit: '', secondaryUnitId: '', conversionRate: '' }))}
+        />
         {units.map((unit) => {
           const active = draft.secondaryUnitId === unit.id;
           return (
-            <Pressable
+            <FilterChip
               key={unit.id}
-              style={[styles.chip, active && styles.chipActive]}
+              label={unitLabel(unit)}
+              selected={active}
               onPress={() =>
                 setDraft((current) => ({
                   ...current,
                   secondaryUnitId: unit.id,
                   secondaryUnit: unit.name || unit.symbol || current.secondaryUnit,
                 }))
-              }>
-              <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{unitLabel(unit)}</Text>
-            </Pressable>
+              }
+            />
           );
         })}
-        <Pressable style={[styles.chip, styles.chipAdd]} onPress={() => openCreate('secondary')}>
-          <MaterialCommunityIcons color={colors.primary} name="plus" size={16} />
-          <Text style={[styles.chipLabel, { color: colors.primary }]}>New unit</Text>
-        </Pressable>
+        <FilterChip
+          label="New unit"
+          icon={<MaterialCommunityIcons color={colors.primaryText} name="plus" size={16} />}
+          onPress={() => openCreate('secondary')}
+        />
       </View>
       {newUnitForm('secondary')}
 
@@ -272,36 +275,7 @@ const createStyles = (colors: AppPalette) =>
     chipWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
-    },
-    chip: {
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    chipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    chipAdd: {
-      flexDirection: 'row',
-      gap: 4,
-      borderStyle: 'dashed',
-      borderColor: colors.primary,
-      backgroundColor: 'transparent',
-    },
-    chipLabel: {
-      fontSize: typography.label,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    chipLabelActive: {
-      color: colors.onPrimary,
+      columnGap: spacing.xs,
     },
     createCard: {
       gap: spacing.sm,

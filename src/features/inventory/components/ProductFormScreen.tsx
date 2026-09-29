@@ -15,6 +15,7 @@ import { FieldError } from '@/src/shared/forms/FieldError';
 import { UnitPickerSheet, type UnitSelection } from '@/src/shared/forms/UnitPickerSheet';
 import { ProductImagePicker } from '@/src/shared/forms/ProductImagePicker';
 import { Screen } from '@/src/shared/layout/Screen';
+import { FilterChip } from '@/src/shared/ui/FilterChip';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import {
@@ -374,12 +375,12 @@ export function ProductFormScreen() {
                 {METAL_TYPE_OPTIONS.map((option) => {
                   const active = form.metalType === option.value;
                   return (
-                    <Pressable
+                    <FilterChip
                       key={option.value}
-                      style={[styles.chip, active && styles.chipActive]}
-                      onPress={() => setForm((current) => ({ ...current, metalType: option.value, purity: '' }))}>
-                      <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{option.label}</Text>
-                    </Pressable>
+                      label={option.label}
+                      selected={active}
+                      onPress={() => setForm((current) => ({ ...current, metalType: option.value, purity: '' }))}
+                    />
                   );
                 })}
               </View>
@@ -390,12 +391,12 @@ export function ProductFormScreen() {
                     {purityOptions.map((option) => {
                       const active = form.purity === option;
                       return (
-                        <Pressable
+                        <FilterChip
                           key={option}
-                          style={[styles.chip, active && styles.chipActive]}
-                          onPress={() => setForm((current) => ({ ...current, purity: option }))}>
-                          <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{option}</Text>
-                        </Pressable>
+                          label={option}
+                          selected={active}
+                          onPress={() => setForm((current) => ({ ...current, purity: option }))}
+                        />
                       );
                     })}
                   </View>
@@ -538,28 +539,6 @@ const createStyles = (colors: AppPalette) =>
     chipWrap: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
-    },
-    chip: {
-      minHeight: 36,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.pill,
-      backgroundColor: colors.backgroundAlt,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    chipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    chipLabel: {
-      fontSize: typography.label,
-      fontWeight: '700',
-      color: colors.text,
-    },
-    chipLabelActive: {
-      color: colors.onPrimary,
+      columnGap: spacing.xs,
     },
   });
