@@ -10,6 +10,7 @@ import { FormField } from '@/src/shared/forms/FormField';
 import { useFieldErrors } from '@/src/shared/hooks/useFieldErrors';
 import { atMost, positiveNumber } from '@/src/shared/lib/validation';
 import { DatePickerField } from '@/src/shared/forms/DatePickerField';
+import { AdaptiveRow } from '@/src/shared/layout/AdaptiveRow';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { formatCurrency } from '@/src/shared/lib/format';
 import { getCurrentStock, invalidateInventoryQueries } from '@/src/features/inventory/lib/inventory';
@@ -114,7 +115,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
         ]}
       />
 
-      <View style={styles.summaryRow}>
+      <AdaptiveRow>
         <View style={[styles.summaryCard, { backgroundColor: colors.backgroundAlt }]}>
           <Text style={styles.summaryLabel}>On hand</Text>
           <Text style={[styles.summaryValue, { color: colors.text }]}>
@@ -127,7 +128,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
             {Number.isFinite(nextStock) ? nextStock : currentStock} {unit}
           </Text>
         </View>
-      </View>
+      </AdaptiveRow>
 
       <FormField
         label={action === 'remove' ? 'Quantity to remove' : 'Quantity to add'}
@@ -153,12 +154,7 @@ export function ProductRestockSheet({ initialAction = 'add', onClose, product, v
 
 const createStyles = (colors: AppPalette) =>
   StyleSheet.create({
-    summaryRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
     summaryCard: {
-      flex: 1,
       borderRadius: radius.md,
       padding: spacing.md,
       gap: 4,

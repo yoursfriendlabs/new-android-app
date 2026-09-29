@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { AdaptiveRow } from '@/src/shared/layout/AdaptiveRow';
 import { FilterChip } from '@/src/shared/ui/FilterChip';
 import { normalizePurchase, unwrapEntity } from '@/src/api/normalize';
 import { partyInitials } from '@/src/features/parties/lib/party';
@@ -319,22 +320,18 @@ export function PurchaseCreateScreen() {
           </Pressable>
           <FieldError message={fields.errors.supplier} />
 
-          <View style={styles.row}>
-            <View style={styles.col}>
-              <FormField
-                label="Invoice number"
-                value={draft.value.invoiceNo}
-                onChangeText={(invoiceNo) => patchDraft({ invoiceNo })}
-              />
-            </View>
-            <View style={styles.col}>
-              <DatePickerField
-                label="Purchase date"
-                value={draft.value.purchaseDate}
-                onChangeText={(purchaseDate) => patchDraft({ purchaseDate })}
-              />
-            </View>
-          </View>
+          <AdaptiveRow>
+            <FormField
+              label="Invoice number"
+              value={draft.value.invoiceNo}
+              onChangeText={(invoiceNo) => patchDraft({ invoiceNo })}
+            />
+            <DatePickerField
+              label="Purchase date"
+              value={draft.value.purchaseDate}
+              onChangeText={(purchaseDate) => patchDraft({ purchaseDate })}
+            />
+          </AdaptiveRow>
 
           <FormField
             label="Notes"
@@ -603,14 +600,6 @@ const createStyles = (colors: AppPalette) =>
       flex: 1,
       minWidth: 0,
       gap: 2,
-    },
-    row: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    col: {
-      flex: 1,
-      minWidth: 0,
     },
     lines: {
       gap: spacing.xs,

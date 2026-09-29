@@ -2,7 +2,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { productsApi } from '@/src/api';
 import { ActionSheet, type ActionSheetItem } from '@/src/shared/feedback/ActionSheet';
@@ -67,6 +67,8 @@ function openItemDetail(id: string, tab: 'activity' | 'details' = 'activity') {
 
 export function InventoryScreen() {
   const colors = usePalette();
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width / Math.max(fontScale, 1) < 400;
   const toast = useToast();
   const confirm = useConfirm();
   const styles = useThemedStyles(createStyles);
@@ -210,7 +212,7 @@ export function InventoryScreen() {
           <Pressable
             onPress={() => setStockFilter('all')}
             style={[
-              styles.summaryCard,
+              styles.summaryCard, compact && [styles.summaryCardCompact, styles.productCountCard], { minWidth: 80 * Math.max(fontScale, 1) },
               { backgroundColor: stockFilter === 'all' ? colors.accentSoft : colors.surface, borderColor: stockFilter === 'all' ? colors.primary : colors.border },
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.primary }]}>Products</Text>
@@ -221,7 +223,7 @@ export function InventoryScreen() {
           <Pressable
             onPress={() => setStockFilter('low')}
             style={[
-              styles.summaryCard,
+              styles.summaryCard, compact && styles.summaryCardCompact, { minWidth: 80 * Math.max(fontScale, 1) },
               { backgroundColor: stockFilter === 'low' ? colors.warningSoft : colors.surface, borderColor: stockFilter === 'low' ? colors.warning : colors.border },
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.warning }]}>Low</Text>
@@ -232,7 +234,7 @@ export function InventoryScreen() {
           <Pressable
             onPress={() => setStockFilter('out')}
             style={[
-              styles.summaryCard,
+              styles.summaryCard, compact && styles.summaryCardCompact, { minWidth: 80 * Math.max(fontScale, 1) },
               { backgroundColor: stockFilter === 'out' ? colors.dangerSoft : colors.surface, borderColor: stockFilter === 'out' ? colors.danger : colors.border },
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>Out</Text>
@@ -244,7 +246,7 @@ export function InventoryScreen() {
 
         {/* STATS BOTTOM ROW */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.summaryCard, width / Math.max(fontScale, 1) < 600 && styles.stockValueWide, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.summaryLabel, { color: colors.textSoft }]}>Stock value</Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>
               {formatCurrency(Number(summary?.totalStockValue ?? 0), currency)}
@@ -253,7 +255,7 @@ export function InventoryScreen() {
           <Pressable
             onPress={() => setStockFilter('expiring')}
             style={[
-              styles.summaryCard,
+              styles.summaryCard, compact && styles.summaryCardCompact, { minWidth: 80 * Math.max(fontScale, 1) },
               { backgroundColor: stockFilter === 'expiring' ? colors.infoSoft : colors.surface, borderColor: stockFilter === 'expiring' ? colors.info : colors.border },
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.info }]}>Expiring</Text>
@@ -264,7 +266,7 @@ export function InventoryScreen() {
           <Pressable
             onPress={() => setStockFilter('expired')}
             style={[
-              styles.summaryCard,
+              styles.summaryCard, compact && styles.summaryCardCompact, { minWidth: 80 * Math.max(fontScale, 1) },
               { backgroundColor: stockFilter === 'expired' ? colors.dangerSoft : colors.surface, borderColor: stockFilter === 'expired' ? colors.danger : colors.border },
             ]}>
             <Text style={[styles.summaryLabel, { color: colors.danger }]}>Expired</Text>
@@ -333,7 +335,7 @@ export function InventoryScreen() {
                 <Pressable
                   onPress={() => openDetail(product)}
                   onLongPress={() => setMenuProduct(product)}
-                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+                  style={({ pressed }) => [styles.row, compact && styles.rowCompact, pressed && styles.rowPressed]}>
                   {/* Thumbnail */}
                   <Avatar
                     uri={product.imageUrl}
@@ -344,7 +346,7 @@ export function InventoryScreen() {
                     textColor={colors.primary}
                   />
 
-                  <View style={styles.rowCopy}>
+                  <View style={[styles.rowCopy, compact && styles.rowCopyCompact]}>
                     <View style={styles.nameRow}>
                       <Text style={[styles.rowTitle, { color: colors.text }]} numberOfLines={1}>
                         {product.name}
@@ -383,7 +385,7 @@ export function InventoryScreen() {
                     ) : null}
                   </View>
 
-                  <View style={styles.amountWrap}>
+                  <View style={[styles.amountWrap, compact && styles.amountWrapCompact]}>
                     <Text style={[styles.amount, { color: colors.text }]}>
                       {formatCurrency(product.salePrice, currency)}
                     </Text>
@@ -406,21 +408,21 @@ export function InventoryScreen() {
 
                 {/* Card Action Row */}
                 <View style={[styles.actionRow, { borderTopColor: colors.border }]}>
-                  <Pressable style={styles.actionBtn} onPress={() => openDetail(product, 'activity')}>
+                  <Pressable style={[styles.actionBtn, { minWidth: 64 * Math.max(fontScale, 1) }]} onPress={() => openDetail(product, 'activity')}>
                     <MaterialCommunityIcons color={colors.text} name="eye-outline" size={16} />
                     <Text style={[styles.actionLabel, { color: colors.text }]}>View</Text>
                   </Pressable>
                   {restockable ? (
-                    <Pressable style={styles.actionBtn} onPress={() => setRestockProduct(product)}>
+                    <Pressable style={[styles.actionBtn, { minWidth: 64 * Math.max(fontScale, 1) }]} onPress={() => setRestockProduct(product)}>
                       <MaterialCommunityIcons color={colors.primary} name="plus-box-outline" size={16} />
                       <Text style={[styles.actionLabel, { color: colors.primary }]}>Restock</Text>
                     </Pressable>
                   ) : null}
-                  <Pressable style={styles.actionBtn} onPress={() => openItemForm(product.id)}>
+                  <Pressable style={[styles.actionBtn, { minWidth: 64 * Math.max(fontScale, 1) }]} onPress={() => openItemForm(product.id)}>
                     <MaterialCommunityIcons color={colors.text} name="pencil-outline" size={16} />
                     <Text style={[styles.actionLabel, { color: colors.text }]}>Edit</Text>
                   </Pressable>
-                  <Pressable style={styles.actionBtn} onPress={() => setMenuProduct(product)}>
+                  <Pressable style={[styles.actionBtn, { minWidth: 64 * Math.max(fontScale, 1) }]} onPress={() => setMenuProduct(product)}>
                     <MaterialCommunityIcons color={colors.textMuted} name="dots-horizontal" size={16} />
                     <Text style={[styles.actionLabel, { color: colors.textMuted }]}>More</Text>
                   </Pressable>
@@ -478,6 +480,7 @@ const createStyles = (_colors: AppPalette) =>
     },
     summaryRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: spacing.sm,
     },
     summaryCard: {
@@ -486,6 +489,16 @@ const createStyles = (_colors: AppPalette) =>
       borderWidth: 1,
       padding: spacing.md,
       gap: 4,
+    },
+    stockValueWide: {
+      flexBasis: '100%',
+    },
+    summaryCardCompact: {
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.sm,
+    },
+    productCountCard: {
+      flex: 1.25,
     },
     summaryLabel: {
       fontSize: 11,
@@ -556,15 +569,27 @@ const createStyles = (_colors: AppPalette) =>
       gap: spacing.sm,
       padding: spacing.md,
     },
+    rowCompact: {
+      flexWrap: 'wrap',
+    },
+    rowCopyCompact: {
+      flexBasis: '65%',
+    },
+    amountWrapCompact: {
+      flexBasis: '100%',
+      alignItems: 'flex-start',
+    },
     rowPressed: {
       opacity: 0.92,
     },
     rowCopy: {
       flex: 1,
+      minWidth: 0,
       gap: 3,
     },
     nameRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       alignItems: 'center',
       gap: 6,
     },
@@ -583,6 +608,7 @@ const createStyles = (_colors: AppPalette) =>
       marginTop: 2,
     },
     expiryBadgeText: {
+      flexShrink: 1,
       fontSize: 11,
     },
     badge: {
@@ -612,17 +638,20 @@ const createStyles = (_colors: AppPalette) =>
     },
     actionRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       borderTopWidth: StyleSheet.hairlineWidth,
     },
     actionBtn: {
       flex: 1,
-      minHeight: 42,
+      minHeight: 48,
+      paddingVertical: spacing.xs,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 4,
     },
     actionLabel: {
+      flexShrink: 1,
       fontSize: 12,
       fontWeight: '800',
     },

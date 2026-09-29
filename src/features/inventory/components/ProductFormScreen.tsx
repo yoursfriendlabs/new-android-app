@@ -14,8 +14,9 @@ import { CategoryPickerSheet } from '@/src/shared/forms/CategoryPickerSheet';
 import { FieldError } from '@/src/shared/forms/FieldError';
 import { UnitPickerSheet, type UnitSelection } from '@/src/shared/forms/UnitPickerSheet';
 import { ProductImagePicker } from '@/src/shared/forms/ProductImagePicker';
-import { Screen } from '@/src/shared/layout/Screen';
+import { AdaptiveRow } from '@/src/shared/layout/AdaptiveRow';
 import { FilterChip } from '@/src/shared/ui/FilterChip';
+import { Screen } from '@/src/shared/layout/Screen';
 import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import {
@@ -229,37 +230,32 @@ export function ProductFormScreen() {
 
       {tab === 'stock' ? (
         <View style={styles.section}>
-          <View style={styles.row}>
+          <AdaptiveRow>
             {!isEditing ? (
-              <>
-                <View style={{ flex: 1 }}>
-                  <FormField
-                    label="Opening Stock"
-                    value={form.openingStock}
-                    onChangeText={(openingStock) => setForm((current) => ({ ...current, openingStock }))}
-                    keyboardType="numeric"
-                    placeholder="0"
-                    error={fields.errors.openingStock}
-                  />
-                </View>
-                <View style={{ width: spacing.sm }} />
-              </>
+              <FormField
+                label="Opening Stock"
+                value={form.openingStock}
+                onChangeText={(openingStock) => setForm((current) => ({ ...current, openingStock }))}
+                keyboardType="numeric"
+                placeholder="0"
+                error={fields.errors.openingStock}
+              />
             ) : null}
-            <View style={{ flex: 1 }}>
-              <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Unit</Text>
-                <Pressable
-                  style={[styles.unitBox, fields.errors.unit ? { borderColor: colors.danger } : null]}
-                  onPress={() => setUnitVisible(true)}>
-                  <Text style={[styles.selectValue, { color: form.primaryUnit ? colors.text : colors.textMuted }]} numberOfLines={1}>
-                    {unitLabelText}
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-                </Pressable>
-                <FieldError message={fields.errors.unit} />
-              </View>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Unit</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Unit: ${unitLabelText}`}
+                style={[styles.unitBox, fields.errors.unit ? { borderColor: colors.danger } : null]}
+                onPress={() => setUnitVisible(true)}>
+                <Text style={[styles.selectValue, { color: form.primaryUnit ? colors.text : colors.textMuted }]}>
+                  {unitLabelText}
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+              </Pressable>
+              <FieldError message={fields.errors.unit} />
             </View>
-          </View>
+          </AdaptiveRow>
           {conversionHint ? (
             <View style={styles.hintRow}>
               <MaterialCommunityIcons name="information" size={16} color={colors.primary} />
@@ -267,29 +263,24 @@ export function ProductFormScreen() {
             </View>
           ) : null}
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="Sales Price"
-                value={form.salePrice}
-                onChangeText={(salePrice) => setForm((current) => ({ ...current, salePrice }))}
-                keyboardType="numeric"
-                placeholder="0"
-                error={fields.errors.salePrice}
-              />
-            </View>
-            <View style={{ width: spacing.sm }} />
-            <View style={{ flex: 1 }}>
-              <FormField
-                label="Purchase Price"
-                value={form.purchasePrice}
-                onChangeText={(purchasePrice) => setForm((current) => ({ ...current, purchasePrice }))}
-                keyboardType="numeric"
-                placeholder="0"
-                error={fields.errors.purchasePrice}
-              />
-            </View>
-          </View>
+          <AdaptiveRow>
+            <FormField
+              label="Sales Price"
+              value={form.salePrice}
+              onChangeText={(salePrice) => setForm((current) => ({ ...current, salePrice }))}
+              keyboardType="numeric"
+              placeholder="0"
+              error={fields.errors.salePrice}
+            />
+            <FormField
+              label="Purchase Price"
+              value={form.purchasePrice}
+              onChangeText={(purchasePrice) => setForm((current) => ({ ...current, purchasePrice }))}
+              keyboardType="numeric"
+              placeholder="0"
+              error={fields.errors.purchasePrice}
+            />
+          </AdaptiveRow>
           {form.secondaryUnit.trim() ? (
             <FormField
               label={`Sales Price for ${form.secondaryUnit.trim()}`}
@@ -444,10 +435,6 @@ const createStyles = (colors: AppPalette) =>
     section: {
       gap: spacing.md,
     },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-    },
     fieldBlock: {
       gap: spacing.xs,
     },
@@ -467,6 +454,7 @@ const createStyles = (colors: AppPalette) =>
       borderRadius: radius.input,
       backgroundColor: colors.surface,
       paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
     },
     selectRow: {
       flexDirection: 'row',
@@ -505,6 +493,7 @@ const createStyles = (colors: AppPalette) =>
       marginTop: -spacing.xs,
     },
     hintText: {
+      flex: 1,
       fontSize: typography.label,
       fontWeight: '600',
     },

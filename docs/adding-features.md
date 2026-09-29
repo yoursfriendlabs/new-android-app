@@ -57,6 +57,7 @@ Tab entries go in `app/(app)/(tabs)/_layout.tsx`. Stack screens go in `app/(app)
 - Cards stay flat (no elevation). Top bar already has the title — do not repeat it on the page.
 - Colors: `const colors = usePalette()` and `useThemedStyles(createStyles)`.
 - Filters use `SegmentedTabs`; individual choices use `FilterChip`. Both use the dashboard's 34dp pill with a separate 48dp touch area. Let filter rows scroll horizontally and form choices wrap.
+- Use `AdaptiveRow` for paired fields or cards. It wraps based on the available width and system text size; avoid fixed-width form columns or fixed-height text containers.
 
 ```tsx
 const createStyles = (colors: AppPalette) =>
@@ -77,5 +78,6 @@ const createStyles = (colors: AppPalette) =>
 - [ ] Route in `app/` is a thin wrapper
 - [ ] Types and API match the backend contract
 - [ ] Personal and business both make sense (or the feature is gated)
+- [ ] Layout checked at 320, 360, and 412dp, in landscape, and with enlarged system text; labels, amounts, and footer actions remain reachable
 - [ ] `npm run typecheck` passes
 - [ ] No static `expo-notifications` import

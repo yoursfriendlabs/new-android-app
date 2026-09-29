@@ -12,6 +12,9 @@ interface TotalsCardProps {
   amountReceived?: number;
 }
 
+// A currency prefix may move to its own line when system text is enlarged.
+const currencyLabel = (value: number) => formatCurrency(value).replace(/\u00a0/g, ' ');
+
 export function TotalsCard({
   amountReceived = 0,
   discountTotal,
@@ -35,7 +38,7 @@ export function TotalsCard({
             {row.label}
           </Text>
           <Text style={[styles.value, { color: colors.text }, row.strong && { fontSize: typography.subheading }]}>
-            {formatCurrency(row.value)}
+            {currencyLabel(row.value)}
           </Text>
         </View>
       ))}
@@ -44,12 +47,12 @@ export function TotalsCard({
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.row}>
             <Text style={[styles.label, { color: colors.textMuted }]}>Received</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{formatCurrency(amountReceived)}</Text>
+            <Text style={[styles.value, { color: colors.text }]}>{currencyLabel(amountReceived)}</Text>
           </View>
           <View style={styles.row}>
             <Text style={[styles.label, { color: colors.textMuted }]}>Due</Text>
             <Text style={[styles.value, { color: colors.warning }]}>
-              {formatCurrency(Math.max(grandTotal - amountReceived, 0))}
+              {currencyLabel(Math.max(grandTotal - amountReceived, 0))}
             </Text>
           </View>
         </>
@@ -64,13 +67,20 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: spacing.sm,
+    rowGap: spacing.xxs,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   label: {
+    flexShrink: 1,
     fontSize: typography.body,
   },
   value: {
+    flexShrink: 1,
+    marginLeft: 'auto',
+    textAlign: 'right',
     fontSize: typography.body,
     fontWeight: '700',
   },
