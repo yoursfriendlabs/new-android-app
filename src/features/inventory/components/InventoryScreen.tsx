@@ -246,12 +246,6 @@ export function InventoryScreen() {
 
         {/* STATS BOTTOM ROW */}
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryCard, width / Math.max(fontScale, 1) < 600 && styles.stockValueWide, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: colors.textSoft }]}>Stock value</Text>
-            <Text style={[styles.summaryValue, { color: colors.text }]}>
-              {formatCurrency(Number(summary?.totalStockValue ?? 0), currency)}
-            </Text>
-          </View>
           <Pressable
             onPress={() => setStockFilter('expiring')}
             style={[
@@ -489,9 +483,6 @@ const createStyles = (_colors: AppPalette) =>
       borderWidth: 1,
       padding: spacing.md,
       gap: 4,
-    },
-    stockValueWide: {
-      flexBasis: '100%',
     },
     summaryCardCompact: {
       paddingHorizontal: spacing.xs,

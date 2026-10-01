@@ -97,8 +97,6 @@ export default function ItemDetailScreen() {
   const hasExpired = Boolean(product?.hasExpiredStock) || expiredQty > 0;
 
   const record = product as Record<string, unknown> | null;
-  const salesTotal = readNum(record, ['salesTotal', 'totalSales', 'salesValue', 'soldValue']);
-  const purchaseTotal = readNum(record, ['purchaseTotal', 'totalPurchases', 'purchaseValue']);
   const stockValue =
     readNum(record, ['stockValue', 'totalStockValue']) ||
     totalStock * Number(product?.purchasePrice || product?.salePrice || 0);
@@ -264,8 +262,6 @@ export default function ItemDetailScreen() {
 
           {/* TILES */}
           <View style={styles.tilesRow}>
-            <Tile label="Sales" value={formatCurrency(salesTotal, currency)} styles={styles} />
-            <Tile label="Purchase" value={formatCurrency(purchaseTotal, currency)} styles={styles} />
             <Tile label="Stock Value" value={formatCurrency(stockValue, currency)} styles={styles} />
           </View>
 
