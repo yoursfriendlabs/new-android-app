@@ -706,18 +706,35 @@ export function normalizeService(raw: unknown): Service {
   const record = asRecord(raw) ?? {};
   const nestedParty = asRecord(record.party);
   const attributes = asRecord(record.attributes);
+  // The server includes the user who opened the job as 'Creator'.
+  const creator = asRecord(firstDefined(record.Creator, record.creator, record.createdByUser));
   const rawItems = Array.isArray(record.items)
     ? record.items
     : Array.isArray(record.ServiceItems)
       ? (record.ServiceItems as unknown[])
       : undefined;
+  // storeType is the column; older phone-made jobs only set attributes.serviceType.
+  const storeType = asString(
+    firstDefined(
+      record.storeType,
+      record.store_type,
+      record.serviceType,
+      record.service_type,
+      attributes?.serviceType,
+      attributes?.service_type,
+    ),
+    '',
+  );
 
   return {
     ...(record as Service),
     id: asString(firstDefined(record.id, record._id), ''),
     orderNo: asString(firstDefined(record.orderNo, record.invoiceNo), ''),
     status: asString(firstDefined(record.status, 'open')),
-    serviceType: asString(firstDefined(record.serviceType, record.service_type, attributes?.serviceType, attributes?.service_type), ''),
+    storeType,
+    serviceType: storeType,
+    createdBy: asString(firstDefined(record.createdBy, record.created_by, creator?.id), ''),
+    createdByName: asString(firstDefined(record.createdByName, creator?.name), ''),
     partyId: asString(firstDefined(record.partyId, record.customerId, nestedParty?.id), ''),
     partyName: asString(firstDefined(record.partyName, record.customerName, nestedParty?.name), ''),
     deliveryDate: asString(record.deliveryDate, ''),

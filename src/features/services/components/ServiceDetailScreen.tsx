@@ -53,15 +53,22 @@ import {
   getToneColors,
   resolveServiceCustomer,
 } from '@/src/features/services/lib/service-view';
+import type { ServiceDraft } from '@/src/types/forms';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
-import type { Product, ServiceStatus } from '@/src/types/models';
+import type { Product, Service, ServiceStatus } from '@/src/types/models';
 
 interface ServiceDetailScreenProps {
   serviceId: string;
+}
+
+/** The job's own type, whether it was saved on the row or among its attributes. */
+function savedServiceType(service?: Service | null): ServiceDraft['serviceType'] {
+  const raw = String(service?.serviceType || service?.attributes?.serviceType || '').toLowerCase();
+  return raw === 'online' ? 'online' : 'physical';
 }
 
 /**
@@ -89,6 +96,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
   const [discount, setDiscount] = useState(0);
   const [delivery, setDelivery] = useState('');
   const [notes, setNotes] = useState('');
+  const [serviceType, setServiceType] = useState<ServiceDraft['serviceType']>('physical');
   const [manualTotal, setManualTotal] = useState('0');
   const [seededId, setSeededId] = useState<string | null>(null);
 
@@ -121,6 +129,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
     setDiscount(Number(service.discountTotal ?? service.discount ?? 0));
     setDelivery(String(service.deliveryDate || '').slice(0, 10));
     setNotes(String(service.notes || ''));
+    setServiceType(savedServiceType(service));
     setManualTotal(String(Number(service.grandTotal || 0)));
     setSeededId(service.id);
   }, [seededId, service]);
@@ -153,6 +162,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
     if (!locked && itemised && totals.discountTotal !== Number(service.discountTotal ?? service.discount ?? 0)) return true;
     if (!locked && !itemised && manualGrand !== Number(service.grandTotal || 0)) return true;
     if (delivery !== String(service.deliveryDate || '').slice(0, 10)) return true;
+    if (serviceType !== savedServiceType(service)) return true;
     return notes !== String(service.notes || '');
   }, [
     bankId,
@@ -166,6 +176,7 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
     received,
     seededId,
     service,
+    serviceType,
     status,
     totals.discountTotal,
   ]);
@@ -275,6 +286,11 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
       receivedTotal: payment.receivedTotal,
       paymentMethod,
       bankId: paymentMethod === 'bank' ? bankId || undefined : undefined,
+      serviceType,
+      storeType: serviceType,
+      // storeType is the column the server stores and filters on; serviceType and
+      // the attribute are kept in step for jobs and receipts that read those.
+      attributes: { ...(service.attributes || {}), serviceType },
     };
 
     if (!locked) {
@@ -513,6 +529,17 @@ export function ServiceDetailScreen({ serviceId }: ServiceDetailScreenProps) {
 
       {/* WHEN AND WHAT */}
       <SurfaceCard title="Job details">
+        <View style={styles.inlineChoice}>
+          <Text style={styles.inlineChoiceLabel}>Service type</Text>
+          <SegmentedTabs
+            value={serviceType}
+            onChange={(value) => setServiceType(value as ServiceDraft['serviceType'])}
+            options={[
+              { label: 'Physical', value: 'physical' },
+              { label: 'Online', value: 'online' },
+            ]}
+          />
+        </View>
         <DatePickerField
           label={isGym ? 'Expiry date' : 'Due back on'}
           value={delivery}
@@ -611,6 +638,14 @@ const createStyles = (colors: AppPalette) =>
       height: 34,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    inlineChoice: {
+      gap: spacing.xs,
+    },
+    inlineChoiceLabel: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.textMuted,
     },
     missing: {
       alignItems: 'center',

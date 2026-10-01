@@ -482,6 +482,8 @@ export interface Service {
   orderNo: string;
   status: ServiceStatus;
   serviceType?: 'physical' | 'online' | string;
+  /** What the server actually stores the type in; serviceType mirrors it. */
+  storeType?: 'physical' | 'online' | string;
   notes?: string;
   deliveryDate?: string;
   paymentMethod?: PaymentMethod;
@@ -499,6 +501,7 @@ export interface Service {
   grandTotal: number;
   receivedTotal: number;
   createdBy?: string;
+  createdByName?: string;
   items: ServiceItem[];
   [key: string]: unknown;
 }

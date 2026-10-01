@@ -313,6 +313,8 @@ export default function ServiceCreateScreen() {
         orderNo: draft.value.orderNo,
         status: draft.value.status,
         serviceType: draft.value.serviceType,
+        // storeType is the column the server filters jobs by.
+        storeType: draft.value.serviceType,
         notes: draft.value.notes,
         deliveryDate: draft.value.deliveryDate?.trim() || undefined,
         paymentMethod: draft.value.paymentMethod,
@@ -366,6 +368,7 @@ export default function ServiceCreateScreen() {
           customerName: draft.value.customer.name,
           status: draft.value.status,
           serviceType: draft.value.serviceType,
+          storeType: draft.value.serviceType,
           notes: draft.value.notes,
           deliveryDate: draft.value.deliveryDate,
           paymentMethod: draft.value.paymentMethod,

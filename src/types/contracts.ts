@@ -314,6 +314,8 @@ export interface ListQuery {
   payment?: 'due' | 'paid' | string;
   /** Services: open | overdue | closed */
   stage?: 'open' | 'overdue' | 'closed' | string;
+  /** Service jobs: the 'physical' or 'online' column the server filters on. */
+  storeType?: string;
 }
 
 export interface ServiceStatsResponse {
