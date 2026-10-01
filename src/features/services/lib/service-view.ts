@@ -80,6 +80,61 @@ export function resolveServiceCustomer(service: Service, partyMap?: Map<string, 
   };
 }
 
+/** 'physical' / 'online' as the shopkeeper reads it, not as it is stored. */
+export function serviceTypeLabel(value?: unknown): string {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  if (raw === 'online') return 'Online';
+  if (raw === 'physical') return 'Physical';
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+/** What the list is narrowed to beyond its stage tab and search box. */
+export interface ServiceFilters {
+  partyId: string;
+  createdBy: string;
+  storeType: string;
+}
+
+export const EMPTY_SERVICE_FILTERS: ServiceFilters = {
+  partyId: '',
+  createdBy: '',
+  storeType: '',
+};
+
+export function countServiceFilters(filters: ServiceFilters): number {
+  return [filters.partyId, filters.createdBy, filters.storeType].filter(Boolean).length;
+}
+
+/** The type a job really has, whichever field the server filled in. */
+export function resolveServiceType(service: Service): string {
+  return String(service.storeType || service.serviceType || '').trim().toLowerCase();
+}
+
+export function resolveServiceCreator(service: Service): { id: string; name: string } {
+  const nested = (service as Record<string, unknown>).Creator as { id?: string; name?: string } | undefined;
+  return {
+    id: String(service.createdBy || nested?.id || ''),
+    name: String(service.createdByName || nested?.name || ''),
+  };
+}
+
+/**
+ * The same narrowing the server does, applied to rows already on the phone, so a
+ * page fetched before a filter changed never shows through.
+ */
+export function matchesServiceFilters(service: Service, filters: ServiceFilters): boolean {
+  if (filters.partyId && String(service.partyId || '') !== filters.partyId) return false;
+  if (filters.createdBy && resolveServiceCreator(service).id !== filters.createdBy) return false;
+  if (filters.storeType) {
+    const type = resolveServiceType(service);
+    // Jobs saved before the type was stored on the row count as physical, which
+    // is the column's own default on the server.
+    if ((type || 'physical') !== filters.storeType) return false;
+  }
+  return true;
+}
+
 export function getServiceDeviceOrProblem(service: Service): string {
   const attrs = service.attributes || {};
   const candidates = [
@@ -90,7 +145,7 @@ export function getServiceDeviceOrProblem(service: Service): string {
     attrs.vehicleNo,
     attrs.problem,
     attrs.issue,
-    attrs.serviceType,
+    serviceTypeLabel(attrs.serviceType),
     service.notes,
   ].filter(Boolean);
 

@@ -15,23 +15,34 @@ import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { buildServiceReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
 import { partyInitials } from '@/src/features/parties/lib/party';
 import {
+  countServiceFilters,
   dueAmount,
+  EMPTY_SERVICE_FILTERS,
   getServiceDeviceOrProblem,
   getServiceDisplay,
   getToneColors,
   isClosedStatus,
   isOverdue,
+  matchesServiceFilters,
+  resolveServiceCreator,
   resolveServiceCustomer,
+  serviceTypeLabel,
+  type ServiceFilters,
 } from '@/src/features/services/lib/service-view';
+import {
+  ServiceFiltersSheet,
+  type ServiceCreatorOption,
+} from '@/src/features/services/components/ServiceFiltersSheet';
 import {
   useBanks,
   usePagedServices,
   useParties,
   useServiceStats,
+  useStaff,
 } from '@/src/shared/hooks/useAppQueries';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
 import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
-import { radius, shadows, spacing, typography } from '@/src/theme';
+import { a11y, radius, shadows, spacing, typography } from '@/src/theme';
 import type { Service, ServiceStatus } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
 import { usePalette } from '@/src/stores/theme-store';
@@ -72,11 +83,58 @@ export default function ServicesScreen() {
 
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ServiceFilter>('all');
+  const [filters, setFilters] = useState<ServiceFilters>(EMPTY_SERVICE_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
-  const servicesQuery = usePagedServices({ stage: SERVER_STAGE[filter], search: debouncedSearch });
+  const servicesQuery = usePagedServices({
+    stage: SERVER_STAGE[filter],
+    search: debouncedSearch,
+    partyId: filters.partyId,
+    createdBy: filters.createdBy,
+    storeType: filters.storeType,
+  });
   const statsQuery = useServiceStats();
+  // Only worth a request once the names are actually about to be shown.
+  const { data: staff } = useStaff(filtersOpen || Boolean(filters.createdBy));
 
   const services = servicesQuery.items;
+
+  /** Staff who can open a job, plus anyone already named on a loaded job. */
+  const creatorOptions = useMemo<ServiceCreatorOption[]>(() => {
+    const byId = new Map<string, string>();
+    for (const member of staff ?? []) {
+      const userId = String((member.user as { id?: string } | undefined)?.id || '');
+      if (userId) byId.set(userId, member.name || 'Staff');
+    }
+    for (const service of services) {
+      const creator = resolveServiceCreator(service);
+      if (creator.id && !byId.has(creator.id)) byId.set(creator.id, creator.name || 'Staff');
+    }
+    return [...byId.entries()].map(([id, name]) => ({ id, name }));
+  }, [services, staff]);
+
+  const activeFilterCount = countServiceFilters(filters);
+
+  /** One removable chip per narrowing, so what is on is readable at a glance. */
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{ key: keyof ServiceFilters; label: string }> = [];
+    if (filters.partyId) {
+      chips.push({
+        key: 'partyId',
+        label: partyMap.get(filters.partyId)?.name || 'Customer',
+      });
+    }
+    if (filters.createdBy) {
+      chips.push({
+        key: 'createdBy',
+        label: creatorOptions.find((option) => option.id === filters.createdBy)?.name || 'Staff',
+      });
+    }
+    if (filters.storeType) {
+      chips.push({ key: 'storeType', label: serviceTypeLabel(filters.storeType) });
+    }
+    return chips;
+  }, [creatorOptions, filters, partyMap]);
 
   const counts = useMemo(() => {
     let inProgress = 0;
@@ -125,6 +183,7 @@ export default function ServicesScreen() {
     const query = debouncedSearch.trim().toLowerCase();
     return services.filter((service) => {
       if (!matchesFilter(service, filter)) return false;
+      if (!matchesServiceFilters(service, filters)) return false;
       if (!query) return true;
 
       const customer = resolveServiceCustomer(service, partyMap);
@@ -141,7 +200,7 @@ export default function ServicesScreen() {
 
       return searchTargets.some((target) => target.includes(query));
     });
-  }, [debouncedSearch, filter, partyMap, services]);
+  }, [debouncedSearch, filter, filters, partyMap, services]);
 
   function openService(serviceId: string) {
     router.push({ pathname: '/(app)/service-detail' as any, params: { id: serviceId } });
@@ -257,6 +316,68 @@ export default function ServicesScreen() {
           ]}
         />
 
+        {/* Customer, who opened it, and physical/online — one row, not three fields. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={styles.filterBar}
+          contentContainerStyle={styles.filterBarContent}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeFilterCount ? `Filters, ${activeFilterCount} applied` : 'Filters'
+            }
+            hitSlop={a11y.hitSlop}
+            onPress={() => setFiltersOpen(true)}
+            style={[
+              styles.filterBtn,
+              {
+                backgroundColor: activeFilterCount ? colors.accentSoft : colors.surface,
+                borderColor: activeFilterCount ? colors.primary : colors.border,
+              },
+            ]}>
+            <MaterialCommunityIcons
+              name="tune-variant"
+              size={14}
+              color={activeFilterCount ? colors.primary : colors.textMuted}
+            />
+            <Text
+              style={[
+                styles.filterBtnText,
+                { color: activeFilterCount ? colors.primary : colors.textMuted },
+              ]}>
+              Filters{activeFilterCount ? ` · ${activeFilterCount}` : ''}
+            </Text>
+          </Pressable>
+
+          {activeFilterChips.map((chip) => (
+            <Pressable
+              key={chip.key}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove filter ${chip.label}`}
+              hitSlop={a11y.hitSlop}
+              onPress={() => setFilters((current) => ({ ...current, [chip.key]: '' }))}
+              style={[styles.activeChip, { backgroundColor: colors.backgroundAlt }]}>
+              <Text style={[styles.activeChipText, { color: colors.text }]} numberOfLines={1}>
+                {chip.label}
+              </Text>
+              <MaterialCommunityIcons name="close" size={13} color={colors.textMuted} />
+            </Pressable>
+          ))}
+
+          {activeFilterCount > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear all filters"
+              hitSlop={a11y.hitSlop}
+              onPress={() => setFilters(EMPTY_SERVICE_FILTERS)}
+              style={styles.clearAllBtn}>
+              <Text style={[styles.clearAllText, { color: colors.danger }]}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </ScrollView>
+
         {/* Empty State */}
         {servicesQuery.isLoading ? <SkeletonList count={5} /> : null}
         {!servicesQuery.isLoading && !visibleServices.length && !servicesQuery.hasNextPage ? (
@@ -265,12 +386,16 @@ export default function ServicesScreen() {
               <MaterialCommunityIcons name="tools" size={32} color={colors.accent} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {debouncedSearch.trim() || filter !== 'all' ? 'No matching service jobs' : 'No service jobs yet'}
+              {debouncedSearch.trim() || filter !== 'all' || activeFilterCount
+                ? 'No matching service jobs'
+                : 'No service jobs yet'}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
-              {debouncedSearch.trim() || filter !== 'all'
-                ? 'Try a different customer name, phone number, or status filter.'
-                : 'Create your first service job to track repairs, customer items, labor, and balance due.'}
+              {activeFilterCount
+                ? 'Nothing matches these filters. Clear one and try again.'
+                : debouncedSearch.trim() || filter !== 'all'
+                  ? 'Try a different customer name, phone number, or status filter.'
+                  : 'Create your first service job to track repairs, customer items, labor, and balance due.'}
             </Text>
             <Pressable
               style={[styles.emptyActionBtn, { backgroundColor: colors.primary }]}
@@ -344,7 +469,7 @@ export default function ServicesScreen() {
                 {/* Specs / Device / Problem description */}
                 {specs ? (
                   <View style={[styles.specsBox, { backgroundColor: colors.backgroundAlt }]}>
-                    <MaterialCommunityIcons name="wrench-outline" size={16} color={colors.accent} />
+                    <MaterialCommunityIcons name="wrench-outline" size={14} color={colors.accent} />
                     <Text style={[styles.specsText, { color: colors.text }]} numberOfLines={2}>
                       {specs}
                     </Text>
@@ -430,6 +555,15 @@ export default function ServicesScreen() {
         <ListFooterLoader list={servicesQuery} />
       </ScrollView>
 
+      <ServiceFiltersSheet
+        visible={filtersOpen}
+        value={filters}
+        parties={partiesQuery.data ?? []}
+        creators={creatorOptions}
+        isGym={isGym}
+        onApply={setFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
     </Screen>
   );
 }
@@ -474,6 +608,52 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '700',
       textTransform: 'uppercase',
       letterSpacing: 0.5,
+    },
+    filterBar: {
+      flexGrow: 0,
+      flexShrink: 0,
+      marginTop: -spacing.xxs,
+    },
+    filterBarContent: {
+      alignItems: 'center',
+      gap: spacing.xxs,
+      paddingRight: spacing.xs,
+    },
+    filterBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      minHeight: 32,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+    },
+    filterBtnText: {
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    activeChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      minHeight: 32,
+      maxWidth: 160,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radius.pill,
+    },
+    activeChipText: {
+      fontSize: 11,
+      fontWeight: '700',
+      flexShrink: 1,
+    },
+    clearAllBtn: {
+      minHeight: 32,
+      paddingHorizontal: spacing.xs,
+      justifyContent: 'center',
+    },
+    clearAllText: {
+      fontSize: 11,
+      fontWeight: '800',
     },
     list: {
       gap: spacing.md,
@@ -558,14 +738,17 @@ const createStyles = (colors: AppPalette) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.xs,
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: 5,
       borderRadius: radius.sm,
+      // Hug the text instead of running the full card width.
+      alignSelf: 'flex-start',
+      maxWidth: '100%',
     },
     specsText: {
       fontSize: typography.caption,
       fontWeight: '600',
-      flex: 1,
+      flexShrink: 1,
     },
     metaRow: {
       flexDirection: 'row',

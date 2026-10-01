@@ -1213,14 +1213,29 @@ export function useSaleStats() {
   });
 }
 
-export function usePagedServices(filters: { stage?: 'open' | 'overdue' | 'closed'; search?: string } = {}) {
+export function usePagedServices(
+  filters: {
+    stage?: 'open' | 'overdue' | 'closed';
+    search?: string;
+    partyId?: string;
+    createdBy?: string;
+    storeType?: string;
+  } = {},
+) {
   const businessId = useAuthStore((state) => state.session?.businessId ?? '');
   return usePagedList<Service>({
     queryKey: ['services-list', 'paged', businessId, filters],
     enabled: Boolean(businessId),
     fetchPage: async (page) =>
       toPage(
-        await servicesApi.list({ ...page, stage: filters.stage, search: filters.search?.trim() || undefined }),
+        await servicesApi.list({
+          ...page,
+          stage: filters.stage,
+          search: filters.search?.trim() || undefined,
+          partyId: filters.partyId || undefined,
+          createdBy: filters.createdBy || undefined,
+          storeType: filters.storeType || undefined,
+        }),
         normalizeService,
       ),
   });
