@@ -6,7 +6,7 @@ import { extractListItems, normalizeNote } from '@/src/api/normalize';
 
 import { DAILY_MONEY_REMINDER_COPY, dailyReminderDueNow } from '@/src/features/habits/lib/daily-money-reminder';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { COLLECT_ID_PREFIX } from '@/src/features/pekka/lib/collect';
 import { DAY_CLOSE_ID_PREFIX } from '@/src/features/pekka/lib/day-close';
 import { MORNING_ID_PREFIX } from '@/src/features/pekka/lib/morning';

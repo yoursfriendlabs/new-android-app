@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { formatClockTime } from '@/src/features/habits/lib/daily-money-reminder';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { useTranslation } from '@/src/i18n';
 import { Text } from '@/src/shared/ui/Text';
 import { usePalette } from '@/src/stores/theme-store';

@@ -29,7 +29,7 @@ import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { localIsoDate, prettyDate } from '@/src/shared/lib/format';
 import { useDateFormat } from '@/src/stores/date-format-store';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import {
   createdRecordId,
   formatDueStamp,

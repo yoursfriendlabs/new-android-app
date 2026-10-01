@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useSubmissionLock } from '@/src/shared/hooks/useSubmissionLock';
@@ -10,16 +11,29 @@ import {
   ALL_INTERVAL_TEMPLATES,
   clampIntervalMinutes,
   CUSTOM_INTERVAL_CHIPS,
-  formatInterval,
+  formatTimeOfDay,
   makeIntervalHabit,
-  nativeRemindersAvailable,
+  parseTimeOfDay,
+  toTimeOfDay,
   type IntervalHabit,
   type IntervalKind,
   type IntervalTemplate,
 } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { useHabitStore } from '@/src/stores/habit-store';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
+
+/** A sensible waking day for a first time range. */
+const DEFAULT_FROM = '08:00';
+const DEFAULT_TO = '21:00';
+
+function timeAsDate(value: string) {
+  const minutes = parseTimeOfDay(value) ?? 0;
+  const date = new Date();
+  date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return date;
+}
 
 interface IntervalHabitSheetProps {
   visible: boolean;
@@ -38,6 +52,11 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
   const [message, setMessage] = useState('A glass now. Your body will thank you.');
   const [unit, setUnit] = useState<'min' | 'hours'>('min');
   const [raw, setRaw] = useState('45');
+  const [enabled, setEnabled] = useState(true);
+  const [limitHours, setLimitHours] = useState(false);
+  const [fromTime, setFromTime] = useState(DEFAULT_FROM);
+  const [toTime, setToTime] = useState(DEFAULT_TO);
+  const [picking, setPicking] = useState<'from' | 'to' | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectedTemplate = ALL_INTERVAL_TEMPLATES.find((item) => item.kind === kind);
@@ -45,6 +64,7 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
 
   useEffect(() => {
     if (!visible) return;
+    setPicking(null);
     if (habit) {
       setKind(habit.kind);
       setTitle(habit.title);
@@ -55,6 +75,12 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
           ? String(habit.intervalMinutes / 60)
           : String(habit.intervalMinutes),
       );
+      setEnabled(habit.enabled);
+      const hasWindow =
+        parseTimeOfDay(habit.activeFrom) !== null && parseTimeOfDay(habit.activeTo) !== null;
+      setLimitHours(hasWindow);
+      setFromTime(hasWindow ? String(habit.activeFrom) : DEFAULT_FROM);
+      setToTime(hasWindow ? String(habit.activeTo) : DEFAULT_TO);
       return;
     }
     const next = template ?? ALL_INTERVAL_TEMPLATES[0];
@@ -63,6 +89,10 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
     setMessage(next.message || '');
     setUnit('min');
     setRaw(String(next.defaultMinutes));
+    setEnabled(true);
+    setLimitHours(false);
+    setFromTime(DEFAULT_FROM);
+    setToTime(DEFAULT_TO);
   }, [habit, template, visible]);
 
   const minutes = useMemo(() => {
@@ -83,6 +113,8 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
     if (!submission.tryStart()) return;
     setSaving(true);
     try {
+      const activeFrom = limitHours ? fromTime : null;
+      const activeTo = limitHours ? toTime : null;
       const payload = habit
         ? {
             ...habit,
@@ -90,13 +122,18 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
             title: title.trim() || selectedTemplate?.title || 'Reminder',
             message: (message.trim() || selectedTemplate?.message || 'Time for your check-in.').trim(),
             intervalMinutes: minutes,
-            enabled: true,
+            enabled,
+            activeFrom,
+            activeTo,
           }
         : makeIntervalHabit({
             kind,
             title: title.trim() || selectedTemplate?.title || 'Reminder',
             message: message.trim() || selectedTemplate?.message,
             intervalMinutes: minutes,
+            enabled,
+            activeFrom,
+            activeTo,
           });
       await useHabitStore.getState().upsertIntervalHabit(payload);
       onSaved?.();
@@ -125,26 +162,38 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
           <Pressable
             disabled={saving}
             onPress={() => void handleSave()}
-            style={[styles.save, { backgroundColor: colors.primary }]}>
+            style={[styles.save, { backgroundColor: enabled ? colors.primary : colors.backgroundAlt }]}>
             {saving ? (
-              <ActivityIndicator color={colors.onPrimary} />
+              <ActivityIndicator color={enabled ? colors.onPrimary : colors.primary} />
             ) : (
-              <Text style={[styles.saveLabel, { color: colors.onPrimary }]}>
-                {habit ? 'Save interval ping' : `Start · ${plusCoins(COIN_REWARDS.intervalCheckIn)} per check-in`}
+              <Text style={[styles.saveLabel, { color: enabled ? colors.onPrimary : colors.text }]}>
+                {!enabled
+                  ? 'Save with pings off'
+                  : habit
+                    ? 'Save interval ping'
+                    : `Start · ${plusCoins(COIN_REWARDS.intervalCheckIn)} per check-in`}
               </Text>
             )}
           </Pressable>
-          {habit ? (
-            <Pressable
-              onPress={() => {
-                void useHabitStore.getState().setIntervalEnabled(habit.id, false);
-                onClose();
-              }}>
-              <Text style={[styles.pause, { color: colors.textMuted }]}>Pause pings</Text>
-            </Pressable>
-          ) : null}
         </View>
       }>
+      <View style={[styles.switchRow, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
+        <View style={styles.switchCopy}>
+          <Text style={[styles.switchTitle, { color: colors.text }]}>Repeat this ping</Text>
+          <Text style={[styles.switchHint, { color: colors.textMuted }]}>
+            {enabled
+              ? 'Turn this off to stop the pings and keep the settings.'
+              : 'Pings are off. Nothing will arrive until you turn this back on.'}
+          </Text>
+        </View>
+        <Switch
+          value={enabled}
+          onValueChange={setEnabled}
+          trackColor={{ false: colors.border, true: colors.primary }}
+          thumbColor="#ffffff"
+        />
+      </View>
+
       <View style={styles.kinds}>
         {ALL_INTERVAL_TEMPLATES.map((item) => {
           const active = kind === item.kind;
@@ -238,6 +287,79 @@ export function IntervalHabitSheet({ habit, onClose, onSaved, template, visible 
         placeholderTextColor={colors.textSoft}
         style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
       />
+
+      <View style={[styles.switchRow, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
+        <View style={styles.switchCopy}>
+          <Text style={[styles.switchTitle, { color: colors.text }]}>Only between set hours</Text>
+          <Text style={[styles.switchHint, { color: colors.textMuted }]}>
+            {limitHours
+              ? `${formatTimeOfDay(fromTime)} to ${formatTimeOfDay(toTime)} — nothing outside that.`
+              : 'Off means the ping repeats right through the night.'}
+          </Text>
+        </View>
+        <Switch
+          value={limitHours}
+          onValueChange={(next) => {
+            setLimitHours(next);
+            if (!next) setPicking(null);
+          }}
+          trackColor={{ false: colors.border, true: colors.primary }}
+          thumbColor="#ffffff"
+        />
+      </View>
+
+      {limitHours ? (
+        <View style={styles.timeRow}>
+          {(['from', 'to'] as const).map((edge) => {
+            const value = edge === 'from' ? fromTime : toTime;
+            return (
+              <Pressable
+                key={edge}
+                onPress={() => setPicking(picking === edge ? null : edge)}
+                style={[
+                  styles.timeBox,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: picking === edge ? colors.primary : colors.border,
+                  },
+                ]}>
+                <Text style={[styles.timeLabel, { color: colors.textMuted }]}>
+                  {edge === 'from' ? 'Start' : 'End'}
+                </Text>
+                <Text style={[styles.timeValue, { color: colors.text }]}>{formatTimeOfDay(value)}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {limitHours && parseTimeOfDay(fromTime) === parseTimeOfDay(toTime) ? (
+        <Text style={[styles.microHint, { color: colors.warning }]}>
+          Start and end are the same, so this would run all day. Move one of them.
+        </Text>
+      ) : null}
+
+      {limitHours && picking ? (
+        <View>
+          <DateTimePicker
+            value={timeAsDate(picking === 'from' ? fromTime : toTime)}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, date) => {
+              if (Platform.OS !== 'ios') setPicking(null);
+              if (!date) return;
+              const next = toTimeOfDay(date.getHours() * 60 + date.getMinutes());
+              if (picking === 'from') setFromTime(next);
+              else setToTime(next);
+            }}
+          />
+          {Platform.OS === 'ios' ? (
+            <Pressable onPress={() => setPicking(null)} style={styles.doneBtn}>
+              <Text style={[styles.chipLabel, { color: colors.primary }]}>Done</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       
       <View style={[styles.ruleCard, { backgroundColor: colors.backgroundAlt, borderColor: colors.border }]}>
         <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.accent} />
@@ -375,10 +497,54 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: '800',
   },
-  pause: {
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textAlign: 'center',
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  switchCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  switchTitle: {
+    fontSize: typography.label,
+    fontWeight: '800',
+  },
+  switchHint: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  timeBox: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: radius.input,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  timeLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  timeValue: {
+    fontSize: typography.body,
+    fontWeight: '800',
+  },
+  doneBtn: {
+    alignSelf: 'flex-end',
     paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
 });

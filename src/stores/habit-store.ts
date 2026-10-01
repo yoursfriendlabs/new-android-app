@@ -22,7 +22,8 @@ import {
   type DailyMoneyReminderSettings,
 } from '@/src/features/habits/lib/daily-money-reminder';
 import { DEFAULT_SAVE_GOAL, uniqueLogDays } from '@/src/features/habits/lib/habits';
-import { nativeRemindersAvailable, type IntervalHabit } from '@/src/features/habits/lib/interval-habits';
+import { type IntervalHabit } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { generateId } from '@/src/shared/lib/id';
 import { todayIso } from '@/src/shared/lib/format';
 
@@ -379,14 +380,14 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     return { ok: true, remaining: coins };
   },
   upsertIntervalHabit: async (habit) => {
-    let scheduled = { ...habit, notificationId: habit.enabled ? habit.notificationId : null };
+    let scheduled = habit.enabled ? habit : { ...habit, notificationId: null, notificationIds: null };
     if (nativeRemindersAvailable()) {
-      const { cancelReminderNotification, scheduleIntervalNotification } = await import('@/src/features/habits/lib/interval-reminders');
-      scheduled = habit.enabled
-        ? await scheduleIntervalNotification(habit)
-        : { ...habit, notificationId: null };
-      if (!habit.enabled) {
-        await cancelReminderNotification(habit.notificationId || habit.id);
+      const { cancelIntervalNotifications, scheduleIntervalNotification } = await import('@/src/features/habits/lib/interval-reminders');
+      if (habit.enabled) {
+        scheduled = await scheduleIntervalNotification(habit);
+      } else {
+        await cancelIntervalNotifications(habit);
+        scheduled = { ...habit, notificationId: null, notificationIds: null };
       }
     }
     const existing = get().intervalHabits;
@@ -414,8 +415,8 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   removeIntervalHabit: async (id) => {
     const current = get().intervalHabits.find((item) => item.id === id);
     if (nativeRemindersAvailable()) {
-      const { cancelReminderNotification } = await import('@/src/features/habits/lib/interval-reminders');
-      await cancelReminderNotification(current?.notificationId || id);
+      const { cancelIntervalNotifications } = await import('@/src/features/habits/lib/interval-reminders');
+      await cancelIntervalNotifications(current ?? ({ id } as IntervalHabit));
     }
     const intervalHabits = get().intervalHabits.filter((item) => item.id !== id);
     await persistRewards({ ...get(), intervalHabits });

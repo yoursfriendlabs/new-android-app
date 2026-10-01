@@ -31,7 +31,9 @@ import { COIN_REWARDS, plusCoins } from '@/src/features/habits/lib/coins';
 import { buildCoinWin, type HabitWin } from '@/src/features/habits/lib/habits';
 import {
   ALL_INTERVAL_TEMPLATES,
+  formatActiveWindow,
   formatInterval,
+  getActiveWindow,
   getIntervalClaimStatus,
   INTERVAL_TEMPLATES,
   intervalCheckInBucket,
@@ -123,8 +125,8 @@ export function PersonalNotesInbox() {
 
   const checkIn = async (habit: IntervalHabit) => {
     const statusInfo = getIntervalClaimStatus(habit);
-    if (statusInfo.status === 'waiting') {
-      toast.error(statusInfo.message);
+    if (statusInfo.status === 'waiting' || statusInfo.status === 'offHours' || statusInfo.status === 'paused') {
+      toast.info(statusInfo.message);
       return;
     }
 
@@ -244,6 +246,8 @@ export function PersonalNotesInbox() {
                 const statusInfo = live ? getIntervalClaimStatus(live) : null;
                 const isReady = statusInfo?.status === 'ready';
                 const isMissed = statusInfo?.status === 'missed';
+                const isOffHours = statusInfo?.status === 'offHours';
+                const isPaused = Boolean(existing) && !existing?.enabled;
 
                 return (
                   <Pressable
@@ -287,9 +291,18 @@ export function PersonalNotesInbox() {
                     </View>
 
                     <Text style={[styles.habitTitle, { color: colors.text }]}>{template.title}</Text>
-                    <Text style={[styles.habitMeta, { color: colors.textMuted }]}>
-                      {live ? formatInterval(live.intervalMinutes) : 'Set interval'}
+                    <Text style={[styles.habitMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                      {isPaused
+                        ? 'Pings off'
+                        : live
+                          ? formatInterval(live.intervalMinutes)
+                          : 'Set interval'}
                     </Text>
+                    {live && getActiveWindow(live) ? (
+                      <Text style={[styles.habitWindow, { color: colors.textSoft }]} numberOfLines={1}>
+                        {formatActiveWindow(live)}
+                      </Text>
+                    ) : null}
 
                     <Text
                       style={[
@@ -308,9 +321,13 @@ export function PersonalNotesInbox() {
                         ? `Claim · ${plusCoins(COIN_REWARDS.intervalCheckIn)}`
                         : isMissed
                           ? 'Reset timer'
-                          : live
-                            ? `In ${statusInfo?.waitMinutesLeft ?? 1}m`
-                            : 'Start'}
+                          : isOffHours
+                            ? 'Off hours'
+                            : isPaused
+                              ? 'Turn back on'
+                              : live
+                                ? `In ${statusInfo?.waitMinutesLeft ?? 1}m`
+                                : 'Start'}
                     </Text>
                   </Pressable>
                 );
@@ -328,6 +345,7 @@ export function PersonalNotesInbox() {
                 const statusInfo = getIntervalClaimStatus(habit);
                 const isReady = statusInfo.status === 'ready';
                 const isMissed = statusInfo.status === 'missed';
+                const window = getActiveWindow(habit) ? formatActiveWindow(habit) : '';
 
                 return (
                   <Pressable
@@ -359,8 +377,9 @@ export function PersonalNotesInbox() {
                     <View style={styles.customHabitInfo}>
                       <View style={styles.customHabitHeader}>
                         <Text style={[styles.customTitle, { color: colors.text }]}>{habit.title}</Text>
-                        <Text style={[styles.habitMeta, { color: colors.textMuted }]}>
+                        <Text style={[styles.habitMeta, { color: colors.textMuted }]} numberOfLines={1}>
                           {formatInterval(habit.intervalMinutes)}
+                          {window ? ` · ${window}` : ''}
                         </Text>
                       </View>
                       {habit.message ? (
@@ -388,7 +407,15 @@ export function PersonalNotesInbox() {
                             color: isReady || isMissed ? colors.onPrimary : colors.textMuted,
                           },
                         ]}>
-                        {isReady ? `+${COIN_REWARDS.intervalCheckIn} 🪙` : isMissed ? 'Reset' : 'Waiting'}
+                        {isReady
+                          ? `+${COIN_REWARDS.intervalCheckIn} 🪙`
+                          : isMissed
+                            ? 'Reset'
+                            : statusInfo.status === 'paused'
+                              ? 'Off'
+                              : statusInfo.status === 'offHours'
+                                ? 'Off hours'
+                                : 'Waiting'}
                       </Text>
                     </Pressable>
                   </Pressable>
@@ -522,6 +549,10 @@ const createStyles = (colors: AppPalette) =>
     },
     habitMeta: {
       fontSize: 11,
+    },
+    habitWindow: {
+      fontSize: 10,
+      fontWeight: '700',
     },
     habitAction: {
       marginTop: 'auto',

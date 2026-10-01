@@ -2,9 +2,11 @@ import { Platform } from 'react-native';
 
 import {
   clampIntervalMinutes,
-  nativeRemindersAvailable,
+  getActiveWindow,
+  intervalPingTimes,
   type IntervalHabit,
 } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { reminderTargetUrl } from '@/src/features/habits/lib/reminder-links';
 
 export {
@@ -12,14 +14,18 @@ export {
   INTERVAL_TEMPLATES,
   canCheckIn,
   clampIntervalMinutes,
+  formatActiveWindow,
   formatInterval,
+  getActiveWindow,
   intervalCheckInBucket,
+  intervalPingTimes,
+  isWithinActiveWindow,
   makeIntervalHabit,
-  nativeRemindersAvailable,
   type IntervalHabit,
   type IntervalKind,
   type IntervalTemplate,
 } from '@/src/features/habits/lib/interval-habits';
+export { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 
 type NotificationsModule = {
   AndroidImportance: { DEFAULT: number };
@@ -132,23 +138,75 @@ export async function cancelReminderNotification(identifier?: string | null) {
   }
 }
 
+/** Clears every ping this habit has on the phone, single or windowed. */
+export async function cancelIntervalNotifications(habit: IntervalHabit) {
+  await cancelReminderNotification(habit.notificationId || habit.id);
+  for (const id of habit.notificationIds ?? []) {
+    await cancelReminderNotification(id);
+  }
+}
+
+/** How far ahead windowed pings are booked, and how many at most. */
+const WINDOW_HORIZON_HOURS = 48;
+const WINDOW_PING_LIMIT = 48;
+
 export async function scheduleIntervalNotification(habit: IntervalHabit) {
+  const cleared = { ...habit, notificationId: null, notificationIds: null };
   if (!habit.enabled) {
-    return { ...habit, notificationId: null };
+    return cleared;
   }
 
   const Notifications = notifications();
   if (!Notifications) {
-    return { ...habit, notificationId: null };
+    return cleared;
   }
 
   const allowed = await requestReminderPermission();
   if (!allowed) {
-    return { ...habit, notificationId: null };
+    return cleared;
   }
 
   await ensureChannel();
-  await cancelReminderNotification(habit.notificationId || habit.id);
+  await cancelIntervalNotifications(habit);
+
+  const content = {
+    title: habit.title,
+    body: habit.message,
+    sound: true,
+    data: {
+      url: '/notes',
+      habitId: habit.id,
+      kind: habit.kind,
+    },
+    ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
+  };
+
+  // Chosen hours cannot be expressed as one repeating timer, so the pings
+  // inside the window are booked one by one and topped up on each app start.
+  if (getActiveWindow(habit)) {
+    const times = intervalPingTimes(habit, {
+      horizonHours: WINDOW_HORIZON_HOURS,
+      limit: WINDOW_PING_LIMIT,
+    });
+    const notificationIds: string[] = [];
+    for (let index = 0; index < times.length; index += 1) {
+      const identifier = `${habit.id}#${index}`;
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier,
+          content,
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: times[index],
+          },
+        });
+        notificationIds.push(identifier);
+      } catch {
+        // Native module may be missing until a rebuild.
+      }
+    }
+    return { ...habit, notificationId: null, notificationIds: notificationIds.length ? notificationIds : null };
+  }
 
   const seconds = Math.max(60, clampIntervalMinutes(habit.intervalMinutes) * 60);
   const identifier = habit.id;
@@ -156,26 +214,16 @@ export async function scheduleIntervalNotification(habit: IntervalHabit) {
   try {
     await Notifications.scheduleNotificationAsync({
       identifier,
-      content: {
-        title: habit.title,
-        body: habit.message,
-        sound: true,
-        data: {
-          url: '/notes',
-          habitId: habit.id,
-          kind: habit.kind,
-        },
-        ...(Platform.OS === 'android' ? { channelId: 'habits' } : {}),
-      },
+      content,
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds,
         repeats: true,
       },
     });
-    return { ...habit, notificationId: identifier };
+    return { ...habit, notificationId: identifier, notificationIds: null };
   } catch {
-    return { ...habit, notificationId: null };
+    return cleared;
   }
 }
 
@@ -352,8 +400,8 @@ export async function rescheduleEnabledHabits(habits: IntervalHabit[]) {
   const next: IntervalHabit[] = [];
   for (const habit of habits) {
     if (!habit.enabled) {
-      await cancelReminderNotification(habit.notificationId || habit.id);
-      next.push({ ...habit, notificationId: null });
+      await cancelIntervalNotifications(habit);
+      next.push({ ...habit, notificationId: null, notificationIds: null });
       continue;
     }
     next.push(await scheduleIntervalNotification(habit));

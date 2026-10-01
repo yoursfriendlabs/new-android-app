@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import { metaApi } from '@/src/api';
 import { getPekkaNudges } from '@/src/api/pekka';
 import { normalizeDashboardSummary } from '@/src/api/normalize';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { useTranslation } from '@/src/i18n';
 import { formatCurrency, localIsoDate } from '@/src/shared/lib/format';
 import { useAuthStore } from '@/src/stores/auth-store';

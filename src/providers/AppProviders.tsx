@@ -23,7 +23,7 @@ import { ReminderWatch } from '@/src/features/notes/components/ReminderWatch';
 import { PekkaFab } from '@/src/features/pekka/components/PekkaFab';
 import { PekkaScheduleWatch } from '@/src/features/pekka/components/PekkaScheduleWatch';
 import { useOnboardingStore } from '@/src/features/onboarding/lib/onboarding';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 
 const queryClient = new QueryClient({
   defaultOptions: {

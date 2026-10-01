@@ -9,7 +9,7 @@ import {
   formatClockTime,
   type DailyMoneyReminderSettings,
 } from '@/src/features/habits/lib/daily-money-reminder';
-import { nativeRemindersAvailable } from '@/src/features/habits/lib/interval-habits';
+import { nativeRemindersAvailable } from '@/src/features/habits/lib/native-reminders';
 import { usePalette } from '@/src/stores/theme-store';
 import { radius, spacing, typography } from '@/src/theme';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
