@@ -8,8 +8,6 @@ import { servicesApi } from '@/src/api';
 import { SkeletonList } from '@/src/shared/ui/Skeleton';
 import { useToast } from '@/src/shared/feedback/ToastProvider';
 import { Screen } from '@/src/shared/layout/Screen';
-import { SearchField } from '@/src/shared/ui/SearchField';
-import { SegmentedTabs } from '@/src/shared/ui/SegmentedTabs';
 import { StickyActionBar } from '@/src/shared/ui/StickyActionBar';
 import { formatCurrency, prettyDate } from '@/src/shared/lib/format';
 import { buildServiceReceipt, openReceiptPreview } from '@/src/shared/lib/receipt';
@@ -41,7 +39,6 @@ import {
   useStaff,
 } from '@/src/shared/hooks/useAppQueries';
 import { ListFooterLoader, loadMoreOnScroll } from '@/src/shared/ui/ListFooterLoader';
-import { useDebouncedValue } from '@/src/shared/hooks/useDebouncedValue';
 import { a11y, radius, shadows, spacing, typography } from '@/src/theme';
 import type { Service, ServiceStatus } from '@/src/types/models';
 import { useAuthStore } from '@/src/stores/auth-store';
@@ -56,6 +53,13 @@ const SERVER_STAGE: Record<ServiceFilter, 'open' | 'overdue' | 'closed' | undefi
   in_progress: 'open',
   overdue: 'overdue',
   closed: 'closed',
+};
+
+const STAGE_LABEL: Record<ServiceFilter, string> = {
+  all: 'All',
+  in_progress: 'In progress',
+  overdue: 'Overdue',
+  closed: 'Closed',
 };
 
 function matchesFilter(service: Service, filter: ServiceFilter) {
@@ -81,14 +85,11 @@ export default function ServicesScreen() {
     return new Map((partiesQuery.data ?? []).map((p) => [p.id, p]));
   }, [partiesQuery.data]);
 
-  const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<ServiceFilter>('all');
   const [filters, setFilters] = useState<ServiceFilters>(EMPTY_SERVICE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const debouncedSearch = useDebouncedValue(search);
   const servicesQuery = usePagedServices({
     stage: SERVER_STAGE[filter],
-    search: debouncedSearch,
     partyId: filters.partyId,
     createdBy: filters.createdBy,
     storeType: filters.storeType,
@@ -113,11 +114,14 @@ export default function ServicesScreen() {
     return [...byId.entries()].map(([id, name]) => ({ id, name }));
   }, [services, staff]);
 
-  const activeFilterCount = countServiceFilters(filters);
+  const activeFilterCount = countServiceFilters(filters) + (filter === 'all' ? 0 : 1);
 
   /** One removable chip per narrowing, so what is on is readable at a glance. */
   const activeFilterChips = useMemo(() => {
-    const chips: Array<{ key: keyof ServiceFilters; label: string }> = [];
+    const chips: Array<{ key: keyof ServiceFilters | 'stage'; label: string }> = [];
+    if (filter !== 'all') {
+      chips.push({ key: 'stage', label: STAGE_LABEL[filter] });
+    }
     if (filters.partyId) {
       chips.push({
         key: 'partyId',
@@ -134,7 +138,17 @@ export default function ServicesScreen() {
       chips.push({ key: 'storeType', label: serviceTypeLabel(filters.storeType) });
     }
     return chips;
-  }, [creatorOptions, filters, partyMap]);
+  }, [creatorOptions, filter, filters, partyMap]);
+
+  function clearChip(key: keyof ServiceFilters | 'stage') {
+    if (key === 'stage') setFilter('all');
+    else setFilters((current) => ({ ...current, [key]: '' }));
+  }
+
+  function clearEverything() {
+    setFilter('all');
+    setFilters(EMPTY_SERVICE_FILTERS);
+  }
 
   const counts = useMemo(() => {
     let inProgress = 0;
@@ -179,28 +193,13 @@ export default function ServicesScreen() {
     };
   }, [services, statsQuery.data]);
 
-  const visibleServices = useMemo(() => {
-    const query = debouncedSearch.trim().toLowerCase();
-    return services.filter((service) => {
-      if (!matchesFilter(service, filter)) return false;
-      if (!matchesServiceFilters(service, filters)) return false;
-      if (!query) return true;
-
-      const customer = resolveServiceCustomer(service, partyMap);
-      const searchTargets = [
-        service.orderNo,
-        customer.name,
-        customer.phone,
-        service.notes,
-        service.status,
-        getServiceDeviceOrProblem(service),
-      ]
-        .filter(Boolean)
-        .map((val) => String(val).toLowerCase());
-
-      return searchTargets.some((target) => target.includes(query));
-    });
-  }, [debouncedSearch, filter, filters, partyMap, services]);
+  const visibleServices = useMemo(
+    () =>
+      services.filter(
+        (service) => matchesFilter(service, filter) && matchesServiceFilters(service, filters),
+      ),
+    [filter, filters, services],
+  );
 
   function openService(serviceId: string) {
     router.push({ pathname: '/(app)/service-detail' as any, params: { id: serviceId } });
@@ -261,31 +260,57 @@ export default function ServicesScreen() {
         }
         contentContainerStyle={styles.scroll}>
         
-        {/* KPI Summary Dashboard Tiles */}
+        {/* The counts are the stage filter: tap one to narrow, tap it again for all. */}
         <View style={styles.statsGrid}>
-          <View style={[styles.statTile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.statIconBox, { backgroundColor: colors.warningSoft }]}>
-              <MaterialCommunityIcons name="progress-wrench" size={20} color={colors.warning} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.warning }]}>{counts.inProgress}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>In Progress</Text>
-          </View>
-
-          <View style={[styles.statTile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.statIconBox, { backgroundColor: colors.dangerSoft }]}>
-              <MaterialCommunityIcons name="clock-alert-outline" size={20} color={colors.danger} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.danger }]}>{counts.overdue}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Overdue</Text>
-          </View>
-
-          <View style={[styles.statTile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.statIconBox, { backgroundColor: colors.accentSoft }]}>
-              <MaterialCommunityIcons name="check-circle-outline" size={20} color={colors.accent} />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{counts.closed}</Text>
-            <Text style={[styles.statLabel, { color: colors.textMuted }]}>Closed</Text>
-          </View>
+          {([
+            {
+              stage: 'in_progress',
+              label: 'In Progress',
+              value: String(counts.inProgress),
+              icon: 'progress-wrench',
+              tint: colors.warning,
+              soft: colors.warningSoft,
+            },
+            {
+              stage: 'overdue',
+              label: 'Overdue',
+              value: String(counts.overdue),
+              icon: 'clock-alert-outline',
+              tint: colors.danger,
+              soft: colors.dangerSoft,
+            },
+            {
+              stage: 'closed',
+              label: 'Closed',
+              value: String(counts.closed),
+              icon: 'check-circle-outline',
+              tint: colors.accent,
+              soft: colors.accentSoft,
+            },
+          ] as const).map((tile) => {
+            const active = filter === tile.stage;
+            return (
+              <Pressable
+                key={tile.stage}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${tile.label}, ${tile.value} jobs`}
+                onPress={() => setFilter(active ? 'all' : tile.stage)}
+                style={[
+                  styles.statTile,
+                  {
+                    backgroundColor: active ? tile.soft : colors.surface,
+                    borderColor: active ? tile.tint : colors.border,
+                  },
+                ]}>
+                <View style={[styles.statIconBox, { backgroundColor: tile.soft }]}>
+                  <MaterialCommunityIcons name={tile.icon} size={20} color={tile.tint} />
+                </View>
+                <Text style={[styles.statValue, { color: tile.tint }]}>{tile.value}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>{tile.label}</Text>
+              </Pressable>
+            );
+          })}
 
           <View style={[styles.statTile, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.statIconBox, { backgroundColor: colors.infoSoft }]}>
@@ -297,24 +322,6 @@ export default function ServicesScreen() {
             <Text style={[styles.statLabel, { color: colors.textMuted }]}>Pending Due</Text>
           </View>
         </View>
-
-        {/* Live Search and Filters */}
-        <SearchField
-          placeholder="Search by customer name, phone, or job #"
-          value={search}
-          onChangeText={setSearch}
-        />
-
-        <SegmentedTabs
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { label: `All (${counts.all})`, value: 'all' },
-            { label: `In Progress (${counts.inProgress})`, value: 'in_progress' },
-            { label: `Overdue (${counts.overdue})`, value: 'overdue' },
-            { label: `Closed (${counts.closed})`, value: 'closed' },
-          ]}
-        />
 
         {/* Customer, who opened it, and physical/online — one row, not three fields. */}
         <ScrollView
@@ -357,7 +364,7 @@ export default function ServicesScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Remove filter ${chip.label}`}
               hitSlop={a11y.hitSlop}
-              onPress={() => setFilters((current) => ({ ...current, [chip.key]: '' }))}
+              onPress={() => clearChip(chip.key)}
               style={[styles.activeChip, { backgroundColor: colors.backgroundAlt }]}>
               <Text style={[styles.activeChipText, { color: colors.text }]} numberOfLines={1}>
                 {chip.label}
@@ -371,7 +378,7 @@ export default function ServicesScreen() {
               accessibilityRole="button"
               accessibilityLabel="Clear all filters"
               hitSlop={a11y.hitSlop}
-              onPress={() => setFilters(EMPTY_SERVICE_FILTERS)}
+              onPress={clearEverything}
               style={styles.clearAllBtn}>
               <Text style={[styles.clearAllText, { color: colors.danger }]}>Clear</Text>
             </Pressable>
@@ -386,16 +393,12 @@ export default function ServicesScreen() {
               <MaterialCommunityIcons name="tools" size={32} color={colors.accent} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {debouncedSearch.trim() || filter !== 'all' || activeFilterCount
-                ? 'No matching service jobs'
-                : 'No service jobs yet'}
+              {activeFilterCount ? 'No matching service jobs' : 'No service jobs yet'}
             </Text>
             <Text style={[styles.emptyCopy, { color: colors.textMuted }]}>
               {activeFilterCount
                 ? 'Nothing matches these filters. Clear one and try again.'
-                : debouncedSearch.trim() || filter !== 'all'
-                  ? 'Try a different customer name, phone number, or status filter.'
-                  : 'Create your first service job to track repairs, customer items, labor, and balance due.'}
+                : 'Create your first service job to track repairs, customer items, labor, and balance due.'}
             </Text>
             <Pressable
               style={[styles.emptyActionBtn, { backgroundColor: colors.primary }]}
