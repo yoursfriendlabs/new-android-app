@@ -34,7 +34,7 @@ interface ServiceFiltersSheetProps {
 }
 
 /** How many customers to list before asking the shopkeeper to search. */
-const PARTY_PREVIEW = 8;
+const PARTY_PREVIEW = 6;
 
 /**
  * Customer, who opened the job, and physical or online — the three narrowings
@@ -82,9 +82,9 @@ export function ServiceFiltersSheet({
     <BottomSheet
       visible={visible}
       title="Filter jobs"
-      subtitle="Narrow the list by who it is for, who opened it, and how it came in."
+      subtitle="Type, who opened it, and who it is for."
       onClose={onClose}
-      heightRatio={0.9}
+      heightRatio={0.78}
       footer={
         <View style={styles.footer}>
           <Pressable
@@ -107,6 +107,7 @@ export function ServiceFiltersSheet({
               {chosenCount ? `Show results · ${chosenCount}` : 'Show all jobs'}
             </Text>
           </Pressable>
+
         </View>
       }>
       <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Type</Text>
@@ -161,17 +162,18 @@ export function ServiceFiltersSheet({
       />
       <View style={styles.partyList}>
         <Pressable
-          style={styles.partyRow}
-          onPress={() => setDraft((current) => ({ ...current, partyId: '' }))}>
+          onPress={() => setDraft((current) => ({ ...current, partyId: '' }))}
+          style={[
+            styles.partyRow,
+            !draft.partyId && { backgroundColor: colors.accentSoft },
+          ]}>
           <View style={[styles.avatar, { backgroundColor: colors.backgroundAlt }]}>
-            <MaterialCommunityIcons name="account-group-outline" size={18} color={colors.textMuted} />
+            <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.textMuted} />
           </View>
           <Text style={[styles.partyName, { color: colors.text }]}>Everyone</Text>
-          <MaterialCommunityIcons
-            name={draft.partyId ? 'radiobox-blank' : 'radiobox-marked'}
-            size={22}
-            color={draft.partyId ? colors.textMuted : colors.primary}
-          />
+          {!draft.partyId ? (
+            <MaterialCommunityIcons name="check" size={18} color={colors.primary} />
+          ) : null}
         </Pressable>
 
         {matchingParties.map((party) => {
@@ -179,12 +181,12 @@ export function ServiceFiltersSheet({
           return (
             <Pressable
               key={party.id}
-              style={styles.partyRow}
               onPress={() =>
                 setDraft((current) => ({ ...current, partyId: active ? '' : party.id }))
-              }>
-              <View style={[styles.avatar, { backgroundColor: colors.accentSoft }]}>
-                <Text style={[styles.avatarText, { color: colors.primary }]}>
+              }
+              style={[styles.partyRow, active && { backgroundColor: colors.accentSoft }]}>
+              <View style={[styles.avatar, { backgroundColor: colors.backgroundAlt }]}>
+                <Text style={[styles.avatarText, { color: colors.textMuted }]}>
                   {partyInitials(party.name)}
                 </Text>
               </View>
@@ -198,11 +200,7 @@ export function ServiceFiltersSheet({
                   </Text>
                 ) : null}
               </View>
-              <MaterialCommunityIcons
-                name={active ? 'radiobox-marked' : 'radiobox-blank'}
-                size={22}
-                color={active ? colors.primary : colors.textMuted}
-              />
+              {active ? <MaterialCommunityIcons name="check" size={18} color={colors.primary} /> : null}
             </Pressable>
           );
         })}
@@ -224,52 +222,54 @@ const createStyles = (colors: AppPalette) =>
       fontWeight: '800',
       letterSpacing: 0.6,
       textTransform: 'uppercase',
-      marginTop: spacing.sm,
+      marginTop: spacing.xs,
       marginBottom: spacing.xxs,
     },
     chipRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: spacing.xxs,
-      marginBottom: spacing.xs,
     },
     partyList: {
       marginTop: spacing.xxs,
+      gap: 2,
     },
+    // Rows are told apart by their own tint and spacing. Dividers between them
+    // sat against the text with nothing to breathe through.
     partyRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: spacing.sm,
-      minHeight: 52,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      gap: spacing.xs,
+      minHeight: 46,
+      paddingHorizontal: spacing.xs,
+      paddingVertical: spacing.xxs,
+      borderRadius: radius.sm,
     },
     avatar: {
-      width: 34,
-      height: 34,
-      borderRadius: 12,
+      width: 28,
+      height: 28,
+      borderRadius: 9,
       alignItems: 'center',
       justifyContent: 'center',
     },
     avatarText: {
-      fontSize: typography.caption,
+      fontSize: 10,
       fontWeight: '800',
     },
     partyCopy: {
       flex: 1,
-      gap: 1,
     },
     partyName: {
       flex: 1,
-      fontSize: typography.body,
+      fontSize: typography.label,
       fontWeight: '600',
     },
     partyPhone: {
-      fontSize: typography.caption,
+      fontSize: 11,
     },
     empty: {
       fontSize: typography.caption,
-      paddingVertical: spacing.sm,
+      paddingVertical: spacing.xs,
     },
     footer: {
       flexDirection: 'row',
