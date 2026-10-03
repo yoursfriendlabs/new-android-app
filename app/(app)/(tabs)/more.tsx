@@ -124,6 +124,15 @@ const MENU_GROUPS: MenuGroup[] = [
         route: '/(app)/ledger',
       },
       {
+        id: 'day-book',
+        segment: 'day-book',
+        label: 'Day Book',
+        subtitle: 'Cash in hand and each bank, day by day',
+        icon: 'notebook-outline',
+        tone: 'info',
+        route: '/(app)/day-book',
+      },
+      {
         id: 'coins',
         segment: 'home',
         label: 'Coins',

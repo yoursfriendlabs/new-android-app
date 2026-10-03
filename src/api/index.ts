@@ -92,6 +92,7 @@ import type {
   DashboardSummary,
   MoneyActivity,
   MoneyFeedResponse,
+  DayBookResponse,
   InventorySummary,
   LedgerEntry,
   OrderAttribute,
@@ -571,6 +572,8 @@ export const reportsApi = {
     apiRequest<PaginatedResponse<LedgerEntry> & { totals?: { debit: number; credit: number } }>({ path: '/api/reports/ledger', query }),
   moneyFeed: (query: Record<string, string | number | boolean | undefined>) =>
     apiRequest<MoneyFeedResponse>({ path: '/api/reports/money-feed', query }),
+  dayBook: (query: Record<string, string | number | boolean | undefined> = {}) =>
+    apiRequest<DayBookResponse>({ path: '/api/reports/day-book', query }),
   stockLedger: (query: ListQuery) =>
     apiRequest<PaginatedResponse<StockLedgerEntry>>({ path: '/api/reports/stock-ledger', query }),
   salesReport: (query: ListQuery) => apiRequest<PaginatedResponse<Sale>>({ path: '/api/reports/sales-report', query }),

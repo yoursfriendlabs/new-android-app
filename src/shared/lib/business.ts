@@ -420,6 +420,7 @@ export function canAccessSegment(user: PermissionCarrier, segment?: string) {
     case 'banks':
       return hasAppCapability(user, 'banks');
     case 'ledger':
+    case 'day-book':
       return hasAppCapability(user, 'ledger');
     case 'inventory':
     case 'units':

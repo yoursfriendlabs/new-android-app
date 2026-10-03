@@ -85,6 +85,7 @@ export default function AppLayout() {
         <Stack.Screen name="attendance" />
         <Stack.Screen name="budgets" />
         <Stack.Screen name="money-insights" />
+        <Stack.Screen name="day-book" />
         <Stack.Screen name="cashier" />
         <Stack.Screen name="tables" />
         <Stack.Screen name="item-form" options={{ presentation: 'modal' }} />

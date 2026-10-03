@@ -754,6 +754,55 @@ export interface MoneyFeedResponse {
   parties?: Array<{ party: Party; totalIn: number; totalOut: number; txCount: number }>;
 }
 
+/** One account's day in the day book: where it started, what moved, where it ended. */
+export interface DayBookAccount {
+  /** 'cash', a bank id, or 'other:<method>' for a wallet bucket. */
+  id: string;
+  type: 'cash' | 'bank' | 'other';
+  name: string;
+  opening: number;
+  in: number;
+  out: number;
+  closing: number;
+  count: number;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  isActive?: boolean;
+  /** Banks only: the balance the app keeps on the account row, for reconciling. */
+  recordedBalance?: number;
+}
+
+export interface DayBookTotals {
+  opening: number;
+  in: number;
+  out: number;
+  closing: number;
+  count: number;
+  cash: Omit<DayBookTotals, 'cash' | 'bank' | 'other'>;
+  bank: Omit<DayBookTotals, 'cash' | 'bank' | 'other'>;
+  other: Omit<DayBookTotals, 'cash' | 'bank' | 'other'>;
+}
+
+export interface DayBookEntry extends Omit<MoneyFeedItem, 'paidAmount'> {
+  accountId: string;
+  accountType: 'cash' | 'bank' | 'other';
+}
+
+/** GET /api/reports/day-book */
+export interface DayBookResponse {
+  from: string;
+  to: string;
+  cashOpeningBalance: number;
+  accounts: DayBookAccount[];
+  totals: DayBookTotals;
+  entries: DayBookEntry[];
+  /** True when a search narrowed the entry list; the balances never are. */
+  entriesFiltered: boolean;
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 /** Personal home money activity, all worked out by the server (GET /api/dashboard/activity). */
 export interface MoneyActivity {
   range: { from: string; to: string };
