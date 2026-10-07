@@ -388,7 +388,7 @@ export function LedgerScreen() {
                 {formatCurrency(standing.toReceive, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
-                Unpaid sales and service jobs
+                What parties owe you, after payments
               </Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: colors.infoSoft, borderColor: colors.border }]}>
@@ -400,7 +400,7 @@ export function LedgerScreen() {
                 {formatCurrency(standing.toPay, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
-                Unpaid purchases and expenses
+                What you owe parties, after payments
               </Text>
             </View>
           </View>
