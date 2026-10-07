@@ -114,8 +114,6 @@ export function LedgerScreen() {
         : standingNet < 0
           ? `You owe ${formatCurrency(Math.abs(standingNet), currency)}`
           : 'Both sides balance out';
-  const shopStandingColor =
-    standingNet > 0 ? colors.danger : standingNet < 0 ? colors.info : colors.textSoft;
 
   const partyBalanceMeta = selectedParty ? getPartyBalanceMeta(selectedParty, undefined, personal) : null;
   const partyToneColor = partyBalanceMeta ? getBalanceColor(partyBalanceMeta.tone, colors) : colors.text;
@@ -200,7 +198,7 @@ export function LedgerScreen() {
       partyPhone: selectedParty?.phone ? String(selectedParty.phone) : undefined,
       notes: personal
         ? `In: ${formatCurrency(totals.credit, currency)} · Out: ${formatCurrency(totals.debit, currency)} · Net: ${formatCurrency(net, currency)}`
-        : `To receive: ${formatCurrency(standing.toReceive, currency)} · To pay: ${formatCurrency(standing.toPay, currency)} · ${shopStandingLine}`,
+        : `Cash in: ${formatCurrency(standing.cashIn, currency)} · Cash out: ${formatCurrency(standing.cashOut, currency)} · ${shopStandingLine}`,
       lines,
       subTotal: totals.debit + totals.credit,
       taxTotal: 0,
@@ -379,57 +377,49 @@ export function LedgerScreen() {
           </View>
         ) : (
           <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.successSoft, borderColor: colors.border }]}>
               <View style={styles.summaryCardHeader}>
-                <Text style={[styles.summaryLabel, { color: colors.danger }]}>To receive</Text>
-                <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.danger} />
+                <Text style={[styles.summaryLabel, { color: colors.success }]}>Cash in</Text>
+                <MaterialCommunityIcons name="arrow-bottom-left" size={16} color={colors.success} />
               </View>
-              <Text style={[styles.summaryValue, { color: colors.danger }]}>
-                {formatCurrency(standing.toReceive, currency)}
+              <Text style={[styles.summaryValue, { color: colors.success }]}>
+                {formatCurrency(standing.cashIn, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
-                Unpaid sales and service jobs
+                Paid on sales and payments received
               </Text>
             </View>
-            <View style={[styles.summaryCard, { backgroundColor: colors.infoSoft, borderColor: colors.border }]}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
               <View style={styles.summaryCardHeader}>
-                <Text style={[styles.summaryLabel, { color: colors.info }]}>To pay</Text>
-                <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.info} />
+                <Text style={[styles.summaryLabel, { color: colors.danger }]}>Cash out</Text>
+                <MaterialCommunityIcons name="arrow-top-right" size={16} color={colors.danger} />
               </View>
-              <Text style={[styles.summaryValue, { color: colors.info }]}>
-                {formatCurrency(standing.toPay, currency)}
+              <Text style={[styles.summaryValue, { color: colors.danger }]}>
+                {formatCurrency(standing.cashOut, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
-                Unpaid purchases and expenses
+                Paid on purchases and payments made
               </Text>
             </View>
           </View>
         )}
 
-        <View style={[styles.netCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.netLabel, { color: colors.textSoft }]}>
-              {personal ? (book === 'party' ? 'Net movement' : 'Total') : 'Where you stand'}
-            </Text>
-            {personal ? (
+        {personal ? (
+          <View style={[styles.netCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.netLabel, { color: colors.textSoft }]}>
+                {book === 'party' ? 'Net movement' : 'Total'}
+              </Text>
               <Text style={[styles.netValue, { color: net >= 0 ? colors.success : colors.danger }]}>
                 {net >= 0 ? '+' : ''}{formatCurrency(net, currency)}
               </Text>
-            ) : (
-              <Text style={[styles.netValue, { color: shopStandingColor }]}>{shopStandingLine}</Text>
-            )}
+            </View>
+            <View style={styles.netSide}>
+              <Text style={[styles.netLabel, { color: colors.textSoft }]}>Total entries</Text>
+              <Text style={[styles.netValue, { color: colors.text }]}>{`${ledger.total} items`}</Text>
+            </View>
           </View>
-          <View style={styles.netSide}>
-            <Text style={[styles.netLabel, { color: colors.textSoft }]}>
-              {personal ? 'Total entries' : 'Cash in / out'}
-            </Text>
-            <Text style={[styles.netValue, { color: colors.text }]}>
-              {personal
-                ? `${ledger.total} items`
-                : `${formatCurrency(standing.cashIn, currency)} / ${formatCurrency(standing.cashOut, currency)}`}
-            </Text>
-          </View>
-        </View>
+        ) : null}
 
         {isLoading ? <SkeletonList count={6} avatar={false} /> : null}
 

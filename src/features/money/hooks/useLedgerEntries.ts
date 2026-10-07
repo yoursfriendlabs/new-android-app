@@ -93,12 +93,25 @@ export interface LedgerStanding {
   currentAmount: number;
 }
 
+/** What was actually paid on a kind of bill: its total less what is still due. */
+function paidOn(total: unknown, due: unknown) {
+  return Math.max(Number(total ?? 0) - Number(due ?? 0), 0);
+}
+
 function toStanding(summary?: PartyStatementSummary): LedgerStanding {
+  // Money taken at the till lives on the bill; payment in/out rows are only
+  // the separate party payments, so cash in/out adds the two together.
   return {
     toReceive: Number(summary?.salesDue ?? 0) + Number(summary?.servicesDue ?? 0),
     toPay: Number(summary?.purchasesDue ?? 0) + Number(summary?.expensesDue ?? 0),
-    cashIn: Number(summary?.totalPaymentIn ?? 0),
-    cashOut: Number(summary?.totalPaymentOut ?? 0),
+    cashIn:
+      paidOn(summary?.totalSales, summary?.salesDue) +
+      paidOn(summary?.totalServices, summary?.servicesDue) +
+      Number(summary?.totalPaymentIn ?? 0),
+    cashOut:
+      paidOn(summary?.totalPurchases, summary?.purchasesDue) +
+      paidOn(summary?.totalExpenses, summary?.expensesDue) +
+      Number(summary?.totalPaymentOut ?? 0),
     currentAmount: Number(summary?.currentAmount ?? 0),
   };
 }
