@@ -94,6 +94,11 @@ export interface LedgerStanding {
   currentAmount: number;
 }
 
+/** What was actually paid on a kind of bill: its total less what is still due. */
+function paidOn(total: unknown, due: unknown) {
+  return Math.max(Number(total ?? 0) - Number(due ?? 0), 0);
+}
+
 /**
  * To receive / to pay are party balances, the same numbers Home and Parties show.
  * Bill dues alone miss opening balances and advance payments, and a payment in
@@ -113,10 +118,18 @@ function toStanding(
         toReceive: Number(allParties?.toReceive ?? 0),
         toPay: Number(allParties?.toPay ?? 0),
       };
+  // Money taken at the till lives on the bill; payment in/out rows are only
+  // the separate party payments, so cash in/out adds the two together.
   return {
     ...balances,
-    cashIn: Number(summary?.totalPaymentIn ?? 0),
-    cashOut: Number(summary?.totalPaymentOut ?? 0),
+    cashIn:
+      paidOn(summary?.totalSales, summary?.salesDue) +
+      paidOn(summary?.totalServices, summary?.servicesDue) +
+      Number(summary?.totalPaymentIn ?? 0),
+    cashOut:
+      paidOn(summary?.totalPurchases, summary?.purchasesDue) +
+      paidOn(summary?.totalExpenses, summary?.expensesDue) +
+      Number(summary?.totalPaymentOut ?? 0),
     currentAmount,
   };
 }

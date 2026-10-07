@@ -915,7 +915,12 @@ export default function PosScreen() {
         parties={parties ?? []}
         createLabel="Add new customer"
         onPick={(party) => {
-          setValue((current) => ({ ...current, party }));
+          // Back to walk-in drops a "collect later" bill to fully paid; only a customer can owe.
+          setValue((current) =>
+            !party && !current.fullyPaid && current.amountReceived <= 0
+              ? { ...current, party, fullyPaid: true, amountReceived: 0 }
+              : { ...current, party },
+          );
           setPartyPickerVisible(false);
         }}
         onClose={() => setPartyPickerVisible(false)}
