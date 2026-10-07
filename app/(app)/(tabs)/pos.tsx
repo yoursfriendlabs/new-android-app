@@ -39,6 +39,7 @@ import {
   getCafeOrderTypeLabel,
 } from '@/src/features/cafe/lib/cafeOrders';
 import {
+  filterProducts,
   invalidateAfterBill,
   useBanks,
   useNextSequences,
@@ -62,6 +63,9 @@ import type { Sale } from '@/src/types/models';
 import { usePalette } from '@/src/stores/theme-store';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
 import type { AppPalette } from '@/src/theme/app-palette';
+
+/** How long typing must pause before the product search goes to the server. */
+const PRODUCT_SEARCH_DELAY_MS = 4000;
 
 function createEmptyPosDraft(): PosDraft {
   return {
@@ -107,9 +111,13 @@ export default function PosScreen() {
     visible: false,
     queued: false,
   });
-  const debouncedSearch = useDebouncedValue(search);
+  // The server is asked only once typing stops for a while; until then the grid
+  // narrows what is already loaded. Clearing the box shows everything at once.
+  const debouncedSearch = useDebouncedValue(search, PRODUCT_SEARCH_DELAY_MS);
+  const productSearch = search.trim() ? debouncedSearch : '';
+  const searchPending = search.trim() !== productSearch.trim();
   const debouncedPartySearch = useDebouncedValue(partySearch);
-  const productsQuery = useProducts(debouncedSearch);
+  const productsQuery = useProducts(productSearch);
   const products = productsQuery.data;
   const [refreshing, setRefreshing] = useState(false);
   const { data: parties } = useParties(debouncedPartySearch, 'customer');
@@ -505,12 +513,12 @@ export default function PosScreen() {
   }, [products]);
 
   const visibleProducts = useMemo(() => {
-    const nextProducts = products ?? [];
+    const nextProducts = searchPending ? filterProducts(products ?? [], search) : products ?? [];
     if (category === 'All') {
       return nextProducts;
     }
     return nextProducts.filter((product) => product.categoryName === category);
-  }, [category, products]);
+  }, [category, products, search, searchPending]);
 
   const activeBanks = (banks ?? []).filter((bank) => bank.isActive);
 

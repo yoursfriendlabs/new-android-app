@@ -130,7 +130,7 @@ export interface BudgetListData {
   summary: BudgetSummary;
 }
 
-function filterProducts(items: Product[], search: string) {
+export function filterProducts(items: Product[], search: string) {
   const query = search.trim().toLowerCase();
   if (!query) return items;
 
