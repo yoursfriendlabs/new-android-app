@@ -73,7 +73,44 @@ export function usePosCart(
     });
   }
 
+  /** Sets a line to a typed quantity; 0 takes it off the bill. */
+  function setCartQuantity(productId: string, quantity: number) {
+    const product = (products ?? []).find((entry) => entry.id === productId);
+    if (!product || !Number.isFinite(quantity) || quantity < 0) return;
+    const sellableStock = sellableOf(product);
+
+    setValue((current) => {
+      const existing = current.items.find((item) => item.productId === productId);
+      const line = existing ?? toCartLine(product, 0);
+
+      if (
+        quantity > 0 &&
+        !isServiceProduct(product) &&
+        primaryQuantity(line, quantity) > sellableStock
+      ) {
+        Alert.alert(
+          'Insufficient sellable stock',
+          `Only ${sellableStock} ${product.primaryUnit || 'units'} of non-expired stock available.`,
+        );
+        return current;
+      }
+
+      if (quantity <= 0) {
+        if (existing?.saleItemId) onLineRemoved?.(existing.saleItemId);
+        return { ...current, items: current.items.filter((item) => item.productId !== productId) };
+      }
+
+      return {
+        ...current,
+        items: existing
+          ? current.items.map((item) => (item.productId === productId ? { ...item, quantity } : item))
+          : [...current.items, { ...line, quantity }],
+      };
+    });
+  }
+
   return {
     updateCart,
+    setCartQuantity,
   };
 }

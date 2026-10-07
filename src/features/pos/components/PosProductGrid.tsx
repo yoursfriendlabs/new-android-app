@@ -19,6 +19,7 @@ interface PosProductGridProps {
   onRefresh: () => void;
   onAdd: (productId: string) => void;
   onSubtract: (productId: string) => void;
+  onSetQuantity: (productId: string, quantity: number) => void;
   search: string;
   setSearch: (value: string) => void;
   category: string;
@@ -39,6 +40,7 @@ export function PosProductGrid({
   loading,
   onAdd,
   onRefresh,
+  onSetQuantity,
   onSubtract,
   products,
   refreshing,
@@ -79,6 +81,8 @@ export function PosProductGrid({
         numColumns={columns}
         style={styles.list}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListHeaderComponent={isTablet ? null : filters}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -116,6 +120,7 @@ export function PosProductGrid({
                 quantity={quantity}
                 onAdd={() => onAdd(item.id)}
                 onSubtract={() => onSubtract(item.id)}
+                onSetQuantity={(quantity) => onSetQuantity(item.id, quantity)}
               />
             </View>
           );

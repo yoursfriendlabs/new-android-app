@@ -126,7 +126,7 @@ export default function PosScreen() {
   const { data: orderAttributes } = useOrderAttributes('sale');
   const { isReady, reset, setValue, value } = useDraftState<PosDraft>('draft:pos', createEmptyPosDraft());
   const { subTotal, taxTotal, grandTotal, cartItemCount } = usePosTotals(value);
-  const { updateCart } = usePosCart(products, setValue, (saleItemId) =>
+  const { updateCart, setCartQuantity } = usePosCart(products, setValue, (saleItemId) =>
     setRemovedLineIds((current) => (current.includes(saleItemId) ? current : [...current, saleItemId])),
   );
 
@@ -736,6 +736,7 @@ export default function PosScreen() {
       onRefresh={() => void handleRefresh()}
       onAdd={(productId) => updateCart(productId, 'add')}
       onSubtract={(productId) => updateCart(productId, 'subtract')}
+      onSetQuantity={setCartQuantity}
       search={search}
       setSearch={setSearch}
       category={category}
@@ -756,6 +757,7 @@ export default function PosScreen() {
       amountReceived={value.fullyPaid ? grandTotal : value.amountReceived}
       onAdd={(productId) => updateCart(productId, 'add')}
       onSubtract={(productId) => updateCart(productId, 'subtract')}
+      onSetQuantity={setCartQuantity}
       onToggleUnit={toggleItemUnit}
       busy={submission.busy}
       onCheckout={openCheckout}

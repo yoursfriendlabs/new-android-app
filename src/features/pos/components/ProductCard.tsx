@@ -10,12 +10,15 @@ import { radius, spacing, typography } from '@/src/theme';
 import type { AppPalette } from '@/src/theme/app-palette';
 import type { Product } from '@/src/types/models';
 import { useThemedStyles } from '@/src/theme/use-themed-styles';
+import { QuantityInput } from '@/src/features/pos/components/QuantityInput';
 
 interface ProductCardProps {
   product: Product;
   quantity: number;
   onAdd: () => void;
   onSubtract: () => void;
+  /** A quantity typed into the box between minus and plus. */
+  onSetQuantity: (quantity: number) => void;
   onInfo?: () => void;
 }
 
@@ -30,7 +33,7 @@ function getStockTone(stockOnHand: number | undefined, colors: AppPalette, t: (k
   return { label: t('inventory.inStock'), backgroundColor: colors.successSoft, color: colors.success };
 }
 
-export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: ProductCardProps) {
+export function ProductCard({ onAdd, onInfo, onSetQuantity, onSubtract, product, quantity }: ProductCardProps) {
   const add = () => {
     haptics.selection();
     onAdd();
@@ -141,7 +144,12 @@ export function ProductCard({ onAdd, onInfo, onSubtract, product, quantity }: Pr
             onPress={subtract}>
             <MaterialCommunityIcons color={colors.text} name="minus" size={16} />
           </Pressable>
-          <Text style={[styles.counterValue, { color: colors.primaryText }]}>{quantity}</Text>
+          <QuantityInput
+            accessibilityLabel={`Quantity of ${product.name}`}
+            value={quantity}
+            onCommit={onSetQuantity}
+            style={[styles.counterValue, { color: colors.primaryText }]}
+          />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Add one ${product.name}`}
