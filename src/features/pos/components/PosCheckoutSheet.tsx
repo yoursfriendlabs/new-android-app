@@ -196,17 +196,20 @@ export function PosCheckoutSheet({
         <View style={styles.card}>
           <View style={styles.tenderHeader}>
             <Text style={styles.sectionKicker}>Tender</Text>
-            <Pressable
-              onPress={() => applyTender(0, false)}
-              style={[styles.collectLater, !value.fullyPaid && tendered === 0 && styles.collectLaterActive]}>
-              <Text
-                style={[
-                  styles.collectLaterLabel,
-                  !value.fullyPaid && tendered === 0 && styles.collectLaterLabelActive,
-                ]}>
-                Collect later
-              </Text>
-            </Pressable>
+            {/* A walk-in has no account to carry the bill, so only a customer can pay later. */}
+            {value.party ? (
+              <Pressable
+                onPress={() => applyTender(0, false)}
+                style={[styles.collectLater, !value.fullyPaid && tendered === 0 && styles.collectLaterActive]}>
+                <Text
+                  style={[
+                    styles.collectLaterLabel,
+                    !value.fullyPaid && tendered === 0 && styles.collectLaterLabelActive,
+                  ]}>
+                  Collect later
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
 
           {!value.party && !value.fullyPaid ? (
