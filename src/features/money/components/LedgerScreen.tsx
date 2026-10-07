@@ -386,7 +386,11 @@ export function LedgerScreen() {
                 {formatCurrency(standing.cashIn, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
+<<<<<<< HEAD
                 Paid on sales and payments received
+=======
+                What parties owe you, after payments
+>>>>>>> fix-ledger-pos-bill-issues
               </Text>
             </View>
             <View style={[styles.summaryCard, { backgroundColor: colors.dangerSoft, borderColor: colors.border }]}>
@@ -398,7 +402,11 @@ export function LedgerScreen() {
                 {formatCurrency(standing.cashOut, currency)}
               </Text>
               <Text style={[styles.summaryHint, { color: colors.textMuted }]}>
+<<<<<<< HEAD
                 Paid on purchases and payments made
+=======
+                What you owe parties, after payments
+>>>>>>> fix-ledger-pos-bill-issues
               </Text>
             </View>
           </View>

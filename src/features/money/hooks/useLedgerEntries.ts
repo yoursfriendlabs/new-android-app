@@ -6,6 +6,7 @@ import { reportsApi } from '@/src/api';
 import { normalizePartyStatement } from '@/src/api/normalize';
 import { useMoneyFeed, type MoneyFeedFilters } from '@/src/features/money/hooks/useMoneyFeed';
 import { moneyRemarkFromNote } from '@/src/features/money/lib/money';
+import { useDashboardSummary } from '@/src/shared/hooks/useAppQueries';
 import { fetchAllPages, usePagedList, type Page } from '@/src/shared/hooks/usePagedList';
 import type {
   LedgerEntry,
@@ -93,6 +94,7 @@ export interface LedgerStanding {
   currentAmount: number;
 }
 
+<<<<<<< HEAD
 /** What was actually paid on a kind of bill: its total less what is still due. */
 function paidOn(total: unknown, due: unknown) {
   return Math.max(Number(total ?? 0) - Number(due ?? 0), 0);
@@ -113,6 +115,32 @@ function toStanding(summary?: PartyStatementSummary): LedgerStanding {
       paidOn(summary?.totalExpenses, summary?.expensesDue) +
       Number(summary?.totalPaymentOut ?? 0),
     currentAmount: Number(summary?.currentAmount ?? 0),
+=======
+/**
+ * To receive / to pay are party balances, the same numbers Home and Parties show.
+ * Bill dues alone miss opening balances and advance payments, and a payment in
+ * settles the oldest bills first, so the dues inside a period often stayed put
+ * after a payment was recorded. One party reads its own balance off the
+ * statement; everyone reads the all-time totals off the dashboard.
+ */
+function toStanding(
+  summary: PartyStatementSummary | undefined,
+  partyId: string | undefined,
+  allParties: { toReceive?: number; toPay?: number } | undefined,
+): LedgerStanding {
+  const currentAmount = Number(summary?.currentAmount ?? 0);
+  const balances = partyId
+    ? { toReceive: Math.max(-currentAmount, 0), toPay: Math.max(currentAmount, 0) }
+    : {
+        toReceive: Number(allParties?.toReceive ?? 0),
+        toPay: Number(allParties?.toPay ?? 0),
+      };
+  return {
+    ...balances,
+    cashIn: Number(summary?.totalPaymentIn ?? 0),
+    cashOut: Number(summary?.totalPaymentOut ?? 0),
+    currentAmount,
+>>>>>>> fix-ledger-pos-bill-issues
   };
 }
 
@@ -156,7 +184,8 @@ export function useLedgerEntries({ book, from, partyId, personal, to }: LedgerEn
   );
 
   const shopSummary = (shopQuery.data?.pages[0] as LedgerPage | undefined)?.summary;
-  const standing = toStanding(shopSummary);
+  const allParties = useDashboardSummary(undefined, !personal && !partyId);
+  const standing = toStanding(shopSummary, partyId, allParties.data);
   const totals = personal
     ? { debit: personalQuery.totals.out, credit: personalQuery.totals.in }
     : { debit: standing.toReceive, credit: standing.toPay };
@@ -189,7 +218,10 @@ export function useLedgerEntries({ book, from, partyId, personal, to }: LedgerEn
     loadMore: active.loadMore,
     isLoading: active.isLoading,
     isRefreshing: active.isRefreshing,
-    refetch: active.refetch,
+    refetch: async () => {
+      if (!personal && !partyId) void allParties.refetch();
+      return active.refetch();
+    },
     loadAll,
   };
 }

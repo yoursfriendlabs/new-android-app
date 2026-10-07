@@ -32,7 +32,7 @@ export function BillSummaryBar({
 
   const itemText = isNepali
     ? `${itemCount} ${t('pos.itemCount')}`
-    : `${itemCount} ${pluralize('item', itemCount)}`;
+    : pluralize('item', itemCount);
 
   return (
     <LinearGradient

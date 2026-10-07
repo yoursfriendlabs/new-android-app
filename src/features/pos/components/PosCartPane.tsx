@@ -1,6 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { QuantityInput } from '@/src/features/pos/components/QuantityInput';
 import { changeCartUnit, hasSecondaryUnit } from '@/src/features/pos/lib/cart-line';
 import { haptics } from '@/src/shared/lib/haptics';
 import { EmptyState } from '@/src/shared/ui/EmptyState';
@@ -25,6 +26,7 @@ interface PosCartPaneProps {
   amountReceived: number;
   onAdd: (productId: string) => void;
   onSubtract: (productId: string) => void;
+  onSetQuantity: (productId: string, quantity: number) => void;
   onToggleUnit: (productId: string, unitType: 'primary' | 'secondary') => void;
   onCheckout: () => void;
   /** Cafes keep the order open instead of charging straight away. */
@@ -42,6 +44,7 @@ export function PosCartPane({
   onAdd,
   onCheckout,
   onSecondaryPress,
+  onSetQuantity,
   onSubtract,
   onToggleUnit,
   secondaryLabel,
@@ -85,9 +88,11 @@ export function PosCartPane({
                     }}>
                     <MaterialCommunityIcons color={colors.text} name="minus" size={16} />
                   </Pressable>
-                  <Text variant="numeric" style={styles.quantity}>
-                    {item.quantity}
-                  </Text>
+                  <QuantityInput
+                    accessibilityLabel={`Quantity of ${item.name}`}
+                    value={item.quantity}
+                    onCommit={(quantity) => onSetQuantity(item.productId, quantity)}
+                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Add one ${item.name}`}
@@ -247,10 +252,6 @@ const createStyles = (colors: AppPalette) =>
     },
     pressed: {
       opacity: 0.8,
-    },
-    quantity: {
-      minWidth: 28,
-      textAlign: 'center',
     },
     unitRow: {
       flexDirection: 'row',
